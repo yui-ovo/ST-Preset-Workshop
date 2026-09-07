@@ -9,6 +9,7 @@ const snapshots = source.slice(start, end);
 
 for (const marker of [
   'function hasAnySnapshotBindings(store = readStore())',
+  'Object.keys(store?.homeSnapshots || {}).length > 0',
   '!isDefaultSnapshot(snapshot)',
   'function syncChatBindingListener(store = readStore(), scheduleCurrent = false)',
   'if (!hasAnySnapshotBindings(store))',
@@ -46,4 +47,4 @@ assert.ok(
   '工坊出现后必须先停掉整页发现观察器，再仅观察工坊自身',
 );
 
-console.log('test.73 回归通过：无绑定时不监听聊天切换，工坊出现后只观察工坊节点。');
+console.log('test.73 回归通过：无绑定且无主页快照时不监听聊天切换，工坊出现后只观察工坊节点。');

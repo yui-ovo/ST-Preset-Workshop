@@ -29,7 +29,7 @@ for (const required of [
   'viewport?.offsetTop',
   'viewport?.width || view.innerWidth',
   'viewport?.height || view.innerHeight',
-  "overlay.style.setProperty('position', 'absolute', 'important')",
+  "overlay.style.setProperty('position', useFixedKeyboardViewport ? 'fixed' : 'absolute', 'important')",
   "overlay.style.setProperty('inset', 'auto', 'important')",
   "overlay.style.setProperty('--pmm-switch-snapshot-visible-height'",
   "viewport?.addEventListener?.('resize', scheduleUpdate",

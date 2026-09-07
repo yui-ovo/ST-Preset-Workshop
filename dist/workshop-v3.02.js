@@ -13315,6 +13315,9 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
           activeSnapshots: parsed.activeSnapshots && typeof parsed.activeSnapshots === 'object'
             ? { ...parsed.activeSnapshots }
             : {},
+          homeSnapshots: parsed.homeSnapshots && typeof parsed.homeSnapshots === 'object'
+            ? { ...parsed.homeSnapshots }
+            : {},
           snapshots: parsed.snapshots
             .filter(snapshot => snapshot && typeof snapshot === 'object' && Array.isArray(snapshot.states))
             .map(snapshot => ({
@@ -13331,7 +13334,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     } catch (error) {
       console.warn('[预设工坊·开关快照] 读取失败', error);
     }
-    return { version: 1, activeSnapshots: {}, snapshots: [] };
+    return { version: 1, activeSnapshots: {}, homeSnapshots: {}, snapshots: [] };
   }
 
   function bindingList(value, legacyValue = null) {
@@ -13353,6 +13356,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       TOP.localStorage?.setItem(STORAGE_KEY, JSON.stringify({
         version: 1,
         activeSnapshots: store.activeSnapshots && typeof store.activeSnapshots === 'object' ? store.activeSnapshots : {},
+        homeSnapshots: store.homeSnapshots && typeof store.homeSnapshots === 'object' ? store.homeSnapshots : {},
         snapshots: store.snapshots,
       }));
       syncChatBindingListener(store);
@@ -13594,15 +13598,53 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     return activeSnapshotForPreset(currentPresetName());
   }
 
-  function setActiveSnapshot(presetName, snapshotId = '') {
+  function homeSnapshotForPreset(presetName, store = readStore()) {
+    const name = text(presetName);
+    const id = text(store.homeSnapshots?.[name]);
+    if (!name || !id) return null;
+    return store.snapshots.find(snapshot => (
+      snapshot.id === id
+      && text(snapshot.presetName) === name
+      && !isDefaultSnapshot(snapshot)
+    )) || null;
+  }
+
+  function fallbackSnapshotForPreset(presetName, store = readStore()) {
+    const name = text(presetName);
+    return homeSnapshotForPreset(name, store)
+      || store.snapshots.find(snapshot => text(snapshot.presetName) === name && isDefaultSnapshot(snapshot))
+      || null;
+  }
+
+  function migrateCurrentHomeSnapshot(store) {
+    if (currentChat()) return false;
+    const presetName = loadedPresetName();
+    if (!presetName || text(store.homeSnapshots?.[presetName])) return false;
+    const active = activeSnapshotForPreset(presetName, store);
+    if (!active) return false;
+    store.homeSnapshots = store.homeSnapshots && typeof store.homeSnapshots === 'object'
+      ? { ...store.homeSnapshots }
+      : {};
+    store.homeSnapshots[presetName] = active.id;
+    return true;
+  }
+
+  function setActiveSnapshot(presetName, snapshotId = '', options = {}) {
     const name = text(presetName);
     if (!name) return false;
     const store = readStore();
     store.activeSnapshots = store.activeSnapshots && typeof store.activeSnapshots === 'object'
       ? { ...store.activeSnapshots }
       : {};
+    store.homeSnapshots = store.homeSnapshots && typeof store.homeSnapshots === 'object'
+      ? { ...store.homeSnapshots }
+      : {};
     if (snapshotId) store.activeSnapshots[name] = text(snapshotId);
     else delete store.activeSnapshots[name];
+    if (options.rememberHome === true) {
+      if (snapshotId) store.homeSnapshots[name] = text(snapshotId);
+      else delete store.homeSnapshots[name];
+    }
     return writeStore(store);
   }
 
@@ -13835,7 +13877,9 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
             : `已应用快照“${snapshot.name}”`;
         notify('success', message);
       }
-      setActiveSnapshot(presetName, isDefaultSnapshot(snapshot) ? '' : snapshot.id);
+      const snapshotId = isDefaultSnapshot(snapshot) ? '' : snapshot.id;
+      const rememberHome = options.rememberHome === true || (!options.automatic && !currentChat());
+      setActiveSnapshot(presetName, snapshotId, { rememberHome });
       renderOverlay();
       return true;
     } catch (error) {
@@ -13880,7 +13924,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     }
   }
 
-  function bindSnapshotToCurrentCharacter(id) {
+  async function bindSnapshotToCurrentCharacter(id) {
     const character = currentCharacter();
     const chat = currentChat();
     if (!character || !chat) {
@@ -13903,11 +13947,13 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     snapshot.updatedAt = Date.now();
     if (writeStore(store)) {
       notify('success', isBoundHere ? '已解除当前角色绑定' : '已绑定当前角色');
-      renderOverlay();
+      lastAutoContextKey = '';
+      const applied = await autoApplyBoundSnapshot({ silent: true });
+      if (!applied) renderOverlay();
     }
   }
 
-  function bindSnapshotToCurrentChat(id) {
+  async function bindSnapshotToCurrentChat(id) {
     const character = currentCharacter();
     const chat = currentChat();
     if (!character || !chat) {
@@ -13930,7 +13976,9 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     snapshot.updatedAt = Date.now();
     if (writeStore(store)) {
       notify('success', isBoundHere ? '已解除当前聊天绑定' : '已绑定当前聊天');
-      renderOverlay();
+      lastAutoContextKey = '';
+      const applied = await autoApplyBoundSnapshot({ silent: true });
+      if (!applied) renderOverlay();
     }
   }
 
@@ -14054,24 +14102,26 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       const chatSnapshot = snapshots.find(snapshot => snapshot.chats.some(binding => binding.key === chat.key));
       if (chatSnapshot) return { snapshot: chatSnapshot, source: 'chat', character, chat };
     }
-    if (character) {
+    if (chat && character) {
       const characterSnapshot = snapshots.find(snapshot => snapshot.characters.some(binding => binding.key === character.key));
       if (characterSnapshot) return { snapshot: characterSnapshot, source: 'character', character, chat };
     }
     return { snapshot: null, source: '', character, chat };
   }
 
-  async function autoApplyBoundSnapshot() {
+  async function autoApplyBoundSnapshot(options = {}) {
     const serial = ++autoApplySerial;
     if (isCaptureMode() || isBranchMode() || activeBranchName()) return false;
     const presetName = loadedPresetName();
     if (!presetName) return false;
-    const binding = boundSnapshotForContext(presetName);
-    const contextKey = `${presetName}\u0000${binding.chat?.key || ''}\u0000${binding.character?.key || ''}`;
+    const store = readStore();
+    const binding = boundSnapshotForContext(presetName, store);
+    const target = binding.snapshot || fallbackSnapshotForPreset(presetName, store);
+    const contextKey = `${presetName}\u0000${binding.chat?.key || ''}\u0000${binding.character?.key || ''}\u0000${target?.id || ''}`;
     if (contextKey === lastAutoContextKey) return false;
     lastAutoContextKey = contextKey;
-    if (!binding.snapshot || serial !== autoApplySerial) return false;
-    const applied = await applySnapshot(binding.snapshot.id, { presetName, automatic: true });
+    if (!target || serial !== autoApplySerial) return false;
+    const applied = await applySnapshot(target.id, { presetName, automatic: true, silent: options.silent === true });
     if (!applied && lastAutoContextKey === contextKey) lastAutoContextKey = '';
     return applied;
   }
@@ -14085,11 +14135,13 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   }
 
   function hasAnySnapshotBindings(store = readStore()) {
-    return (Array.isArray(store?.snapshots) ? store.snapshots : []).some(snapshot =>
+    const snapshots = Array.isArray(store?.snapshots) ? store.snapshots : [];
+    return Object.keys(store?.homeSnapshots || {}).length > 0
+      || snapshots.some(snapshot =>
       !isDefaultSnapshot(snapshot)
       && ((Array.isArray(snapshot.characters) && snapshot.characters.length > 0)
         || (Array.isArray(snapshot.chats) && snapshot.chats.length > 0))
-    );
+      );
   }
 
   function uninstallChatBindingListener() {
@@ -14143,6 +14195,12 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       return;
     }
     store.snapshots = store.snapshots.filter(item => item.id !== id);
+    store.homeSnapshots = store.homeSnapshots && typeof store.homeSnapshots === 'object'
+      ? { ...store.homeSnapshots }
+      : {};
+    for (const [presetName, snapshotId] of Object.entries(store.homeSnapshots)) {
+      if (text(snapshotId) === id) delete store.homeSnapshots[presetName];
+    }
     if (writeStore(store)) {
       notify('success', `已删除“${snapshot.name}”`);
       renderOverlay();
@@ -14184,7 +14242,11 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     latestStore.activeSnapshots = latestStore.activeSnapshots && typeof latestStore.activeSnapshots === 'object'
       ? { ...latestStore.activeSnapshots }
       : {};
+    latestStore.homeSnapshots = latestStore.homeSnapshots && typeof latestStore.homeSnapshots === 'object'
+      ? { ...latestStore.homeSnapshots }
+      : {};
     delete latestStore.activeSnapshots[presetName];
+    delete latestStore.homeSnapshots[presetName];
     if (!writeStore(latestStore)) {
       notify('error', '重置开关快照失败');
       return false;
@@ -14229,6 +14291,12 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     const cancel = view.cancelAnimationFrame?.bind(view) || clearTimeout;
     let frame = 0;
     let orientationTimer = 0;
+    const keyboardTimers = new Set();
+    const userAgent = String(view.navigator?.userAgent || '');
+    const platform = String(view.navigator?.userAgentData?.platform || view.navigator?.platform || '');
+    const isIOS = /iPad|iPhone|iPod/i.test(userAgent)
+      || (/Mac/i.test(platform) && Number(view.navigator?.maxTouchPoints || 0) > 1);
+    overlay.classList.toggle('pmm-switch-snapshot-ios', isIOS);
 
     const clearMobilePosition = () => {
       overlay.style.removeProperty('position');
@@ -14246,12 +14314,26 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
         clearMobilePosition();
         return;
       }
-      const left = Number(view.scrollX || view.pageXOffset || 0) + Number(viewport?.offsetLeft || 0);
-      const top = Number(view.scrollY || view.pageYOffset || 0) + Number(viewport?.offsetTop || 0);
+      const activeElement = ownerDocument.activeElement;
+      const keyboardTarget = !!activeElement
+        && overlay.contains(activeElement)
+        && /^(INPUT|TEXTAREA|SELECT)$/.test(activeElement.tagName || '');
+      const useFixedKeyboardViewport = isIOS && keyboardTarget && !!viewport;
+      const left = useFixedKeyboardViewport
+        ? Number(viewport.offsetLeft || 0)
+        : Number.isFinite(Number(viewport?.pageLeft))
+          ? Number(viewport.pageLeft)
+          : Number(view.scrollX || view.pageXOffset || 0) + Number(viewport?.offsetLeft || 0);
+      const top = useFixedKeyboardViewport
+        ? Number(viewport.offsetTop || 0)
+        : Number.isFinite(Number(viewport?.pageTop))
+          ? Number(viewport.pageTop)
+          : Number(view.scrollY || view.pageYOffset || 0) + Number(viewport?.offsetTop || 0);
       const width = Math.max(1, Number(viewport?.width || view.innerWidth || ownerDocument.documentElement?.clientWidth || 1));
       const height = Math.max(1, Number(viewport?.height || view.innerHeight || ownerDocument.documentElement?.clientHeight || 1));
-      // 快照原有样式使用了 !important，内联覆盖也必须同级，才能避开手机浏览器的 nested fixed 视口。
-      overlay.style.setProperty('position', 'absolute', 'important');
+      // iOS 聚焦输入框时改用 visualViewport 内的 fixed，避免 Safari 自动滚动输入框与 absolute
+      // 重定位互相追赶；其余手机继续使用 absolute，保留 Gecko/nested fixed 兼容路径。
+      overlay.style.setProperty('position', useFixedKeyboardViewport ? 'fixed' : 'absolute', 'important');
       overlay.style.setProperty('inset', 'auto', 'important');
       overlay.style.setProperty('left', `${left}px`, 'important');
       overlay.style.setProperty('top', `${top}px`, 'important');
@@ -14268,6 +14350,17 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       if (orientationTimer) clearTimeout?.(orientationTimer);
       orientationTimer = timeout?.(scheduleUpdate, 120) || 0;
     };
+    const settleKeyboardViewport = event => {
+      if (!overlay.contains(event.target)) return;
+      scheduleUpdate();
+      for (const delay of [80, 180, 360]) {
+        const timer = timeout?.(() => {
+          keyboardTimers.delete(timer);
+          scheduleUpdate();
+        }, delay);
+        if (timer) keyboardTimers.add(timer);
+      }
+    };
 
     update();
     viewport?.addEventListener?.('resize', scheduleUpdate, { passive:true });
@@ -14275,9 +14368,13 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     view.addEventListener?.('resize', scheduleUpdate, { passive:true });
     view.addEventListener?.('scroll', scheduleUpdate, { passive:true });
     view.addEventListener?.('orientationchange', onOrientationChange, { passive:true });
+    ownerDocument.addEventListener?.('focusin', settleKeyboardViewport, true);
+    ownerDocument.addEventListener?.('focusout', settleKeyboardViewport, true);
     snapshotViewportCleanup = () => {
       if (frame) cancel?.(frame);
       if (orientationTimer) clearTimeout?.(orientationTimer);
+      for (const timer of keyboardTimers) clearTimeout?.(timer);
+      keyboardTimers.clear();
       frame = 0;
       orientationTimer = 0;
       viewport?.removeEventListener?.('resize', scheduleUpdate);
@@ -14285,6 +14382,9 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       view.removeEventListener?.('resize', scheduleUpdate);
       view.removeEventListener?.('scroll', scheduleUpdate);
       view.removeEventListener?.('orientationchange', onOrientationChange);
+      ownerDocument.removeEventListener?.('focusin', settleKeyboardViewport, true);
+      ownerDocument.removeEventListener?.('focusout', settleKeyboardViewport, true);
+      overlay.classList.remove('pmm-switch-snapshot-ios');
       clearMobilePosition();
     };
   }
@@ -14941,7 +15041,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       .pmm-switch-snapshot-actions{display:flex!important;align-items:center!important;gap:3px!important;flex:0 0 auto!important}.pmm-switch-snapshot-actions>button:first-child{min-width:42px!important;height:28px!important;padding:0 8px!important;font-size:11px!important}.pmm-switch-snapshot-more{width:25px!important;height:28px!important;font-size:10px!important;opacity:.58!important}.pmm-switch-snapshot-menu-wrap{position:relative!important}.pmm-switch-snapshot-menu{position:absolute!important;z-index:2!important;top:calc(100% + 4px)!important;right:0!important;display:flex!important;flex-direction:column!important;min-width:156px!important;padding:5px!important;border:1px solid var(--pm-border,var(--SmartThemeBorderColor,rgba(148,163,184,.32)))!important;border-radius:9px!important;background:var(--pm-card-bg,var(--SmartThemeBlurTintColor,#232630))!important;box-shadow:0 10px 24px rgba(0,0,0,.28)!important}.pmm-switch-snapshot-menu--pending{visibility:hidden!important}.pmm-switch-snapshot-menu button{display:flex!important;align-items:center!important;gap:7px!important;min-height:29px!important;padding:0 8px!important;border:0!important;border-radius:6px!important;background:transparent!important;color:inherit!important;text-align:left!important;font:inherit!important;font-size:11px!important;cursor:pointer!important}.pmm-switch-snapshot-menu button:hover{background:rgba(127,127,127,.12)!important}.pmm-switch-snapshot-menu button i{width:11px!important;opacity:.65!important}.pmm-switch-character-picker-layer{position:absolute!important;inset:0!important;z-index:6!important;box-sizing:border-box!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:14px!important}.pmm-switch-character-picker-backdrop{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;border:0!important;background:rgba(0,0,0,.48)!important;backdrop-filter:blur(2px)!important;-webkit-backdrop-filter:blur(2px)!important;cursor:pointer!important}.pmm-switch-character-picker{position:relative!important;z-index:1!important;box-sizing:border-box!important;width:min(390px,100%)!important;max-height:calc(100% - 10px)!important;display:flex!important;flex-direction:column!important;overflow:hidden!important;border:1px solid var(--pm-border,var(--SmartThemeBorderColor,rgba(148,163,184,.38)))!important;border-radius:13px!important;background:var(--pm-card-bg,var(--SmartThemeBlurTintColor,#232630))!important;box-shadow:0 16px 42px rgba(0,0,0,.38)!important}.pmm-switch-character-picker>header{display:flex!important;align-items:flex-start!important;justify-content:space-between!important;gap:12px!important;padding:13px 14px 11px!important;border-bottom:1px solid rgba(148,163,184,.18)!important}.pmm-switch-character-picker>header h3{display:flex!important;align-items:center!important;gap:7px!important;margin:0!important;font-size:13px!important}.pmm-switch-character-picker>header h3 i{color:#22c55e!important}.pmm-switch-character-picker>header small{display:block!important;margin-top:4px!important;font-size:9px!important;opacity:.58!important}.pmm-switch-character-picker>header button{display:flex!important;align-items:center!important;justify-content:center!important;width:25px!important;height:25px!important;border:0!important;border-radius:6px!important;background:transparent!important;color:inherit!important;cursor:pointer!important;opacity:.65!important}.pmm-switch-character-picker-search{box-sizing:border-box!important;display:flex!important;align-items:center!important;gap:7px!important;margin:11px 12px 8px!important;padding:0 9px!important;height:34px!important;border:1px solid rgba(148,163,184,.28)!important;border-radius:8px!important;background:rgba(127,127,127,.07)!important}.pmm-switch-character-picker-search:focus-within{border-color:#22c55e!important}.pmm-switch-character-picker-search i{font-size:10px!important;opacity:.55!important}.pmm-switch-character-picker-search input{min-width:0!important;flex:1 1 auto!important;border:0!important;outline:0!important;background:transparent!important;color:inherit!important;font:inherit!important;font-size:11px!important}.pmm-switch-character-picker-list{min-height:90px!important;overflow:auto!important;padding:0 8px 8px!important}.pmm-switch-character-picker-option{box-sizing:border-box!important;display:flex!important;align-items:center!important;gap:9px!important;width:100%!important;min-height:39px!important;margin:2px 0!important;padding:6px 8px!important;border:1px solid transparent!important;border-radius:8px!important;background:transparent!important;color:inherit!important;text-align:left!important;font:inherit!important;cursor:pointer!important}.pmm-switch-character-picker-option:hover{background:rgba(127,127,127,.09)!important}.pmm-switch-character-picker-option>i{width:14px!important;color:inherit!important;font-size:13px!important;opacity:.5!important}.pmm-switch-character-picker-option>span{display:flex!important;min-width:0!important;flex-direction:column!important;gap:2px!important}.pmm-switch-character-picker-option strong{overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;font-size:11px!important;font-weight:600!important}.pmm-switch-character-picker-option small{overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;font-size:9px!important;opacity:.5!important}.pmm-switch-character-picker-option.is-selected{border-color:rgba(34,197,94,.3)!important;background:rgba(34,197,94,.09)!important}.pmm-switch-character-picker-option.is-selected>i{color:#22c55e!important;opacity:1!important}.pmm-switch-character-picker-empty{display:flex!important;align-items:center!important;justify-content:center!important;min-height:90px!important;font-size:10px!important;opacity:.58!important}.pmm-switch-character-picker-actions{display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:7px!important;padding:10px 12px!important;border-top:1px solid rgba(148,163,184,.18)!important}.pmm-switch-character-picker-actions>span{margin-right:auto!important;font-size:9px!important;opacity:.58!important}.pmm-switch-character-picker-actions button{height:29px!important;padding:0 10px!important;border:1px solid rgba(148,163,184,.28)!important;border-radius:7px!important;background:rgba(127,127,127,.07)!important;color:inherit!important;font:inherit!important;font-size:10px!important;cursor:pointer!important}.pmm-switch-character-picker-actions button:last-child{border-color:rgba(34,197,94,.45)!important;background:rgba(34,197,94,.15)!important;font-weight:600!important}.pmm-switch-character-picker-actions button i{margin-right:4px!important}.pmm-switch-snapshot-composer{padding:13px 18px!important;border-bottom:1px solid var(--pm-border,var(--SmartThemeBorderColor,rgba(148,163,184,.20)))!important}.pmm-switch-snapshot-composer label{display:block!important;margin-bottom:7px!important;font-size:11px!important;font-weight:600!important}.pmm-switch-snapshot-composer input{box-sizing:border-box!important;width:100%!important;height:35px!important;padding:0 10px!important;border:1px solid var(--pm-border,var(--SmartThemeBorderColor,rgba(148,163,184,.38)))!important;border-radius:8px!important;background:rgba(127,127,127,.08)!important;color:inherit!important;font:inherit!important;font-size:12px!important;outline:none!important}.pmm-switch-snapshot-composer input:focus{border-color:var(--pm-quote-color,var(--SmartThemeQuoteColor,#6b7db2))!important}.pmm-switch-snapshot-composer p{margin:7px 0 10px!important;font-size:10px!important;opacity:.6!important}.pmm-switch-snapshot-composer-actions{display:flex!important;justify-content:flex-end!important;gap:7px!important}.pmm-switch-snapshot-composer-actions button{min-height:30px!important;padding:0 11px!important;border:1px solid var(--pm-border,var(--SmartThemeBorderColor,rgba(148,163,184,.32)))!important;border-radius:7px!important;background:rgba(127,127,127,.08)!important;color:inherit!important;font:inherit!important;font-size:11px!important;cursor:pointer!important}.pmm-switch-snapshot-composer-actions button:last-child{border-color:color-mix(in srgb,var(--pm-quote-color,var(--SmartThemeQuoteColor,#6b7db2)) 60%,transparent)!important;background:color-mix(in srgb,var(--pm-quote-color,var(--SmartThemeQuoteColor,#6b7db2)) 18%,transparent)!important}.pmm-switch-snapshot-composer-actions i{margin-right:5px!important}.pmm-switch-snapshot-empty{min-height:150px!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:8px!important;text-align:center!important;font-size:12px!important;opacity:.72!important}.pmm-switch-snapshot-empty i{font-size:22px!important;opacity:.55!important}.pmm-switch-snapshot-empty small{max-width:250px!important;font-size:10px!important;line-height:1.5!important;opacity:.72!important}.pmm-switch-snapshot-dialog footer{padding:11px 18px!important;border-top:1px solid var(--pm-border,var(--SmartThemeBorderColor,rgba(148,163,184,.20)))!important;font-size:10px!important;line-height:1.45!important;opacity:.55!important}
       .pmm-switch-character-picker-actions{flex-wrap:wrap!important}.pmm-switch-snapshot-menu .pmm-switch-snapshot-clear-characters:not(:disabled){color:#ef6b6b!important}.pmm-switch-snapshot-menu .pmm-switch-snapshot-clear-characters:disabled{pointer-events:none!important;background:transparent!important;color:inherit!important;opacity:.25!important}
       .pmm-switch-snapshot-row.is-active{background:color-mix(in srgb,var(--pm-quote-color,var(--SmartThemeQuoteColor,#6b7db2)) 7%,transparent)!important}.pmm-switch-snapshot-actions>button.is-current:disabled,.pmm-switch-snapshot-default-actions>button:disabled{cursor:default!important;pointer-events:none!important;border-color:rgba(148,163,184,.20)!important;background:rgba(127,127,127,.07)!important;color:inherit!important;opacity:.48!important}
-      @media (max-width:768px){.pmm-switch-snapshot-overlay{align-items:flex-end!important;padding:8px!important}.pmm-switch-snapshot-dialog{max-height:min(650px,calc(100dvh - 16px))!important;border-radius:17px!important}.pmm-switch-snapshot-head{padding:15px 15px 12px!important}#preset-manager-main-panel .pm-panel-container.pmm-switch-snapshot-capture-mode{outline-offset:1px!important}.pmm-switch-snapshot-first-default{padding:29px 20px 24px!important}.pmm-switch-snapshot-save-capture{padding:19px 15px 15px!important}.pmm-switch-snapshot-default{padding:10px 15px!important;gap:8px!important}.pmm-switch-snapshot-default>button,.pmm-switch-snapshot-default-actions>button:first-child{padding:0 8px!important}.pmm-switch-snapshot-create{padding:10px 15px!important}.pmm-switch-snapshot-list{max-height:390px!important;padding:6px!important}.pmm-switch-snapshot-row{padding:10px 8px!important;column-gap:7px!important;row-gap:5px!important}.pmm-switch-snapshot-copy{flex-basis:115px!important}.pmm-switch-snapshot-bindings{min-width:103px!important}.pmm-switch-snapshot-lock{min-width:49px!important;padding:0 5px!important}.pmm-switch-snapshot-actions{gap:1px!important}.pmm-switch-snapshot-more{width:23px!important}.pmm-switch-character-picker-layer{padding:10px!important}.pmm-switch-character-picker{max-height:calc(100% - 4px)!important}.pmm-switch-snapshot-dialog footer{padding:10px 15px!important}}
+      @media (max-width:768px){.pmm-switch-snapshot-overlay{align-items:flex-end!important;padding:8px!important}.pmm-switch-snapshot-dialog{max-height:min(650px,calc(100dvh - 16px))!important;border-radius:17px!important}.pmm-switch-snapshot-head{padding:15px 15px 12px!important}#preset-manager-main-panel .pm-panel-container.pmm-switch-snapshot-capture-mode{outline-offset:1px!important}.pmm-switch-snapshot-first-default{padding:29px 20px 24px!important}.pmm-switch-snapshot-save-capture{padding:19px 15px 15px!important}.pmm-switch-snapshot-overlay.pmm-switch-snapshot-ios .pmm-switch-snapshot-save-capture input{font-size:16px!important}.pmm-switch-snapshot-default{padding:10px 15px!important;gap:8px!important}.pmm-switch-snapshot-default>button,.pmm-switch-snapshot-default-actions>button:first-child{padding:0 8px!important}.pmm-switch-snapshot-create{padding:10px 15px!important}.pmm-switch-snapshot-list{max-height:390px!important;padding:6px!important}.pmm-switch-snapshot-row{padding:10px 8px!important;column-gap:7px!important;row-gap:5px!important}.pmm-switch-snapshot-copy{flex-basis:115px!important}.pmm-switch-snapshot-bindings{min-width:103px!important}.pmm-switch-snapshot-lock{min-width:49px!important;padding:0 5px!important}.pmm-switch-snapshot-actions{gap:1px!important}.pmm-switch-snapshot-more{width:23px!important}.pmm-switch-character-picker-layer{padding:10px!important}.pmm-switch-character-picker{max-height:calc(100% - 4px)!important}.pmm-switch-snapshot-dialog footer{padding:10px 15px!important}}
     `;
     style.textContent += `@media (max-width:768px){.pmm-switch-snapshot-overlay{--pmm-switch-snapshot-safe-top:max(8px,env(safe-area-inset-top,0px));--pmm-switch-snapshot-safe-right:max(8px,env(safe-area-inset-right,0px));--pmm-switch-snapshot-safe-bottom:max(8px,env(safe-area-inset-bottom,0px));--pmm-switch-snapshot-safe-left:max(8px,env(safe-area-inset-left,0px));padding:var(--pmm-switch-snapshot-safe-top) var(--pmm-switch-snapshot-safe-right) var(--pmm-switch-snapshot-safe-bottom) var(--pmm-switch-snapshot-safe-left)!important}.pmm-switch-snapshot-dialog{max-height:min(650px,calc(var(--pmm-switch-snapshot-visible-height,100dvh) - var(--pmm-switch-snapshot-safe-top) - var(--pmm-switch-snapshot-safe-bottom)))!important}}`;
     // 快照录制的整框沿用保存与取消按钮的绿色，避免和普通边框混在一起。
@@ -15050,7 +15150,9 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
 
   function install() {
     const store = readStore();
-    if (normalizeUniqueBindings(store)) writeStore(store);
+    const normalizedBindings = normalizeUniqueBindings(store);
+    const migratedHomeSnapshot = migrateCurrentHomeSnapshot(store);
+    if (normalizedBindings || migratedHomeSnapshot) writeStore(store);
     installStyle();
     DOC.addEventListener('click', handleDocumentClick, true);
     const panel = workshopPanel();
