@@ -11,10 +11,14 @@ for (const required of [
   'button.section-action[title^="关闭分组供电"]',
   'button.section-action[title^="恢复分组供电"]',
   'button.section-action{display:none!important}',
-  '.section-header:hover .section-header__actions>button.section-action:not([title^="关闭分组供电"])',
 ]) {
   assert.ok(snapshots.includes(required), `快照录制原生柏宝箱分组开关缺失：${required}`);
 }
+
+assert.ok(
+  !snapshots.includes('.section-header:hover .section-header__actions>button.section-action:not([title^="关闭分组供电"])'),
+  '快照模式悬停分组时不应重新显示改名或解散按钮',
+);
 
 assert.ok(
   source.includes("String(e.sectionId).startsWith('baibai_')?(e.groupDisabled?'恢复分组供电':'关闭分组供电')"),
@@ -31,4 +35,4 @@ for (const forbidden of [
   assert.ok(!snapshots.includes(forbidden), `不应在快照模式复制第二个分组开关：${forbidden}`);
 }
 
-console.log('test.77 通过：仅快照录制时常驻柏宝箱原生分组开关，不创建第二个开关。');
+console.log('test.77 通过：快照录制仅常驻柏宝箱原生分组开关，不创建或露出其他分组操作。');
