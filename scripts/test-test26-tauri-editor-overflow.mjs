@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const source = await readFile(new URL('../dist/workshop-v3.01.js', import.meta.url), 'utf8');
+const source = await readFile(new URL('../dist/workshop-v3.02.js', import.meta.url), 'utf8');
 const runtime = await readFile(new URL('../patches/test26-tauri-editor-overflow.js', import.meta.url), 'utf8');
 
 assert.ok(source.includes(runtime.trim()), 'test.28 Tauri iOS 防溢出补丁没有进入业务入口');

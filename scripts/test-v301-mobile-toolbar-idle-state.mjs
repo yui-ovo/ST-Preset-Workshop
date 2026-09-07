@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const source = await readFile(new URL('../dist/workshop-v3.01.js', import.meta.url), 'utf8');
+const source = await readFile(new URL('../dist/workshop-v3.02.js', import.meta.url), 'utf8');
 const start = source.indexOf('/* 手机顶部工具按钮：静止态与日间一致地融入标题栏，只给启用态和按压态显示框。 */');
 const end = source.indexOf('  .header-right {', start);
 

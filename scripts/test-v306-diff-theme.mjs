@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const source = await readFile(new URL('../dist/workshop-v3.01.js', import.meta.url), 'utf8');
+const source = await readFile(new URL('../dist/workshop-v3.02.js', import.meta.url), 'utf8');
 for (const marker of [
   'function applyContentDiffTheme(overlay, box, sourcePanel, mainRoot)',
   "read('--pm-panel-bg') || readBackground()",

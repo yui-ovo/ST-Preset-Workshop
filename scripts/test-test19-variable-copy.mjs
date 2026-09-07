@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const source = await readFile(new URL('../dist/workshop-v3.01.js', import.meta.url), 'utf8');
+const source = await readFile(new URL('../dist/workshop-v3.02.js', import.meta.url), 'utf8');
 const renameStart = source.indexOf('async function batchRenameSelectedVariables');
 const stripStart = source.indexOf('async function handleStripButton', renameStart);
 const stripEnd = source.indexOf('function updateBasketBadges', stripStart);

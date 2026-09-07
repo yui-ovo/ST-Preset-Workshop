@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const source = await readFile(new URL('../dist/workshop-v3.01.js', import.meta.url), 'utf8');
+const source = await readFile(new URL('../dist/workshop-v3.02.js', import.meta.url), 'utf8');
 const tunerStart = source.indexOf('/* ===== PMM_MOBILE_LAYOUT_TUNER_V1');
 const tunerEnd = source.indexOf('/* ===== PMM_FLOATING_PANEL_BATCH_V1', tunerStart);
 const tuner = source.slice(tunerStart, tunerEnd);

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const source = await readFile(new URL('../dist/workshop-v3.01.js', import.meta.url), 'utf8');
+const source = await readFile(new URL('../dist/workshop-v3.02.js', import.meta.url), 'utf8');
 for (const marker of [
   "text: '空变量项指：只有变量名，里面无内容的变量。如：{{setvar::变量名:: }}'",
   'class="pmm-variable-note"',
