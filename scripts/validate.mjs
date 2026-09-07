@@ -28,7 +28,7 @@ if (workshop.length < 1_000_000 || !workshop.includes('V2.99 已加载')) {
   throw new Error(`v2.99 业务入口不完整：${workshop.length} 字符`);
 }
 
-if (!entry.includes('workshop-v3.02.js') || !entry.includes('worldbook-stitch-test3.js') || !entry.includes("const EXTENSION_VERSION = '2.97.16'")) {
+if (!entry.includes('workshop-v3.02.js') || !entry.includes('preset-content-editor.js') || !entry.includes('worldbook-stitch-test3.js') || !entry.includes("const EXTENSION_VERSION = '2.97.17'")) {
   throw new Error('扩展启动器没有指向 v2.99');
 }
 

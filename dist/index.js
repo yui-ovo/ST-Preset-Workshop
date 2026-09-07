@@ -1,5 +1,5 @@
 const EXTENSION_NAME = '🧩预设工坊';
-const EXTENSION_VERSION = '2.97.16';
+const EXTENSION_VERSION = '2.97.17';
 const RUNTIME_ID = 'TH-script--🧩预设工坊（GitHub 扩展）--2f53f6af-3c9e-4c71-bc52-9f635be25300';
 const LEGACY_IFRAME_PREFIX = 'TH-script--🧩预设工坊';
 const EXTENSION_FOLDER_NAME = 'ST-Preset-Workshop';
@@ -228,6 +228,7 @@ function buildRuntimeDocument() {
   const parentJqueryUrl = appendRuntimeVersion(new URL('../bridge/parent-jquery.js', import.meta.url).href);
   const predefineUrl = appendRuntimeVersion(new URL('../bridge/predefine.js', import.meta.url).href);
   const workshopUrl = appendRuntimeVersion(new URL('./workshop-v3.02.js', import.meta.url).href);
+  const presetContentEditorUrl = appendRuntimeVersion(new URL('./preset-content-editor.js', import.meta.url).href);
   const worldbookStitchUrl = appendRuntimeVersion(new URL('./worldbook-stitch-test3.js', import.meta.url).href);
   const worldbookLoaderKey = '__PMM_LOAD_WORLDBOOK_STITCH__';
 
@@ -276,6 +277,7 @@ function buildRuntimeDocument() {
   };
 })();
 </script>
+<script type="module" src="${presetContentEditorUrl}"></script>
 <script type="module" src="${workshopUrl}"></script>
 </body>
 </html>`;
@@ -329,6 +331,7 @@ export function stopPresetWorkshop() {
     globalThis.clearTimeout(nativeUpdateReloadTimer);
     nativeUpdateReloadTimer = null;
   }
+  try { globalThis.__PMM_PRESET_CONTENT_EDITOR_V1__?.cleanup?.(); } catch (_) {}
   document.getElementById(RUNTIME_ID)?.remove();
 }
 

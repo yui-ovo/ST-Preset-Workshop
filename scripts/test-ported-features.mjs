@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 const manifest = JSON.parse(await readFile(new URL('../manifest.json', import.meta.url), 'utf8'));
 const isGecko = String(manifest.display_name || '').includes('Gecko');
-const workshopPath = isGecko ? '../dist/workshop-v3.04.js' : '../dist/workshop-v2.96.js';
+const workshopPath = '../dist/workshop-v3.02.js';
 const workshop = await readFile(new URL(workshopPath, import.meta.url), 'utf8');
 const entry = await readFile(new URL('../dist/index.js', import.meta.url), 'utf8');
 const editor = await readFile(new URL('../dist/preset-content-editor.js', import.meta.url), 'utf8');
