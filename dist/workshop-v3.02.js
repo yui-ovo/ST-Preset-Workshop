@@ -12618,7 +12618,16 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     button.title = label;
     button.setAttribute('aria-label', label);
     button.innerHTML = `<i class="fa-solid ${icon}" aria-hidden="true"></i>`;
-    button.addEventListener('click', () => activate(action));
+    // 酒馆在上层监听按下/点击来关闭原生预设抽屉；入口本身属于抽屉内部操作，
+    // 必须在按钮处截断，不能让它被误判为“点击菜单外部”。
+    for (const type of ['pointerdown', 'mousedown', 'touchstart']) {
+      button.addEventListener(type, event => event.stopPropagation(), { passive: true });
+    }
+    button.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      activate(action);
+    });
     return button;
   }
 
@@ -14917,6 +14926,11 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       overlay = DOC.createElement('div');
       overlay.id = OVERLAY_ID;
       overlay.className = 'pmm-switch-snapshot-overlay';
+      // 快照弹层挂在顶层 document；若事件继续冒泡到 body，酒馆会按“点到抽屉外”
+      // 自动收起主预设。边界只作用于本弹层，不安装影响其他工坊功能的全局拦截器。
+      for (const type of ['pointerdown', 'mousedown', 'touchstart', 'click']) {
+        overlay.addEventListener(type, event => event.stopPropagation(), { passive: true });
+      }
       overlay.addEventListener('click', event => {
         if (event.target === overlay) closeOverlay();
       });

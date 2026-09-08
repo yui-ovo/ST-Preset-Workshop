@@ -18,19 +18,21 @@ for (const marker of [
   'discoveryObserver.observe(DOC.documentElement, { childList: true, subtree: true })',
   'discoveryObserver?.disconnect()',
   'button.addEventListener(\'click\'',
+  "button.addEventListener(type, event => event.stopPropagation()",
+  'event.preventDefault()',
+  'event.stopPropagation()',
 ]) {
   assert.ok(nativeEntry.includes(marker), `原生预设栏入口缺少：${marker}`);
 }
 
 for (const forbidden of [
   'preventAutoClose',
-  "addEventListener('pointerdown'",
-  "addEventListener('touchstart'",
-  "addEventListener('mousedown'",
+  'DOC.body.addEventListener',
+  'DOC.documentElement.addEventListener',
   'stopImmediatePropagation',
 ]) {
   assert.ok(!nativeEntry.includes(forbidden), `原生入口不应安装全局点击拦截：${forbidden}`);
 }
 
 assert.match(source, /openBatch:\s*\(\)\s*=>\s*openBatchDialog\(/, '批量入口没有直接调用工坊批量管理');
-console.log('test.80 回归通过：原生预设栏批量与快照入口独立工作，未引入全局点击拦截。');
+console.log('test.80 回归通过：原生预设栏批量与快照入口独立工作，按钮局部阻止抽屉误关闭且未引入全局点击拦截。');
