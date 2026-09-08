@@ -13907,6 +13907,15 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     return true;
   }
 
+  async function refreshNativePromptManager() {
+    const context = getContext();
+    const eventType = context?.eventTypes?.OAI_PRESET_CHANGED_AFTER
+      || context?.event_types?.OAI_PRESET_CHANGED_AFTER;
+    if (!eventType || typeof context?.eventSource?.emit !== 'function') return false;
+    await context.eventSource.emit(eventType);
+    return true;
+  }
+
   // 快照录制期间只操作工坊草稿。退出时还须同步酒馆当前运行态，
   // 否则工坊会显示已回滚、而主预设仍停在录制时的旧开关状态。
   // 这里只写 in_use，绝不触发原生“保存预设”，也不会覆盖命名预设文件。
@@ -13915,6 +13924,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     const setPreset = TOP.setPreset || SELF.setPreset;
     if (!presetName || loaded !== presetName || typeof setPreset !== 'function') return false;
     await setPreset('in_use', { prompts: clone(prompts) });
+    await refreshNativePromptManager();
     return true;
   }
 
@@ -13923,7 +13933,10 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     if (typeof setPreset !== 'function') throw new Error('未找到 setPreset');
     await setPreset(presetName, { prompts: clone(prompts) });
     const loaded = text((TOP.getLoadedPresetName || SELF.getLoadedPresetName)?.());
-    if (loaded === presetName) await setPreset('in_use', { prompts: clone(prompts) });
+    if (loaded === presetName) {
+      await setPreset('in_use', { prompts: clone(prompts) });
+      await refreshNativePromptManager();
+    }
     const context = getContext();
     const eventType = context?.eventTypes?.PRESET_CHANGED || context?.event_types?.PRESET_CHANGED;
     if (eventType && typeof context?.eventSource?.emit === 'function') {
@@ -13941,6 +13954,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
         const setPreset = TOP.setPreset || SELF.setPreset;
         if (loaded === presetName && typeof setPreset === 'function') {
           await setPreset('in_use', { prompts: clone(prompts) });
+          await refreshNativePromptManager();
         }
         return true;
       }
