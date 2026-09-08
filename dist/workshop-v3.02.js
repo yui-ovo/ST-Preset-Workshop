@@ -13907,6 +13907,17 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     return true;
   }
 
+  // 快照录制期间只操作工坊草稿。退出时还须同步酒馆当前运行态，
+  // 否则工坊会显示已回滚、而主预设仍停在录制时的旧开关状态。
+  // 这里只写 in_use，绝不触发原生“保存预设”，也不会覆盖命名预设文件。
+  async function syncRuntimeSwitches(presetName, prompts) {
+    const loaded = text((TOP.getLoadedPresetName || SELF.getLoadedPresetName)?.());
+    const setPreset = TOP.setPreset || SELF.setPreset;
+    if (!presetName || loaded !== presetName || typeof setPreset !== 'function') return false;
+    await setPreset('in_use', { prompts: clone(prompts) });
+    return true;
+  }
+
   async function persistPromptsDirectly(presetName, prompts) {
     const setPreset = TOP.setPreset || SELF.setPreset;
     if (typeof setPreset !== 'function') throw new Error('未找到 setPreset');
@@ -14549,8 +14560,9 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       const current = getPrompts(session.presetName);
       const { nextPrompts } = mergeSnapshotStates(current, session.entryStates || []);
       const restored = await writeSwitchesToDraft(nextPrompts, '', false);
+      const runtimeSynced = await syncRuntimeSwitches(session.presetName, nextPrompts);
       await applyGroupSnapshotStates(session.presetName, session.entryGroupStates);
-      if (!restored) notify('warning', '没有找到当前工坊草稿，开关未能自动还原');
+      if (!restored && !runtimeSynced) notify('warning', '没有找到当前工坊草稿，开关未能自动还原');
     } finally {
       captureMode = null;
       syncCaptureModeUI();
