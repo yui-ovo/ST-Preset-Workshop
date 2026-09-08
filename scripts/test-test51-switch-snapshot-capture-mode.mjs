@@ -26,7 +26,8 @@ for (const marker of [
 }
 
 const enter = section('function enterCaptureMode()', 'function renderCaptureSavePrompt()');
-assert.ok(enter.includes('captureMode = { presetName, entryStates: makeStates(prompts), restoring: false }'), '进入快照模式没有冻结进入前开关');
+assert.ok(enter.includes('entryStates: makeStates(prompts)'), '进入快照模式没有冻结进入前开关');
+assert.ok(enter.includes('entryWasDirty: !!currentPresetDraftStore()?.isDirty'), '进入快照模式没有冻结进入前草稿状态');
 assert.ok(enter.includes('closeOverlay();'), '新建快照没有返回预设页面');
 assert.ok(enter.includes('已进入快照模式'), '进入快照模式没有给出明确提示');
 assert.ok(enter.includes('defaultSnapshotForCurrentPreset()'), '没有默认状态时仍可能错误进入快照模式');

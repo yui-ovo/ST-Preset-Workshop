@@ -40,7 +40,8 @@ assert.ok(applyNotice.includes('!notifiedByNativeSave'), '应用快照没有避�
 
 const capture = section('async function exitCaptureMode(showNotice = false)', 'function renderCaptureSavePrompt()');
 assert.ok(capture.includes('session.entryStates'), '退出快照模式没有恢复进入前开关');
-assert.ok(capture.includes("captureMode = { presetName, entryStates: makeStates(prompts), restoring: false }"), '进入快照模式没有保存临时事务起点');
+assert.ok(capture.includes('entryStates: makeStates(prompts)'), '进入快照模式没有保存临时事务起点');
+assert.ok(capture.includes('entryWasDirty: !!currentPresetDraftStore()?.isDirty'), '进入快照模式没有记录原有草稿脏状态');
 
 const nativeSave = section('function nativeSaveButton()', 'function restoreCaptureEditButton(button)');
 assert.ok(nativeSave.includes("button.disabled = true"), '快照模式没有真正禁用原生保存按钮');

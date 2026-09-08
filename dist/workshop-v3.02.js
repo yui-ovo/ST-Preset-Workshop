@@ -13248,6 +13248,26 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     return bridge;
   }
 
+  function currentPresetDraftStore() {
+    try {
+      const app = DOC?.getElementById?.('preset-manager-main-panel')?.__vue_app__;
+      const provides = app?._context?.provides;
+      const candidates = [app?.config?.globalProperties?.$pinia];
+      if (provides) {
+        for (const key of Reflect.ownKeys(provides)) candidates.push(provides[key]);
+      }
+      for (const pinia of candidates) {
+        if (!(pinia?._s instanceof Map)) continue;
+        for (const store of pinia._s.values()) {
+          if (typeof store?.refreshDisplayedPrompts !== 'function') continue;
+          if (!Array.isArray(store?.prompts)) continue;
+          return store;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
   function draftPrompts() {
     try {
       const prompts = currentDraftBridge()?.prompts?.();
@@ -13905,6 +13925,29 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     }
     await settleDraft();
     return true;
+  }
+
+  // 录制快照只是一次临时预览。退出时应一次性恢复进入前的草稿及其基线，
+  // 不能再逐条走普通 update 通道，否则 Vue 的延迟更新可能把旧开关写回来，
+  // 并把右上角保存按钮错误地留在“有未保存修改”的高亮状态。
+  async function restoreCapturedDraft(nextPrompts, entryWasDirty = false) {
+    const bridge = currentDraftBridge();
+    if (!bridge) return false;
+    if (!entryWasDirty && typeof bridge.restoreClean === 'function') {
+      const restored = bridge.restoreClean(clone(nextPrompts));
+      if (restored === false) return false;
+      await settleDraft();
+      return true;
+    }
+    if (!entryWasDirty) {
+      const store = currentPresetDraftStore();
+      if (store && text(store.currentPresetName) === currentPresetName()) {
+        store.refreshDisplayedPrompts(clone(nextPrompts));
+        await settleDraft();
+        return true;
+      }
+    }
+    return writeSwitchesToDraft(nextPrompts, '', false);
   }
 
   async function refreshNativePromptManager() {
@@ -14573,7 +14616,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     try {
       const current = getPrompts(session.presetName);
       const { nextPrompts } = mergeSnapshotStates(current, session.entryStates || []);
-      const restored = await writeSwitchesToDraft(nextPrompts, '', false);
+      const restored = await restoreCapturedDraft(nextPrompts, !!session.entryWasDirty);
       const runtimeSynced = await syncRuntimeSwitches(session.presetName, nextPrompts);
       await applyGroupSnapshotStates(session.presetName, session.entryGroupStates);
       if (!restored && !runtimeSynced) notify('warning', '没有找到当前工坊草稿，开关未能自动还原');
@@ -14598,7 +14641,12 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       notify('warning', '当前工坊没有可记录的预设条目');
       return;
     }
-    captureMode = { presetName, entryStates: makeStates(prompts), restoring: false };
+    captureMode = {
+      presetName,
+      entryStates: makeStates(prompts),
+      entryWasDirty: !!currentPresetDraftStore()?.isDirty,
+      restoring: false,
+    };
     captureMode.entryGroupStates = makeGroupStates(presetName);
     composer = null;
     openMenuId = '';

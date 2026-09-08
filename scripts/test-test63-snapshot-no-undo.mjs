@@ -22,6 +22,6 @@ assert.ok(
 assert.ok(apply.includes('saveAppliedDraft(presetName, nextPrompts, draftUpdated)'), '关闭撤销后快照仍必须正常保存并应用');
 
 const captureExit = section('async function exitCaptureMode', 'function enterCaptureMode');
-assert.ok(captureExit.includes("writeSwitchesToDraft(nextPrompts, '', false)"), '取消快照模式仍应静默回滚且不产生撤销记录');
+assert.ok(captureExit.includes('restoreCapturedDraft(nextPrompts, !!session.entryWasDirty)'), '取消快照模式仍应静默回滚且不产生撤销记录');
 
 console.log('test.63 回归通过：应用角色快照、恢复预设默认与取消录制均不进入普通编辑撤销栈。');
