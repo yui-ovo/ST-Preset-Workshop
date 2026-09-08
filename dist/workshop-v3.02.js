@@ -3993,7 +3993,7 @@ async function ce(){
   const API_KEY = '__PMM_WORLDBOOK_SLOT_TEST1__';
   const BUTTON_MARK = 'data-pmm-worldbook-placeholder';
   const LOADER_KEY = '__PMM_LOAD_WORLDBOOK_STITCH__';
-  let discoveryObserver = null;
+  let observer = null;
   let frameId = 0;
   let openingPromise = null;
 
@@ -12587,7 +12587,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   const BATCH_API_KEY = '__PMM_FLOATING_SNAPSHOT_ENTRY_TEST69__';
   const SNAPSHOT_API_KEY = '__PMM_SWITCH_SNAPSHOTS_TEST52__';
   const BUTTON_CLASS = 'pmm-native-preset-entry';
-  let observer = null;
+  let discoveryObserver = null;
   let scheduled = 0;
 
   try { TOP[CLEANUP_KEY]?.(); } catch (_) {}

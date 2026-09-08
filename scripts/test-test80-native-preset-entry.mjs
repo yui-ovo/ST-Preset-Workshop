@@ -9,6 +9,7 @@ const nativeEntry = source.slice(start, end < 0 ? undefined : end);
 
 for (const marker of [
   "DOC.getElementById('update_oai_preset')",
+  'let discoveryObserver = null;',
   "ensure('batch', '批量管理预设', 'fa-list-check')",
   "ensure('snapshot', '开关快照', 'fa-camera')",
   "TOP[BATCH_API_KEY]?.openBatch",
