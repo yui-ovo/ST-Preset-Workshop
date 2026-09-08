@@ -13954,9 +13954,30 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     const context = getContext();
     const eventType = context?.eventTypes?.OAI_PRESET_CHANGED_AFTER
       || context?.event_types?.OAI_PRESET_CHANGED_AFTER;
-    if (!eventType || typeof context?.eventSource?.emit !== 'function') return false;
-    await context.eventSource.emit(eventType);
-    return true;
+    let refreshed = false;
+    if (eventType && typeof context?.eventSource?.emit === 'function') {
+      await context.eventSource.emit(eventType);
+      refreshed = true;
+    }
+
+    // 酒馆对上面的事件采用防抖重绘；从原生预设栏打开轻量快照页时，
+    // 弹层关闭可能早于防抖任务，列表便会一直显示旧开关，直到切换预设。
+    // 直接复用酒馆导出的 Prompt Manager 重建列表，数据和交互仍完全由原生实现负责。
+    try {
+      const moduleUrl = new URL('/scripts/openai.js', TOP.location?.href || SELF.location?.href).href;
+      const openaiModule = await import(moduleUrl);
+      const promptManager = openaiModule?.promptManager;
+      if (typeof promptManager?.renderPromptManagerListItems === 'function') {
+        await promptManager.renderPromptManagerListItems();
+        refreshed = true;
+      } else if (typeof promptManager?.render === 'function') {
+        promptManager.render(false);
+        refreshed = true;
+      }
+    } catch (error) {
+      console.warn('[预设工坊·开关快照] 原生 Prompt Manager 直接刷新失败，保留事件刷新兜底', error);
+    }
+    return refreshed;
   }
 
   // 快照录制期间只操作工坊草稿。退出时还须同步酒馆当前运行态，

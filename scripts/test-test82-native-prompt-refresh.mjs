@@ -13,6 +13,8 @@ function section(startMarker, endMarker) {
 const refresh = section('async function refreshNativePromptManager', 'async function syncRuntimeSwitches');
 assert.ok(refresh.includes('OAI_PRESET_CHANGED_AFTER'), '没有发送酒馆 PromptManager 要求的原生重绘事件');
 assert.ok(refresh.includes('context.eventSource.emit(eventType)'), '原生重绘事件没有真正发送');
+assert.ok(refresh.includes("new URL('/scripts/openai.js'"), '没有取得酒馆原生 Prompt Manager 实例');
+assert.ok(refresh.includes('await promptManager.renderPromptManagerListItems()'), '没有立即重建酒馆原生条目列表');
 
 const runtimeSync = section('async function syncRuntimeSwitches', 'async function persistPromptsDirectly');
 assert.ok(runtimeSync.includes('await refreshNativePromptManager()'), '退出快照录制后没有刷新主预设列表');
