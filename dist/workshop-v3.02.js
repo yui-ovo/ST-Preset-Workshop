@@ -3993,7 +3993,7 @@ async function ce(){
   const API_KEY = '__PMM_WORLDBOOK_SLOT_TEST1__';
   const BUTTON_MARK = 'data-pmm-worldbook-placeholder';
   const LOADER_KEY = '__PMM_LOAD_WORLDBOOK_STITCH__';
-  let observer = null;
+  let discoveryObserver = null;
   let frameId = 0;
   let openingPromise = null;
 
@@ -12568,9 +12568,102 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   TOP[ENTRY_API_KEY] = {
     activeBranchName: readAppliedBranchName,
     branchVisible: floatingBranchEnabled,
+    openBatch: () => openBatchDialog(currentRoot?.isConnected ? currentRoot : null),
     openWorkshopHome,
     setBranchVisibility: setFloatingBranchEnabled,
     workshopHomeVisible,
+  };
+
+  install();
+})();
+
+/* ===== PMM_NATIVE_PRESET_ENTRY_TEST80：酒馆原生预设栏入口 ===== */
+;(() => {
+  const SELF = window;
+  let TOP = SELF;
+  try { if (SELF.top) TOP = SELF.top; } catch (_) {}
+  const DOC = (() => { try { return TOP.document || SELF.document; } catch (_) { return SELF.document; } })();
+  const CLEANUP_KEY = '__PMM_NATIVE_PRESET_ENTRY_TEST80_CLEANUP__';
+  const BATCH_API_KEY = '__PMM_FLOATING_SNAPSHOT_ENTRY_TEST69__';
+  const SNAPSHOT_API_KEY = '__PMM_SWITCH_SNAPSHOTS_TEST52__';
+  const BUTTON_CLASS = 'pmm-native-preset-entry';
+  let observer = null;
+  let scheduled = 0;
+
+  try { TOP[CLEANUP_KEY]?.(); } catch (_) {}
+
+  function notify(message) {
+    const toastr = TOP.toastr || SELF.toastr;
+    if (typeof toastr?.warning === 'function') toastr.warning(message);
+    else console.warn(`[预设工坊] ${message}`);
+  }
+
+  function activate(action) {
+    if (action === 'batch') {
+      const openBatch = TOP[BATCH_API_KEY]?.openBatch;
+      if (typeof openBatch !== 'function') return notify('批量管理尚未准备好，请稍候重试');
+      void openBatch();
+      return;
+    }
+    const openSnapshot = TOP[SNAPSHOT_API_KEY]?.open;
+    if (typeof openSnapshot !== 'function') return notify('开关快照尚未准备好，请稍候重试');
+    void openSnapshot({ source: 'native-preset' });
+  }
+
+  function makeButton(action, label, icon) {
+    const button = DOC.createElement('button');
+    button.type = 'button';
+    button.className = `menu_button menu_button_icon interactable ${BUTTON_CLASS}`;
+    button.dataset.pmmNativePresetAction = action;
+    button.title = label;
+    button.setAttribute('aria-label', label);
+    button.innerHTML = `<i class="fa-solid ${icon}" aria-hidden="true"></i>`;
+    button.addEventListener('click', () => activate(action));
+    return button;
+  }
+
+  function sync() {
+    scheduled = 0;
+    const anchor = DOC.getElementById('update_oai_preset');
+    const host = anchor?.parentElement;
+    if (!host) return;
+    try { discoveryObserver?.disconnect(); } catch (_) {}
+    discoveryObserver = null;
+    const ensure = (action, label, icon) => {
+      let button = host.querySelector(`.${BUTTON_CLASS}[data-pmm-native-preset-action="${action}"]`);
+      if (!button) {
+        button = makeButton(action, label, icon);
+        host.append(button);
+      }
+      return button;
+    };
+    ensure('batch', '批量管理预设', 'fa-list-check');
+    ensure('snapshot', '开关快照', 'fa-camera');
+  }
+
+  function scheduleSync() {
+    if (scheduled) return;
+    const request = TOP.requestAnimationFrame || SELF.requestAnimationFrame;
+    scheduled = typeof request === 'function'
+      ? request.call(TOP, sync)
+      : TOP.setTimeout(sync, 16);
+  }
+
+  function install() {
+    scheduleSync();
+    discoveryObserver = new MutationObserver(scheduleSync);
+    discoveryObserver.observe(DOC.documentElement, { childList: true, subtree: true });
+  }
+
+  TOP[CLEANUP_KEY] = () => {
+    try { discoveryObserver?.disconnect(); } catch (_) {}
+    discoveryObserver = null;
+    if (scheduled) {
+      try { (TOP.cancelAnimationFrame || SELF.cancelAnimationFrame || TOP.clearTimeout).call(TOP, scheduled); } catch (_) {}
+      scheduled = 0;
+    }
+    DOC.querySelectorAll?.(`.${BUTTON_CLASS}`).forEach(button => button.remove());
+    try { delete TOP[CLEANUP_KEY]; } catch (_) {}
   };
 
   install();
