@@ -13212,6 +13212,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   let autoApplySerial = 0;
   let lastAutoContextKey = '';
   let snapshotViewportCleanup = null;
+  let overlayContext = null;
 
   const text = value => String(value ?? '').trim();
   const clone = value => {
@@ -13299,7 +13300,23 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     return displayed && displayed !== 'in_use' ? displayed : '';
   }
 
+  function nativeSelectedPresetName() {
+    try {
+      const name = text(getPresetManager()?.getSelectedPresetName?.());
+      if (name && name !== 'in_use') return name;
+    } catch (_) {}
+    try {
+      const name = text((TOP.getLoadedPresetName || SELF.getLoadedPresetName)?.());
+      if (name && name !== 'in_use') return name;
+    } catch (_) {}
+    return '';
+  }
+
   function currentPresetName() {
+    if (overlayContext?.source === 'native-preset') {
+      const nativeName = text(overlayContext.presetName) || nativeSelectedPresetName();
+      if (nativeName) return nativeName;
+    }
     const workshopName = workshopPresetName();
     if (workshopName) return workshopName;
     try {
@@ -13313,11 +13330,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     return '';
   }
 
-  function getPrompts(presetName) {
-    if (!isBranchMode() && text(presetName) === currentPresetName()) {
-      const prompts = draftPrompts();
-      if (prompts.length) return prompts;
-    }
+  function storedPrompts(presetName) {
     for (const source of [TOP, SELF]) {
       try {
         const prompts = source?.getPreset?.(presetName)?.prompts;
@@ -13326,13 +13339,24 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     }
     try {
       const context = getContext();
-      const selected = text(getPresetManager()?.getSelectedPresetName?.());
+      const selected = nativeSelectedPresetName();
       if (!selected || selected === presetName) {
         const prompts = context?.chatCompletionSettings?.prompts;
         if (Array.isArray(prompts)) return clone(prompts);
       }
     } catch (_) {}
     return [];
+  }
+
+  function getPrompts(presetName) {
+    // 从酒馆原生相机打开时，隐藏工坊可能仍保留上一次草稿；原生入口必须以
+    // 酒馆当前预设为基准，否则首次应用会被误判为“没有变化”而跳过同步。
+    if (overlayContext?.source === 'native-preset') return storedPrompts(presetName);
+    if (!isBranchMode() && text(presetName) === currentPresetName()) {
+      const prompts = draftPrompts();
+      if (prompts.length) return prompts;
+    }
+    return storedPrompts(presetName);
   }
 
   function workshopDocuments() {
@@ -14038,6 +14062,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
 
   async function applySnapshot(id) {
     const options = arguments[1] && typeof arguments[1] === 'object' ? arguments[1] : {};
+    const applyFromNativePreset = overlayContext?.source === 'native-preset';
     if (isBranchMode()) {
       notify('warning', '开关快照只应用到主预设；请先退出分支模式');
       return false;
@@ -14065,10 +14090,12 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
 
     try {
       const canUpdateCurrentDraft = presetName === currentPresetName();
-      const draftUpdated = changed > 0 && canUpdateCurrentDraft
+      const draftUpdated = !applyFromNativePreset && changed > 0 && canUpdateCurrentDraft
         ? await writeSwitchesToDraft(nextPrompts, `应用开关快照：${snapshot.name}`, false)
-        : canUpdateCurrentDraft && !!currentDraftBridge();
-      const notifiedByNativeSave = changed > 0
+        : !applyFromNativePreset && canUpdateCurrentDraft && !!currentDraftBridge();
+      // 原生相机入口的“应用”必须是幂等同步：即使隐藏草稿或运行缓存令 changed
+      // 暂时为 0，也仍写回当前预设与 in_use 并重绘，保证第一次点击即可见。
+      const notifiedByNativeSave = changed > 0 || applyFromNativePreset
         ? await saveAppliedDraft(presetName, nextPrompts, draftUpdated)
         : false;
       const groupResult = await applyGroupSnapshotStates(presetName, snapshot.groupStates);
@@ -14603,6 +14630,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     composer = null;
     openMenuId = '';
     characterPicker = null;
+    overlayContext = null;
     DOC?.getElementById?.(OVERLAY_ID)?.remove();
   }
 
@@ -15010,8 +15038,18 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   }
 
   function openOverlay() {
-    if (blockWhileBranchActive()) return;
+    const options = arguments[0] && typeof arguments[0] === 'object' ? arguments[0] : {};
+    const source = text(options.source) === 'native-preset' ? 'native-preset' : 'workshop';
+    overlayContext = {
+      source,
+      presetName: source === 'native-preset' ? nativeSelectedPresetName() : '',
+    };
+    if (blockWhileBranchActive()) {
+      overlayContext = null;
+      return;
+    }
     if (!currentPresetName()) {
+      overlayContext = null;
       notify('warning', '请先选择一个预设');
       return;
     }
