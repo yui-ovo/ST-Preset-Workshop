@@ -11,8 +11,8 @@ function section(startMarker, endMarker) {
 }
 
 const groupSync = section('async function syncGroupEnabledState', 'function readGroupEnabledStates');
-assert.ok(groupSync.includes("querySelector?.('.pmm-switch-snapshot-capture-mode')"), '快照模式没有识别柏宝箱分组同步');
-assert.ok(groupSync.includes('compat.__suppressNextSuccessMessage=true'), '快照模式仍会显示分组同步通知');
+assert.ok(source.includes("function isSnapshotCaptureActive(){"), '快照模式没有识别柏宝箱分组同步');
+assert.ok(groupSync.includes('if(isSnapshotCaptureActive())return true'), '快照模式仍会执行分组同步并显示通知');
 assert.ok(source.includes('suppressSuccessMessage = API.__suppressNextSuccessMessage === true'), '柏宝箱通知层没有处理静默标记');
 
 const saveDefault = section('function saveDefaultSnapshot()', 'function saveNewSnapshot');

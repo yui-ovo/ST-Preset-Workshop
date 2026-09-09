@@ -13038,7 +13038,14 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     return false
   }
 
+  function isSnapshotCaptureActive(){
+    try{return!!sharedRoot.document?.querySelector?.('.pmm-switch-snapshot-capture-mode')}
+    catch(_){return false}
+  }
+
   async function syncEnabledStates({presetName='',prompts=[]}={}){
+    /* 条目开关与分组开关一样，只能停留在快照隔离画布中。 */
+    if(isSnapshotCaptureActive())return true;
     if(!presetName||!Array.isArray(prompts)||hasAppliedBranch(presetName))return false;
     const setter=sharedRoot.setPreset||localRoot.setPreset;
     if(typeof setter!=='function')return false;
@@ -13062,6 +13069,9 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   }
 
   async function syncGroupEnabledState({presetName='',sectionId='',enabled=true}={}){
+    /* 快照录制是一块隔离画布：分组开关只改工坊临时状态，供快照读取，
+       绝不能提前写进柏宝箱原生分组，否则退出时会与异步刷新竞争并污染默认。 */
+    if(isSnapshotCaptureActive())return true;
     if(compat.__suspendGroupPowerSync===true)return true;
     const resolvedPreset=resolveNativePresetName(presetName);
     const rawSectionId=text(sectionId);
@@ -13073,16 +13083,10 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     const group=(state.groups||[]).find(item=>text(item?.id)===groupId);
     if(!group)return false;
     group.enabled=enabled!==false;
-    /* 快照录制时频繁拨动分组不弹提示；普通模式仍保留一句简短反馈。 */
-    let snapshotCaptureActive=false;
-    try{snapshotCaptureActive=!!sharedRoot.document?.querySelector?.('.pmm-switch-snapshot-capture-mode')}
-    catch(_){ }
-    if(snapshotCaptureActive)compat.__suppressNextSuccessMessage=true;
-    else compat.__nextSuccessMessage='分组开关已同步';
+    compat.__nextSuccessMessage='分组开关已同步';
     try{return await writeNativeState(resolvedPreset,state,{onlyGroupId:groupId})}
     finally{
       delete compat.__nextSuccessMessage;
-      delete compat.__suppressNextSuccessMessage
     }
   }
 
