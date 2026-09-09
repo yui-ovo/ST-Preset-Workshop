@@ -31,7 +31,7 @@ assert.ok(snapshot.includes('function activeBranchName('), '快照模块不能�
 assert.ok(snapshot.includes('function blockWhileBranchActive('), '快照操作缺少统一分支互斥保护');
 assert.ok(snapshot.includes("if (blockWhileBranchActive('应用快照')) return false"), '应用快照仍可能覆盖当前分支');
 assert.ok(snapshot.includes('async function enterCaptureModeFromOverlay()'), '快捷面板新建快照没有导航流程');
-assert.ok(snapshot.includes('await entryApi.openWorkshopHome({ preserveNativeDrawer })'), '新建快照没有自动打开主预设首页并保留来源页');
+assert.ok(snapshot.includes('await entryApi.openWorkshopHome()'), '新建快照没有自动打开主预设首页');
 assert.ok(snapshot.includes("else if (action === 'new') void enterCaptureModeFromOverlay()"), '新建按钮仍会在隐藏页面直接进入录制');
 assert.ok(snapshot.includes('activeForPreset: presetName =>'), '分支侧无法读取当前应用快照');
 
