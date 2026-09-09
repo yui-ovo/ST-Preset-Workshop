@@ -22,4 +22,10 @@ assert.ok(overlay.includes('overlay.addEventListener(type, event => event.stopPr
 assert.ok(overlay.includes('if (event.target === overlay) closeOverlay()'), '局部事件边界破坏了点击遮罩关闭快照弹层');
 assert.ok(overlay.includes("action === 'apply'"), '局部事件边界破坏了快照按钮操作');
 
-console.log('test.85 回归通过：原生入口与快照弹层只在自身截断事件，操作快照不会关闭酒馆主预设抽屉。');
+const capturePanel = section('const captureEventBoundaryNodes = new WeakSet()', 'async function exitCaptureMode');
+assert.ok(capturePanel.includes("['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'click']"), '快照面板没有覆盖触屏完整点击周期');
+assert.ok(capturePanel.includes("container.classList.contains('pmm-switch-snapshot-capture-mode')"), '快照面板事件边界没有限制在录制模式');
+assert.ok(capturePanel.includes('event.stopPropagation()'), '快照面板条目操作仍会冒泡到酒馆原生抽屉');
+assert.ok(capturePanel.includes('if (container) bindCaptureEventBoundary(container)'), '快照面板重绘后没有重新挂载事件边界');
+
+console.log('test.85 回归通过：原生入口、快照弹层与录制面板只在自身截断事件，操作快照不会关闭酒馆主预设抽屉。');
