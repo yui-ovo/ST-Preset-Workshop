@@ -12223,12 +12223,25 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     button.textContent = selected ? `删除所选（${selected}）` : '删除所选';
   }
 
+  function normalizeBatchSearchText(value) {
+    const source = String(value ?? '');
+    const normalized = typeof source.normalize === 'function' ? source.normalize('NFKC') : source;
+    return normalized.trim().toLocaleLowerCase();
+  }
+
   function filterBatchList(dialog) {
-    const query = String(dialog.querySelector('[data-pmm-preset-search]')?.value || '').trim().toLocaleLowerCase();
+    const query = normalizeBatchSearchText(dialog.querySelector('[data-pmm-preset-search]')?.value);
+    let visibleCount = 0;
     for (const row of dialog.querySelectorAll('.pmm-preset-batch-row')) {
-      const name = String(row.dataset.pmmPresetName || '').toLocaleLowerCase();
-      row.hidden = Boolean(query && !name.includes(query));
+      const name = normalizeBatchSearchText(row.dataset.pmmPresetName);
+      const filtered = Boolean(query && !name.includes(query));
+      row.hidden = filtered;
+      row.classList.toggle('pmm-preset-batch-row--filtered', filtered);
+      row.setAttribute('aria-hidden', filtered ? 'true' : 'false');
+      if (!filtered) visibleCount += 1;
     }
+    const empty = dialog.querySelector('[data-pmm-preset-empty]');
+    if (empty) empty.hidden = visibleCount !== 0;
   }
 
   async function deleteSelectedPresets(dialog, root) {
@@ -12312,6 +12325,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
         <input type="search" class="pmm-preset-batch-search" data-pmm-preset-search placeholder="搜索预设" autocomplete="off" enterkeyhint="search" />
         <label class="pmm-preset-batch-all"><input type="checkbox" data-pmm-preset-all />全选</label>
         <div class="pmm-preset-batch-list"></div>
+        <div class="pmm-preset-batch-empty" data-pmm-preset-empty hidden>没有找到相关预设</div>
         <footer class="pmm-preset-batch-footer">
           <button type="button" data-pmm-preset-cancel>取消</button>
           <button type="button" class="pmm-preset-batch-delete" data-pmm-preset-delete disabled>删除所选</button>
@@ -12342,7 +12356,9 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     });
     overlay.querySelector('[data-pmm-preset-close]').addEventListener('click', closeBatchDialog);
     overlay.querySelector('[data-pmm-preset-cancel]').addEventListener('click', closeBatchDialog);
-    overlay.querySelector('[data-pmm-preset-search]').addEventListener('input', () => filterBatchList(overlay));
+    const searchInput = overlay.querySelector('[data-pmm-preset-search]');
+    const updateFilter = () => filterBatchList(overlay);
+    for (const type of ['input', 'search', 'change', 'compositionend']) searchInput.addEventListener(type, updateFilter);
     overlay.querySelector('[data-pmm-preset-all]').addEventListener('change', event => {
       for (const checkbox of overlay.querySelectorAll('[data-pmm-preset-choice]')) {
         const row = checkbox.closest('.pmm-preset-batch-row');
@@ -12451,10 +12467,13 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
 .pmm-preset-batch-all{padding:0 5px;opacity:.78}
 .pmm-preset-batch-list{min-height:60px;overflow:auto;overscroll-behavior:contain;border-block:1px solid var(--SmartThemeBorderColor,rgba(148,163,184,.26));padding:5px 0}
 .pmm-preset-batch-row{padding:4px 7px;border-radius:8px}
+.pmm-preset-batch-row.pmm-preset-batch-row--filtered{display:none!important}
 .pmm-preset-batch-row:hover{background:rgba(127,127,127,.08)}
 .pmm-preset-batch-row span{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pmm-preset-batch-row small{flex:0 0 auto;padding:2px 7px;border-radius:999px;background:rgba(127,127,127,.1);font-size:10px;opacity:.72}
 .pmm-preset-batch-row input,.pmm-preset-batch-all input{width:17px;height:17px;margin:0;accent-color:var(--SmartThemeQuoteColor,#64748b)}
+.pmm-preset-batch-empty{padding:13px 8px;text-align:center;font-size:12px;opacity:.58}
+.pmm-preset-batch-empty[hidden]{display:none!important}
 .pmm-preset-batch-footer{display:flex;justify-content:flex-end;gap:9px}
 .pmm-preset-batch-footer button{min-height:36px;padding:0 15px;border:1px solid var(--SmartThemeBorderColor,rgba(148,163,184,.32));border-radius:999px;background:rgba(127,127,127,.08);color:inherit;font:inherit}
 .pmm-preset-batch-footer button:disabled{opacity:.42}
