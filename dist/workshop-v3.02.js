@@ -12607,7 +12607,13 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   const SNAPSHOT_API_KEY = '__PMM_SWITCH_SNAPSHOTS_TEST52__';
   const BUTTON_CLASS = 'pmm-native-preset-entry';
   const AUTO_CLOSE_EVENTS = ['mousedown', 'pointerdown', 'touchstart', 'click'];
-  const WORKSHOP_EVENT_SELECTOR = `.${BUTTON_CLASS}, [class*="pmm-"], [id*="pmm-"], [class*="workshop"], #preset-manager-floating-panel, #preset-manager-main-panel`;
+  const WORKSHOP_EVENT_SELECTORS = [
+    `.${BUTTON_CLASS}`,
+    '.pmm-switch-snapshot-overlay',
+    '.pmm-preset-batch-overlay',
+    '#preset-manager-floating-panel',
+    '#preset-manager-main-panel',
+  ];
   let discoveryObserver = null;
   let scheduled = 0;
   let guardedBody = null;
@@ -12655,9 +12661,10 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
 
   function preventNativePresetAutoClose(event) {
     // 酒馆在 body 之上的 mousedown/click 监听中判断“点击抽屉外部”。
-    // 助手脚本的可用实现是在 body 冒泡阶段截住全部工坊交互；这里保留相同
-    // 机制，并显式覆盖悬浮入口和工坊主面板，避免程序化点击铅笔时漏判。
-    if (event.target?.closest?.(WORKSHOP_EVENT_SELECTOR)) event.stopPropagation();
+    // 仅允许明确的工坊根节点建立边界；禁止使用 pmm class 前缀模糊选择器，
+    // 因为 <html> 带 pmm-mobile-toolbar-ready 时会令全站点击都匹配。
+    const target = typeof event.target?.closest === 'function' ? event.target : event.target?.parentElement;
+    if (WORKSHOP_EVENT_SELECTORS.some(selector => target?.closest?.(selector))) event.stopPropagation();
   }
 
   function bindNativePresetAutoCloseGuard() {

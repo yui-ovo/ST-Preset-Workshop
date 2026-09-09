@@ -16,8 +16,10 @@ assert.ok(nativeEntry.includes('button.addEventListener(type, event => event.sto
 assert.ok(nativeEntry.includes("button.addEventListener('click', event =>"), '原生入口点击没有使用受控事件处理');
 assert.ok(nativeEntry.includes("const AUTO_CLOSE_EVENTS = ['mousedown', 'pointerdown', 'touchstart', 'click']"), '没有沿用已验证助手脚本的完整酒馆关闭事件集合');
 assert.ok(nativeEntry.includes('guardedBody.addEventListener(type, preventNativePresetAutoClose'), '没有在 body 冒泡阶段拦住酒馆关闭来源页');
-assert.ok(nativeEntry.includes('[class*="pmm-"]'), 'body 边界没有覆盖工坊相关元素');
-assert.ok(nativeEntry.includes('#preset-manager-floating-panel, #preset-manager-main-panel'), 'body 边界没有显式覆盖程序化打开工坊的入口与主面板');
+assert.ok(nativeEntry.includes("'#preset-manager-floating-panel'"), 'body 边界没有显式覆盖程序化打开工坊的入口');
+assert.ok(nativeEntry.includes("'#preset-manager-main-panel'"), 'body 边界没有显式覆盖工坊主面板');
+assert.ok(!nativeEntry.includes('[class*="pmm-"]'), '模糊 pmm class 选择器会从 html 命中全页面，禁止恢复');
+assert.ok(!nativeEntry.includes('[id*="pmm-"]'), '模糊 pmm id 选择器会扩大到无关插件，禁止恢复');
 assert.ok(nativeEntry.includes('guardedBody.removeEventListener(type, preventNativePresetAutoClose)'), '卸载时没有清理 body 事件边界');
 
 const overlay = section('function ensureOverlay()', 'function openOverlay()');

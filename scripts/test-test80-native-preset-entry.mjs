@@ -13,7 +13,7 @@ for (const marker of [
   "const AUTO_CLOSE_EVENTS = ['mousedown', 'pointerdown', 'touchstart', 'click']",
   'function preventNativePresetAutoClose(event)',
   'function bindNativePresetAutoCloseGuard()',
-  'event.target?.closest?.(WORKSHOP_EVENT_SELECTOR)',
+  'WORKSHOP_EVENT_SELECTORS.some(selector => target?.closest?.(selector))',
   "guardedBody.addEventListener(type, preventNativePresetAutoClose, { capture: false, passive: true })",
   'guardedBody.removeEventListener(type, preventNativePresetAutoClose)',
   "ensure('batch', '批量管理预设', 'fa-list-check')",
@@ -34,6 +34,9 @@ for (const marker of [
 for (const forbidden of [
   'DOC.documentElement.addEventListener',
   'stopImmediatePropagation',
+  '[class*="pmm-"]',
+  '[id*="pmm-"]',
+  '[class*="workshop"]',
 ]) {
   assert.ok(!nativeEntry.includes(forbidden), `原生入口不应安装全局点击拦截：${forbidden}`);
 }
