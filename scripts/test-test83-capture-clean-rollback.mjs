@@ -20,6 +20,7 @@ assert.ok(rollback.includes("return writeSwitchesToDraft(nextPrompts, '', false)
 
 const capture = section('async function exitCaptureMode', 'function renderCaptureSavePrompt()');
 assert.ok(capture.includes('restoreCapturedDraft(nextPrompts, !!session.entryWasDirty)'), '退出快照仍在逐条回滚普通编辑');
-assert.ok(capture.includes('entryWasDirty: !!currentPresetDraftStore()?.isDirty'), '录制起点没有记录原有脏状态');
+assert.ok(capture.includes('clone(session.entryPrompts)'), '退出快照没有使用进入时冻结的完整基线');
+assert.ok(capture.includes("captureSource === 'native-preset' ? false : !!currentPresetDraftStore()?.isDirty"), '录制起点没有按入口记录正确的脏状态');
 
-console.log('test.83 回归通过：快照退出会原子恢复干净草稿，避免开关偶发回写和保存按钮误高亮。');
+console.log('test.83 回归通过：快照退出会原子恢复冻结基线，避免开关偶发回写和保存按钮误高亮。');

@@ -14672,8 +14672,11 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     session.restoring = true;
     closeOverlay();
     try {
-      const current = getPrompts(session.presetName);
-      const { nextPrompts } = mergeSnapshotStates(current, session.entryStates || []);
+      // 退出时直接恢复进入快照模式那一刻冻结的完整基线。不能再次以当前草稿
+      // 为底合并开关，否则上一轮 Vue 延迟草稿可能在第二次录制时混回主预设。
+      const nextPrompts = Array.isArray(session.entryPrompts) && session.entryPrompts.length
+        ? clone(session.entryPrompts)
+        : mergeSnapshotStates(getPrompts(session.presetName), session.entryStates || []).nextPrompts;
       const restored = await restoreCapturedDraft(nextPrompts, !!session.entryWasDirty);
       const runtimeSynced = await syncRuntimeSwitches(session.presetName, nextPrompts);
       await applyGroupSnapshotStates(session.presetName, session.entryGroupStates);
@@ -14686,23 +14689,32 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     if (showNotice) notify('info', '已取消快照');
   }
 
-  function enterCaptureMode() {
-    const presetName = currentPresetName();
+  function enterCaptureMode(entryContext = null) {
+    const captureSource = entryContext?.source === 'native-preset' || overlayContext?.source === 'native-preset'
+      ? 'native-preset'
+      : 'workshop';
+    const presetName = text(entryContext?.presetName) || currentPresetName();
     if (blockWhileBranchActive('新建快照')) return;
     if (blockWhileSnapshotActive('新建快照')) return;
-    if (!presetName || !defaultSnapshotForCurrentPreset()) {
+    const hasDefault = readStore().snapshots.some(snapshot => (
+      text(snapshot.presetName) === presetName && isDefaultSnapshot(snapshot)
+    ));
+    if (!presetName || !hasDefault) {
       notify('warning', '请先保存预设默认');
       return;
     }
-    const prompts = getPrompts(presetName);
+    const prompts = captureSource === 'native-preset' ? storedPrompts(presetName) : getPrompts(presetName);
     if (!prompts.length) {
       notify('warning', '当前工坊没有可记录的预设条目');
       return;
     }
     captureMode = {
       presetName,
+      source: captureSource,
+      entryPrompts: clone(prompts),
       entryStates: makeStates(prompts),
-      entryWasDirty: !!currentPresetDraftStore()?.isDirty,
+      // 原生相机以酒馆当前预设为基线，不继承隐藏工坊上一轮残留的脏标记。
+      entryWasDirty: captureSource === 'native-preset' ? false : !!currentPresetDraftStore()?.isDirty,
       restoring: false,
     };
     captureMode.entryGroupStates = makeGroupStates(presetName);
@@ -14725,6 +14737,9 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       notify('warning', '请先打开预设工坊后新建快照');
       return;
     }
+    // 打开工坊首页会令酒馆关闭原生抽屉，先保留原生入口上下文；否则随后
+    // closeOverlay() 清空上下文后，基线可能被误读成隐藏工坊的上一轮草稿。
+    const entryContext = overlayContext ? { ...overlayContext } : null;
     if (!await entryApi.openWorkshopHome()) {
       notify('warning', '无法返回主预设首页，请先关闭分屏后重试');
       return;
@@ -14738,7 +14753,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       return;
     }
     closeOverlay();
-    enterCaptureMode();
+    enterCaptureMode(entryContext);
   }
 
   function renderCaptureSavePrompt() {

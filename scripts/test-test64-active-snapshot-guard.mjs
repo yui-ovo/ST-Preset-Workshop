@@ -37,7 +37,7 @@ const deletion = section('function deleteSnapshot', 'function formatSavedAt');
 assert.ok(deletion.includes('active?.id === snapshot.id'), '当前应用中的快照仍能被直接删除');
 assert.ok(deletion.includes('请先恢复预设默认后再删除'), '删除拦截没有说明恢复默认');
 
-const capture = section('function enterCaptureMode()', 'function renderCaptureSavePrompt');
+const capture = section('function enterCaptureMode(entryContext = null)', 'function renderCaptureSavePrompt');
 assert.ok(capture.includes("blockWhileSnapshotActive('新建快照')"), '相机入口没有阻止快照套快照');
 
 const overlay = section('function renderOverlay()', 'function ensureOverlay()');
