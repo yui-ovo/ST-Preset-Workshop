@@ -23,14 +23,16 @@ assert.ok(floating.includes('currentWindow.parent && currentWindow.parent !== cu
 assert.ok(homeFlow.includes("main?.classList?.contains('pmm-worldbook-mode')"), '世界书页面不会在打开快照前退出');
 assert.ok(homeFlow.includes(".panel-btn.panel-btn--active:not([data-pmm-worldbook-placeholder=\"1\"])"), '缝合、分支或收藏页面不会通过当前按钮退出');
 assert.ok(homeFlow.includes('function workshopStore(main, storeName)'), '没有找到工坊挂载的 Pinia 状态机');
+assert.ok(homeFlow.includes('function clickWorkshopAction(action, preserveNativeDrawer = false)'), '缺少保留酒馆主预设返回页的程序化点击边界');
+assert.ok(homeFlow.includes("action.addEventListener('click', stopOuterBubble)"), '打开工坊时没有截断酒馆抽屉外部点击冒泡');
 assert.ok(homeFlow.includes("{ store:'merge', active:'isMergeMode', exit:'exitMergeMode' }"), '缝合分屏没有走工坊原生退出状态');
 assert.ok(homeFlow.includes("{ store:'branch', active:'isBranchMode', exit:'exitBranchMode' }"), '分支分屏没有走工坊原生退出状态');
 assert.ok(homeFlow.includes("{ store:'favorite', active:'isFavoriteMode', exit:'exitFavoriteMode' }"), '收藏分屏没有走工坊原生退出状态');
 assert.ok(homeFlow.includes('const exitedByState = exitWorkshopStateModes(main);'), '退出分屏时没有优先调用工坊状态机');
-assert.ok(homeFlow.includes('return leaveWorkshopSpecialMode();'), '已打开的特殊页面仍会被关闭重开');
+assert.ok(homeFlow.includes('return leaveWorkshopSpecialMode(options);'), '已打开的特殊页面仍会被关闭重开');
 assert.ok(homeFlow.includes('return waitForWorkshopHome();'), '工坊新打开后没有确认主页渲染完成');
 assert.ok(homeFlow.includes('if (!await waitForWorkshopMain()) return false'), '工坊关闭时没有先等待主面板挂载');
-assert.ok(homeFlow.includes('if (workshopHomeVisible()) return true;\n    return leaveWorkshopSpecialMode();'), '新打开工坊仍会停留在上次记忆的分屏页面');
+assert.ok(homeFlow.includes('if (workshopHomeVisible()) return true;\n    return leaveWorkshopSpecialMode(options);'), '新打开工坊仍会停留在上次记忆的分屏页面');
 assert.ok(
   homeFlow.indexOf('if (workshopMainExists())') < homeFlow.indexOf('const action = floatingEditAction();'),
   '工坊已打开在分屏时不应依赖已经收起的悬浮入口按钮',
@@ -44,7 +46,8 @@ assert.ok(snapshot.includes('async function enterCaptureModeFromOverlay()'), '�
 assert.ok(snapshot.includes('function workshopDocuments()'), '快照模块未跨嵌套页面寻找实际工坊');
 assert.ok(snapshot.includes("if (blockWhileBranchActive('新建快照')) return;"), '只有实际应用的命名分支才应阻止新建快照');
 assert.ok(!snapshot.includes("if (isBranchMode() || blockWhileBranchActive('新建快照')) return;"), '空分支工具页不应阻止新建快照');
-assert.ok(snapshot.includes('if (!await entryApi.openWorkshopHome())'), '保存并进入或新建快照时没有打开工坊主页');
+assert.ok(snapshot.includes("const preserveNativeDrawer = entryContext?.source === 'native-preset'"), '原生小相机入口没有记住酒馆主预设返回页');
+assert.ok(snapshot.includes('if (!await entryApi.openWorkshopHome({ preserveNativeDrawer }))'), '保存并进入或新建快照时没有保留来源页打开工坊主页');
 assert.ok(snapshot.includes("无法返回主预设首页，请先关闭分屏后重试"), '返回首页失败时仍在使用误导性的旧提示');
 assert.ok(snapshot.includes("if (saveDefaultSnapshot({ silent: true })) void enterCaptureModeFromOverlay();"), '首次保存默认后没有按需进入工坊主页');
 

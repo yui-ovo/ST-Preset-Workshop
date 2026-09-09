@@ -11890,7 +11890,22 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     return exited;
   }
 
-  async function leaveWorkshopSpecialMode() {
+  function clickWorkshopAction(action, preserveNativeDrawer = false) {
+    if (!action) return;
+    if (!preserveNativeDrawer) {
+      action.click();
+      return;
+    }
+    // 从酒馆主预设的小相机进入时，程序化点击悬浮铅笔也会冒泡到酒馆，
+    // 被当成“点击抽屉外部”。只截断这一次程序化点击，保留抽屉作为返回页。
+    const stopOuterBubble = event => event.stopPropagation();
+    action.addEventListener('click', stopOuterBubble);
+    try { action.click(); }
+    finally { action.removeEventListener('click', stopOuterBubble); }
+  }
+
+  async function leaveWorkshopSpecialMode(options = {}) {
+    const preserveNativeDrawer = options.preserveNativeDrawer === true;
     for (const currentDocument of documents()) {
       const main = currentDocument.querySelector?.('#preset-manager-main-panel');
       if (!main) continue;
@@ -11900,23 +11915,24 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
         const activeButton = main.querySelector(
           '.side-panel-root .panel-btn.panel-btn--active:not([data-pmm-worldbook-placeholder="1"])'
         );
-        activeButton?.click();
+        clickWorkshopAction(activeButton, preserveNativeDrawer);
       }
     }
     return waitForWorkshopHome();
   }
 
-  async function openWorkshopHome() {
+  async function openWorkshopHome(options = {}) {
+    const preserveNativeDrawer = options.preserveNativeDrawer === true;
     if (workshopHomeVisible()) return true;
     if (workshopMainExists()) {
-      return leaveWorkshopSpecialMode();
+      return leaveWorkshopSpecialMode(options);
     }
     const action = floatingEditAction();
     if (!action) return false;
-    action.click();
+    clickWorkshopAction(action, preserveNativeDrawer);
     if (!await waitForWorkshopMain()) return false;
     if (workshopHomeVisible()) return true;
-    return leaveWorkshopSpecialMode();
+    return leaveWorkshopSpecialMode(options);
   }
 
   function bindAutoCollapseOnEdit(root) {
@@ -14759,7 +14775,8 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     // 打开工坊首页会令酒馆关闭原生抽屉，先保留原生入口上下文；否则随后
     // closeOverlay() 清空上下文后，基线可能被误读成隐藏工坊的上一轮草稿。
     const entryContext = overlayContext ? { ...overlayContext } : null;
-    if (!await entryApi.openWorkshopHome()) {
+    const preserveNativeDrawer = entryContext?.source === 'native-preset';
+    if (!await entryApi.openWorkshopHome({ preserveNativeDrawer })) {
       notify('warning', '无法返回主预设首页，请先关闭分屏后重试');
       return;
     }
