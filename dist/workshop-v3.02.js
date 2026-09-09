@@ -14659,20 +14659,6 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     return false;
   }
 
-  const captureEventBoundaryNodes = new WeakSet();
-
-  function bindCaptureEventBoundary(container) {
-    if (!container || captureEventBoundaryNodes.has(container)) return;
-    captureEventBoundaryNodes.add(container);
-    // 快照模式面板本身也位于酒馆顶层 document。条目开关的点击若继续冒泡，
-    // 酒馆会把它误判为点到原生预设抽屉外部并关闭抽屉。
-    for (const type of ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'click']) {
-      container.addEventListener(type, event => {
-        if (container.classList.contains('pmm-switch-snapshot-capture-mode')) event.stopPropagation();
-      }, { passive: true });
-    }
-  }
-
   function syncCaptureModeUI() {
     const active = isCaptureMode();
     const container = normalPresetContainer();
@@ -14682,7 +14668,6 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     if (container && container.classList.contains('pmm-switch-snapshot-capture-mode') !== active) {
       container.classList.toggle('pmm-switch-snapshot-capture-mode', active);
     }
-    if (container) bindCaptureEventBoundary(container);
   }
 
   async function exitCaptureMode(showNotice = false) {
