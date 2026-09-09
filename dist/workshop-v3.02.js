@@ -12587,8 +12587,11 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   const BATCH_API_KEY = '__PMM_FLOATING_SNAPSHOT_ENTRY_TEST69__';
   const SNAPSHOT_API_KEY = '__PMM_SWITCH_SNAPSHOTS_TEST52__';
   const BUTTON_CLASS = 'pmm-native-preset-entry';
+  const AUTO_CLOSE_EVENTS = ['mousedown', 'pointerdown', 'touchstart', 'click'];
+  const WORKSHOP_EVENT_SELECTOR = `.${BUTTON_CLASS}, [class*="pmm-"], [id*="pmm-"], [class*="workshop"], #preset-manager-floating-panel, #preset-manager-main-panel`;
   let discoveryObserver = null;
   let scheduled = 0;
+  let guardedBody = null;
 
   try { TOP[CLEANUP_KEY]?.(); } catch (_) {}
 
@@ -12631,8 +12634,28 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     return button;
   }
 
+  function preventNativePresetAutoClose(event) {
+    // 酒馆在 body 之上的 mousedown/click 监听中判断“点击抽屉外部”。
+    // 助手脚本的可用实现是在 body 冒泡阶段截住全部工坊交互；这里保留相同
+    // 机制，并显式覆盖悬浮入口和工坊主面板，避免程序化点击铅笔时漏判。
+    if (event.target?.closest?.(WORKSHOP_EVENT_SELECTOR)) event.stopPropagation();
+  }
+
+  function bindNativePresetAutoCloseGuard() {
+    const body = DOC.body;
+    if (!body || body === guardedBody) return;
+    if (guardedBody) {
+      for (const type of AUTO_CLOSE_EVENTS) guardedBody.removeEventListener(type, preventNativePresetAutoClose);
+    }
+    guardedBody = body;
+    for (const type of AUTO_CLOSE_EVENTS) {
+      guardedBody.addEventListener(type, preventNativePresetAutoClose, { capture: false, passive: true });
+    }
+  }
+
   function sync() {
     scheduled = 0;
+    bindNativePresetAutoCloseGuard();
     const anchor = DOC.getElementById('update_oai_preset');
     const host = anchor?.parentElement;
     if (!host) return;
@@ -12659,6 +12682,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   }
 
   function install() {
+    bindNativePresetAutoCloseGuard();
     scheduleSync();
     discoveryObserver = new MutationObserver(scheduleSync);
     discoveryObserver.observe(DOC.documentElement, { childList: true, subtree: true });
@@ -12672,6 +12696,10 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       scheduled = 0;
     }
     DOC.querySelectorAll?.(`.${BUTTON_CLASS}`).forEach(button => button.remove());
+    if (guardedBody) {
+      for (const type of AUTO_CLOSE_EVENTS) guardedBody.removeEventListener(type, preventNativePresetAutoClose);
+      guardedBody = null;
+    }
     try { delete TOP[CLEANUP_KEY]; } catch (_) {}
   };
 

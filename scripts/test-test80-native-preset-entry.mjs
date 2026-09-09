@@ -10,6 +10,12 @@ const nativeEntry = source.slice(start, end < 0 ? undefined : end);
 for (const marker of [
   "DOC.getElementById('update_oai_preset')",
   'let discoveryObserver = null;',
+  "const AUTO_CLOSE_EVENTS = ['mousedown', 'pointerdown', 'touchstart', 'click']",
+  'function preventNativePresetAutoClose(event)',
+  'function bindNativePresetAutoCloseGuard()',
+  'event.target?.closest?.(WORKSHOP_EVENT_SELECTOR)',
+  "guardedBody.addEventListener(type, preventNativePresetAutoClose, { capture: false, passive: true })",
+  'guardedBody.removeEventListener(type, preventNativePresetAutoClose)',
   "ensure('batch', '批量管理预设', 'fa-list-check')",
   "ensure('snapshot', '开关快照', 'fa-camera')",
   "TOP[BATCH_API_KEY]?.openBatch",
@@ -26,8 +32,6 @@ for (const marker of [
 }
 
 for (const forbidden of [
-  'preventAutoClose',
-  'DOC.body.addEventListener',
   'DOC.documentElement.addEventListener',
   'stopImmediatePropagation',
 ]) {
@@ -35,4 +39,4 @@ for (const forbidden of [
 }
 
 assert.match(source, /openBatch:\s*\(\)\s*=>\s*openBatchDialog\(/, '批量入口没有直接调用工坊批量管理');
-console.log('test.80 回归通过：原生预设栏批量与快照入口独立工作，按钮局部阻止抽屉误关闭且未引入全局点击拦截。');
+console.log('test.80 回归通过：原生预设栏入口与工坊交互在 body 冒泡阶段阻止酒馆关闭来源页。');
