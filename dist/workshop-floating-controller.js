@@ -33,7 +33,7 @@ function applyBannerSizing(){
 }
 function setBannerWidth(width,scale=1){
   if(!Number.isFinite(width)||width<=0||!Number.isFinite(scale)||scale<=0)return;
-  bannerSizing={width,scale:Math.min(1,scale)};
+  bannerSizing={width,scale:Math.min(2,scale)};
   // Cache for late mounts; slider input never writes an inherited document-level variable.
   applyBannerSizing();
 }
@@ -195,12 +195,18 @@ html body #${HANDLE_ID}#${HANDLE_ID}.is-docked[data-dock="right"] .pmm-handle-gl
 #preset-manager-floating-panel .pmm-unified-floating-root[data-handle-overlap="left"]>.panel-wrapper>.panel-header{padding-left:var(--pmm-banner-handle-gutter,36px)!important;min-height:max(44px,var(--pmm-floating-handle-height,64px))!important}
 #preset-manager-floating-panel .pmm-unified-floating-root[data-handle-overlap="right"]>.panel-wrapper>.panel-header{padding-right:var(--pmm-banner-handle-gutter,36px)!important;min-height:max(44px,var(--pmm-floating-handle-height,64px))!important}
 
-/* Half-screen phone banners wrap controls without squeezing away the preset name. */
-@media(max-width:560px){
-#preset-manager-floating-panel .pmm-unified-floating-root .panel-header{flex-wrap:wrap!important}
-#preset-manager-floating-panel .pmm-unified-floating-root .panel-section:has(.panel-select--preset){flex:1 1 90px!important}
-#preset-manager-floating-panel .pmm-unified-floating-root .dropdown-header{flex-wrap:wrap!important}
-}
+/* One line at every width. The preset name receives all space left by fixed actions. */
+html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root>.panel-wrapper>.panel-header{flex-flow:row nowrap!important;white-space:nowrap!important}
+html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root .panel-section{flex-wrap:nowrap!important;white-space:nowrap!important}
+html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root .panel-section:has(.panel-select--preset){flex:1 1 0!important;width:auto!important;min-width:0!important;max-width:none!important}
+html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root .panel-select--preset{box-sizing:border-box!important;flex:1 1 0!important;width:0!important;min-width:0!important;max-width:none!important;white-space:nowrap!important;text-overflow:ellipsis!important}
+html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root :is(.panel-action,.panel-collapse,.pmm-floating-snapshot-trigger,.pmm-preset-batch-trigger,.pmm-entries-toggle){flex-shrink:0!important}
+html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root :is(.prompt-item__name,.section-header__name,.category-header__name){min-width:0!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root .panel-header :is(.panel-action i,.pmm-floating-snapshot-trigger i,.pmm-preset-batch-trigger){font-size:min(12px,calc(var(--pmm-floating-button-size,24px)*.5))!important;line-height:1!important}
+html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root .pmm-entries-toggle{font-size:min(11px,calc(var(--pmm-floating-button-size,24px)*.5))!important;line-height:1.2!important;white-space:nowrap!important}
+
+/* Override the upstream desktop 368px width without touching any material rule. */
+html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root>.panel-wrapper{width:min(var(--pmm-mobile-floating-width,50vw),100vw,var(--pmm-banner-max-width,100vw))!important;min-width:0!important;max-width:100vw!important}
 
 /* Half-screen defaults; explicit dimensions may fill the whole device viewport. */
 #preset-manager-floating-panel .pmm-unified-floating-root>.panel-wrapper.dropdown-open{height:min(var(--pmm-floating-max-height,50dvh),calc(100dvh - var(--pmm-banner-y,0px)))!important}

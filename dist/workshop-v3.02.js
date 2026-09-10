@@ -9639,6 +9639,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     branchWidth: 0,
     floatingWidth: 0, // The device default is half the current viewport; never a fixed pixel width.
     floatingHeight: 560,
+    floatingFont: 11,
     floatingGroupFont: 11,
     floatingNameFont: 11,
     floatingBodyFont: 11,
@@ -9675,6 +9676,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     branchWidth: [0, 128],
     floatingWidth: [240, 820],
     floatingHeight: [280, 1200],
+    floatingFont: [6, 22],
     floatingGroupFont: [8, 24],
     floatingNameFont: [8, 24],
     floatingBodyFont: [8, 24],
@@ -9710,6 +9712,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     branchWidth: 'pmm-layout-custom-branch-width',
     floatingWidth: 'pmm-layout-custom-floating-width',
     floatingHeight:'pmm-layout-custom-floating-height',
+    floatingFont:'pmm-layout-custom-floating-font',
     floatingGroupFont:'pmm-layout-custom-floating-group-font',
     floatingNameFont:'pmm-layout-custom-floating-name-font',
     floatingBodyFont:'pmm-layout-custom-floating-body-font',
@@ -9749,6 +9752,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     { key:'splitRatio', label:'双界面占比（上／左）', unit:'%', step:.1 },
     { key:'floatingWidth', label:'条幅宽度', unit:'px', step:.1 },
     { key:'floatingHeight', label:'条幅高度', unit:'px', step:.1 },
+    { key:'floatingFont', label:'条幅整体字号', unit:'px', step:.1 },
     { key:'floatingGroupFont', label:'条幅分组字号', unit:'px', step:.1 },
     { key:'floatingNameFont', label:'条幅条目名称字号', unit:'px', step:.1 },
     { key:'floatingBodyFont', label:'条幅条目内容字号', unit:'px', step:.1 },
@@ -9966,10 +9970,10 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     if (node?.style.getPropertyValue(name) !== text) node?.style.setProperty(name, text);
   }
 
-  function applyFloatingWidth(width) {
+  function applyFloatingWidth(width, font = 11) {
     const viewport = layoutViewport();
     const actualWidth = Math.min(viewport.width, Math.max(1, Number(width) || Math.floor(viewport.width / 2)));
-    const scale = Math.min(1, actualWidth / Math.max(1, Math.floor(viewport.width / 2)));
+    const scale = Math.min(1, actualWidth / Math.max(1, Math.floor(viewport.width / 2))) * Math.min(22, Math.max(6, Number(font) || 11)) / 11;
     const controller = TOP.__PMM_FLOATING_CONTROLLER__;
     if (typeof controller?.setBannerWidth === 'function') {
       controller.setBannerWidth(actualWidth, scale);
@@ -9990,7 +9994,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     for (const [name,value] of Object.entries(vars)) setLayoutVariable(DOC.documentElement, name, value + "px");
     for (const key of ["controllerFont","controllerWidth","controllerHeight"]) setLayoutVariable(DOC.documentElement, "--pmm-"+key.replace(/[A-Z]/g,letter=>"-"+letter.toLowerCase()),current.values[key]+"px");
     for (const key of ["controllerFont","controllerWidth","controllerHeight"]) if (card) setLayoutVariable(card, "--pmm-"+key.replace(/[A-Z]/g,letter=>"-"+letter.toLowerCase()),current.values[key]+"px");
-    applyFloatingWidth(current.values.floatingWidth);
+    applyFloatingWidth(current.values.floatingWidth, current.values.floatingFont);
     const glyph = state.glyph || "☰";
     if (lastFloatingGlyph !== glyph) {
       lastFloatingGlyph = glyph;
@@ -10034,7 +10038,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     setLayoutVariable(DOC.documentElement, "--pmm-controller-width", current.values.controllerWidth + "px");
     setLayoutVariable(DOC.documentElement, "--pmm-controller-height", current.values.controllerHeight + "px");
     for (const key of ["controllerFont","controllerWidth","controllerHeight"]) if (card) setLayoutVariable(card, "--pmm-"+key.replace(/[A-Z]/g,letter=>"-"+letter.toLowerCase()),current.values[key]+"px");
-    applyFloatingWidth(current.values.floatingWidth);
+    applyFloatingWidth(current.values.floatingWidth, current.values.floatingFont);
     setLayoutVariable(target, '--pmm-user-split-top', `${current.values.splitRatio}fr`);
     setLayoutVariable(target, '--pmm-user-split-bottom', `${100 - current.values.splitRatio}fr`);
     setLayoutVariable(target, '--pmm-user-split-left', `${current.values.splitRatio}fr`);
@@ -10179,7 +10183,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     const pxVars = {controllerFont:"--pmm-controller-font",controllerWidth:"--pmm-controller-width",controllerHeight:"--pmm-controller-height",groupFont:"--pmm-user-group-font",presetNameFont:"--pmm-user-preset-name-font",bodyFont:"--pmm-user-body-font",headerIcon:"--pmm-header-icon-size",rowButton:"--pmm-row-button-size",groupHeight:"--pmm-user-group-height",itemFont:"--pmm-user-item-font",itemHeight:"--pmm-user-item-height",itemGap:"--pmm-user-item-gap",groupGap:"--pmm-user-group-gap",presetWidth:"--pmm-user-preset-width-offset",branchWidth:"--pmm-user-branch-width-offset",floatingWidth:"--pmm-mobile-floating-width",headerButton:"--pmm-header-button-size",headerGap:"--pmm-header-gap"};
     const percentVars = {outerPadding:"--pmm-main-padding",mainHeight:"--pmm-main-height",mainWidth:"--pmm-main-width"};
     const floatingVars = {floatingHeight:"--pmm-floating-max-height",floatingGroupFont:"--pmm-floating-group-font",floatingNameFont:"--pmm-floating-name-font",floatingBodyFont:"--pmm-floating-body-font",floatingGap:"--pmm-floating-item-gap",floatingItemHeight:"--pmm-floating-item-height",floatingButton:"--pmm-floating-button-size",floatingBall:"--pmm-floating-ball-size",floatingHandleWidth:"--pmm-floating-handle-width",floatingHandleHeight:"--pmm-floating-handle-height",floatingHandleFont:"--pmm-floating-handle-font"};
-    if (root && !control.key.startsWith("controller")) {
+    if (root && !control.key.startsWith("controller") && control.key !== "floatingFont") {
       if (pxVars[control.key]) root.style.setProperty(pxVars[control.key], current.values[control.key] + "px");
       if (percentVars[control.key]) root.style.setProperty(percentVars[control.key], current.values[control.key] + "%");
       if (control.key === 'splitRatio') {
@@ -10194,10 +10198,10 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     if (floatingVars[control.key]) DOC.documentElement.style.setProperty(floatingVars[control.key], current.values[control.key] + "px");
     if (control.key === "floatingGap") DOC.documentElement.classList.toggle("pmm-floating-negative-gap", current.values.floatingGap < 0);
     if (["controllerFont","controllerWidth","controllerHeight"].includes(control.key)) (card || DOC.documentElement).style.setProperty("--pmm-" + control.key.replace(/[A-Z]/g, letter => "-" + letter.toLowerCase()), current.values[control.key] + "px");
-    if (control.key === "floatingWidth") applyFloatingWidth(current.values.floatingWidth);
+    if (control.key === "floatingWidth" || control.key === "floatingFont") applyFloatingWidth(current.values.floatingWidth, current.values.floatingFont);
     const output = card?.querySelector("[data-pmm-layout-output=\"" + control.key + "\"]");
     if (output && !output.querySelector("input")) output.textContent = current.values[control.key] + control.unit;
-    if (save && ["floatingWidth","floatingHeight","floatingBall","floatingHandleWidth","floatingHandleHeight"].includes(control.key)) TOP.dispatchEvent(new CustomEvent("pmm:floating-metrics-change"));
+    if (save && ["floatingWidth","floatingHeight","floatingFont","floatingBall","floatingHandleWidth","floatingHandleHeight"].includes(control.key)) TOP.dispatchEvent(new CustomEvent("pmm:floating-metrics-change"));
     if (save) persistSoon();
   }
 
@@ -10441,11 +10445,11 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   function cardViewportBounds(cardRect=null) { const vv=VIEW.visualViewport;return {left:Number(vv?.offsetLeft||0),top:Number(vv?.offsetTop||0),rootWidth:Number(vv?.width||VIEW.innerWidth),rootHeight:Number(vv?.height||VIEW.innerHeight),cardWidth:Number(cardRect?.width||card?.getBoundingClientRect?.().width||0),cardHeight:Number(cardRect?.height||card?.getBoundingClientRect?.().height||0)}; }
   function clampCardPosition(left, top, bounds = null) {
     if (!card) return { left, top };
-    const area=bounds||cardViewportBounds(),margin=7,minLeft=area.left+margin,minTop=area.top+margin;
-    return {left:Math.min(Math.max(minLeft,left),Math.max(minLeft,area.left+area.rootWidth-area.cardWidth-margin)),top:Math.min(Math.max(minTop,top),Math.max(minTop,area.top+area.rootHeight-area.cardHeight-margin))};
+    const area=bounds||cardViewportBounds(),marginX=Math.min(7,Math.max(0,(area.rootWidth-area.cardWidth)/2)),marginY=Math.min(7,Math.max(0,(area.rootHeight-area.cardHeight)/2)),minLeft=area.left+marginX,minTop=area.top+marginY;
+    return {left:Math.min(Math.max(minLeft,left),Math.max(minLeft,area.left+area.rootWidth-area.cardWidth-marginX)),top:Math.min(Math.max(minTop,top),Math.max(minTop,area.top+area.rootHeight-area.cardHeight-marginY))};
   }
-  function placeCardForViewport() {
-    if(!card||TOP.__PMM_FLOATING_STORE__?.getState?.().keyboardEditing)return;const rect=card.getBoundingClientRect(),area=cardViewportBounds(rect),saved=state.cardPositions?.[STORE_PROFILE()];let left=saved?.left,top=saved?.top;if(!Number.isFinite(left)||!Number.isFinite(top)){left=area.left+(area.rootWidth-rect.width)/2;top=area.top+(area.rootHeight-rect.height)/2}const next=clampCardPosition(left,top,area);card.style.setProperty("left",next.left+"px","important");card.style.setProperty("top",next.top+"px","important");card.classList.add("pmm-layout-card--positioned");
+  function placeCardForViewport(force=false) {
+    if(!card||!force&&TOP.__PMM_FLOATING_STORE__?.getState?.().keyboardEditing)return;const rect=card.getBoundingClientRect(),area=cardViewportBounds(rect),saved=state.cardPositions?.[STORE_PROFILE()];let left=saved?.left,top=saved?.top;if(!Number.isFinite(left)||!Number.isFinite(top)){left=area.left+(area.rootWidth-rect.width)/2;top=area.top+(area.rootHeight-rect.height)/2}const next=clampCardPosition(left,top,area);card.style.setProperty("left",next.left+"px","important");card.style.setProperty("top",next.top+"px","important");card.classList.add("pmm-layout-card--positioned");
   }
   function STORE_PROFILE(){return (isMobile()?"mobile":"desktop")+"-"+(VIEW.innerWidth>VIEW.innerHeight?"landscape":"portrait")}
 
@@ -10769,7 +10773,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
         const key = control.key;
         if (before[profile].values[key] !== state[profile].values[key] || before[profile].customized[key] !== state[profile].customized[key]) {
           if (!key.startsWith('controller')) applyControlValue(control);
-          if (['floatingWidth','floatingHeight','floatingBall','floatingHandleWidth','floatingHandleHeight'].includes(key)) metricsChanged = true;
+          if (['floatingWidth','floatingHeight','floatingFont','floatingBall','floatingHandleWidth','floatingHandleHeight'].includes(key)) metricsChanged = true;
         }
       }
       if (metricsChanged) TOP.dispatchEvent(new CustomEvent('pmm:floating-metrics-change'));
@@ -10789,17 +10793,22 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     clearTimeout(saveTimer);saveTimer=0;
     cardSnapshot = JSON.parse(JSON.stringify(state));
     card = buildCard();
-    // Populate and theme the detached card; insertion needs one layout pass.
+    // Measure only after mounting, but keep the first visible frame at its final position.
+    card.style.setProperty('visibility','hidden','important');
+    card.style.setProperty('transition','none','important');
+    card.style.setProperty('transform','none','important');
     updateOutputs();
     for (const key of ['controllerFont','controllerWidth','controllerHeight']) setLayoutVariable(card, '--pmm-'+key.replace(/[A-Z]/g,letter=>'-'+letter.toLowerCase()),currentState().values[key]+'px');
     TOP.__PMM_THEME_SYSTEM__?.mountPicker?.(card);
-    card.classList.add('pmm-layout-card--open');
     (DOC.body || DOC.documentElement).appendChild(card);
+    placeCardForViewport(true);
+    card.classList.add('pmm-layout-card--open');
+    card.style.removeProperty('transform');
+    card.style.removeProperty('transition');
+    card.style.removeProperty('visibility');
     TOP.__PMM_WINDOW_STACK__?.open('controller',[card]);
     trigger?.classList.add('pmm-layout-trigger--open');
     trigger?.setAttribute('aria-expanded', 'true');
-    const opened = card;
-    VIEW.requestAnimationFrame?.(() => { if(card===opened)placeCardForViewport(); });
   }
 
   function onTriggerClick(event) {

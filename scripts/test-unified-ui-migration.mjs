@@ -65,7 +65,7 @@ assert(workshop.includes("else if (key === 'floatingWidth') value = Math.floor(v
 assert(!themes.includes('#preset-manager-main-panel button{'), '主题禁止宽泛污染中控全部按钮');
 assert(!themes.includes('.pm-panel-container,html'), '主题禁止为双面板容器增加重复底板');
 for (const variable of ['--pm-panel-bg','--fp-glass-bg','--qe-glass-bg']) assert(themes.includes(variable), '主题未接入真实组件变量：' + variable);
-for (const control of ['groupFont','presetNameFont','bodyFont','headerIcon','rowButton','itemGap','floatingWidth','floatingHeight','floatingGroupFont','floatingNameFont','floatingBodyFont','floatingButton','headerButton','headerGap','floatingBall','floatingHandleWidth','floatingHandleHeight','floatingHandleFont']) assert(workshop.includes(control), '中控缺少 p40 调节项：' + control);
+for (const control of ['groupFont','presetNameFont','bodyFont','headerIcon','rowButton','itemGap','floatingWidth','floatingHeight','floatingFont','floatingGroupFont','floatingNameFont','floatingBodyFont','floatingButton','headerButton','headerGap','floatingBall','floatingHandleWidth','floatingHandleHeight','floatingHandleFont']) assert(workshop.includes(control), '中控缺少 p40 调节项：' + control);
 assert(workshop.includes('data-pmm-layout-glyph'), '中控缺少悬浮球字符自定义');
 assert(workshop.includes("controllerFont") && workshop.includes('中控界面字号'), '中控必须支持独立字号调节');
 assert(workshop.includes('controllerWidth') && workshop.includes('controllerHeight'), '中控必须支持自身宽高调节');

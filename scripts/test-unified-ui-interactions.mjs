@@ -541,6 +541,10 @@ for(const touch of [false,true]){
     assert(current.values.controllerWidth<=width&&current.values.controllerHeight<=height);
     assert.equal(current.values.floatingWidth,Math.floor(width/2),'Default banner width is exactly half the device viewport');
     assert.equal(current.values.floatingHeight,Math.floor(height/2),'Default expanded banner must fill half the screen even on tall tablets');
+    assert.equal(current.values.floatingFont,11);
+    assert.equal(api.makeLayoutState({floatingFont:8},{floatingFont:true}).values.floatingFont,8);
+    assert.equal(api.makeLayoutState({floatingFont:30},{floatingFont:true}).values.floatingFont,22);
+    assert.equal(api.makeLayoutState({floatingFont:8},{}).values.floatingFont,11);
     assert(api.valueRange('floatingWidth')[0]<current.values.floatingWidth);
     assert(api.valueRange('floatingHeight')[0]<current.values.floatingHeight);
     const larger=api.makeLayoutState({floatingWidth:width*.9,floatingHeight:height*.9},{floatingWidth:true,floatingHeight:true});
@@ -715,9 +719,42 @@ for(const vw of [320,390,768,1024])for(const bannerW of [vw/2,vw*.9,vw])for(cons
     assert.equal(doc.documentElement.style.getPropertyValue('--pmm-banner-content-scale'),'');
     assert.equal(doc.documentElement.style.getPropertyValue('--pmm-mobile-floating-width'),'','Changing banner size cannot invalidate the whole document');
   }
+  apply(195,8);assert.equal(Number(root.style.getPropertyValue('--pmm-banner-content-scale')),8/11);
+  assert.equal(root.style.getPropertyValue('--pmm-mobile-floating-width'),'195px');
+  apply(195,22);assert.equal(Number(root.style.getPropertyValue('--pmm-banner-content-scale')),2);
+  apply(195,11);assert.equal(root.style.getPropertyValue('--pmm-banner-content-scale'),'1');
   assert(floating.includes('>.panel-wrapper>:is(.panel-header,.quick-edit-dropdown){zoom:var(--pmm-banner-content-scale,1)'));
   assert(!floating.includes('>.panel-wrapper{zoom:'),'The drag surface and pointer coordinates must not be zoomed');
   assert(floating.includes('>.panel-wrapper>.quick-edit-dropdown{max-height:none!important}'),'The list uses the outer configured height after scaling');
+}
+// The native tablet/desktop cap remains upstream, but unified geometry has higher specificity.
+{
+  assert(workshop.includes('.floating-panel-root:not(.pmm-floating-mobile) .panel-select--preset{'));
+  const rules=floating.slice(floating.indexOf('/* One line at every width.'),floating.indexOf('/* Half-screen defaults;'));
+  assert(rules.includes('>.panel-header{flex-flow:row nowrap!important;white-space:nowrap!important}'));
+  assert(!floating.includes('.panel-header{flex-wrap:wrap!important}'));
+  assert(rules.includes('#preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root .panel-section:has(.panel-select--preset){flex:1 1 0!important;width:auto!important;min-width:0!important;max-width:none!important}'));
+  assert(rules.includes('.panel-select--preset{box-sizing:border-box!important;flex:1 1 0!important;width:0!important;min-width:0!important;max-width:none!important;'));
+  assert(!/max-width:(160|100|130)px/.test(rules),'Name space cannot keep the legacy maximum');
+  assert(rules.includes('.pmm-unified-floating-root>.panel-wrapper{width:min(var(--pmm-mobile-floating-width,50vw),100vw'));
+}
+// A newly mounted controller is never visible until its final coordinates and transform are ready.
+for(const [vw,vh] of [[360,780],[800,1100],[1280,800]])for(const saved of [false,true])for(const full of [false,true]){
+  const card=element(),doc=element(),current={values:{controllerWidth:full?vw:Math.min(vw-24,620),controllerHeight:full?vh:Math.min(vh*.76,640),controllerFont:12}};
+  const state={cardPositions:saved?{profile:{left:5000,top:5000}}:{}};let measured=0,appended=0;
+  card.getBoundingClientRect=()=>{measured++;assert.equal(appended,1);assert.equal(card.style.getPropertyValue('visibility'),'hidden');assert.equal(card.style.getPropertyValue('transform'),'none');return{left:0,top:0,width:current.values.controllerWidth,height:current.values.controllerHeight};};
+  doc.body.appendChild=node=>{appended++;assert.equal(node,card);assert(!node.classList.contains('pmm-layout-card--open'));assert.equal(node.style.getPropertyValue('visibility'),'hidden');card.isConnected=true;};
+  const code=between(workshop,'  function cardViewportBounds(', '  function STORE_PROFILE()')+between(workshop,'  function openCard()', '  function onTriggerClick(');
+  const open=vm.runInNewContext(`(()=>{let card=null,saveTimer=0,cardSnapshot=null;${code};return openCard;})()`,{
+    DOC:doc,state,CONTROLS:[],VIEW:{innerWidth:vw,innerHeight:vh,requestAnimationFrame(){throw Error('First visible placement must not wait for another frame');}},
+    TOP:{__PMM_FLOATING_STORE__:{getState:()=>({keyboardEditing:true})}},STORE_PROFILE:()=> 'profile',buildCard:()=>card,refreshDeviceValues(){},updateOutputs(){},clearTimeout(){},
+    currentState:()=>current,setLayoutVariable:(node,key,value)=>node.style.setProperty(key,value),trigger:null,
+  });
+  open();assert.equal(measured,1);assert.equal(card.style.getPropertyValue('visibility'),'');assert(card.classList.contains('pmm-layout-card--positioned'));assert(card.classList.contains('pmm-layout-card--open'));
+  const x=parseFloat(card.style.getPropertyValue('left')),y=parseFloat(card.style.getPropertyValue('top'));
+  if(!saved){assert.equal(x,(vw-current.values.controllerWidth)/2);assert.equal(y,(vh-current.values.controllerHeight)/2);}
+  assert(x>=0&&x+current.values.controllerWidth<=vw);assert(y>=0&&y+current.values.controllerHeight<=vh);
+  open();assert.equal(measured,1,'An already-open controller keeps its position');
 }
 // Sliding vertically along an edge must not introduce a sideways jump at pointermove or release.
 for(const dock of ['left','right']){
@@ -737,10 +774,10 @@ for(const fromHandle of [false,true]){
 }
 // Cancel detaches the dialog, restores only changed settings, and invalidates geometry once.
 for(const changed of [false,true]){
-  const controls=['groupFont','floatingWidth','controllerWidth'].map(key=>({key}));
-  const baseline={mobile:{values:{groupFont:12,floatingWidth:180,controllerWidth:344},customized:{}},headerMode:'multi',glyph:'☰'};
+  const controls=['groupFont','floatingWidth','floatingFont','controllerWidth'].map(key=>({key}));
+  const baseline={mobile:{values:{groupFont:12,floatingWidth:180,floatingFont:11,controllerWidth:344},customized:{}},headerMode:'multi',glyph:'☰'};
   const live=structuredClone(baseline),calls=[],events=[],sequence=[];
-  if(changed){live.mobile.values.groupFont=16;live.mobile.values.floatingWidth=170;live.mobile.values.controllerWidth=300;}
+  if(changed){live.mobile.values.groupFont=16;live.mobile.values.floatingWidth=170;live.mobile.values.floatingFont=8;live.mobile.values.controllerWidth=300;}
   const closing={remove:()=>sequence.push('detach'),querySelectorAll:()=>controls.map(()=>({__pmmControlCleanup:save=>{assert.equal(save,false);sequence.push('row');}})),__pmmSearchCleanup:()=>sequence.push('search')};
   const api=vm.runInNewContext(`(()=>{let state=live,cardSnapshot=baseline,card=closing;${between(workshop,'  function closeCard(saveChanges','  function openCard()')};return{closeCard,getState:()=>state,getCard:()=>card};})()`,{
     live,baseline,closing,CONTROLS:controls,activeCardDragCleanup:null,trigger:null,root:null,isMobile:()=>true,
@@ -749,7 +786,7 @@ for(const changed of [false,true]){
   api.closeCard(false);assert.equal(api.getCard(),null);assert.equal(api.getState(),baseline);
   assert(sequence.indexOf('search')<sequence.indexOf('detach'),'Release keyboard ownership before detaching the focused search field');
   assert(sequence.indexOf('detach')<sequence.indexOf('row'),'Input cleanup cannot relayout the visible dialog');
-  assert.deepEqual(calls,changed?['groupFont','floatingWidth']:[]);
+  assert.deepEqual(calls,changed?['groupFont','floatingWidth','floatingFont']:[]);
   assert.deepEqual(events,changed?['pmm:floating-metrics-change']:[]);
 }
 

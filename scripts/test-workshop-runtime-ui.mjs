@@ -154,6 +154,14 @@ for(const [width,height] of [[360,800],[800,1100]]){
   }
   quick.style.display='none';env.applyWidth(width/2);panel.rect={left:0,top:0,width:width/2,height:240};resize.callback();flush();
 
+  // Explicit overall font sizes change all internal density without changing the outer width.
+  for(const font of [8,22,11]){
+    env.applyWidth(width/2,font);
+    assert.equal(Number(env.root.style.getPropertyValue('--pmm-banner-content-scale')),font/11);
+    assert.equal(env.root.style.getPropertyValue('--pmm-mobile-floating-width'),width/2+'px');
+    assert.equal(doc.documentElement.style.getPropertyValue('--pmm-banner-content-scale'),'');
+  }
+
   // A reload destroys the old module, including pending tap/long-press callbacks.
   api.resetPosition();flush();tap();env.load('workshop-floating-controller.js');flush();advance(500);
   api=top.__PMM_FLOATING_CONTROLLER__;handle=doc.getElementById('pmm-unified-floating-handle');

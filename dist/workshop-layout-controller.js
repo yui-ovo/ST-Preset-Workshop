@@ -160,6 +160,15 @@ html body #pmm-mobile-layout-card#pmm-mobile-layout-card .pmm-layout-card__foote
 html body #pmm-mobile-layout-card#pmm-mobile-layout-card[data-pmm-layout-theme="dark"] .pmm-layout-card__footer>button{border-color:color-mix(in srgb,var(--pm-accent-color,#4a9eff) 72%,transparent)!important;background:color-mix(in srgb,var(--pm-accent-color,#4a9eff) 25%,transparent)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 3px 10px rgba(0,0,0,.12)!important}
 html body #pmm-mobile-layout-card#pmm-mobile-layout-card[data-pmm-layout-theme="dark"] .pmm-layout-card__footer>[data-pmm-layout-top-notifications][aria-pressed="false"]{border-color:rgba(255,255,255,.07)!important;background:rgba(255,255,255,.055)!important}
 @media(pointer:coarse){html body #pmm-mobile-layout-card#pmm-mobile-layout-card .pmm-layout-card__footer>button{min-height:44px!important}html body #pmm-mobile-layout-card#pmm-mobile-layout-card :is(.pmm-layout-step-btn,.pmm-layout-icon-btn,.pmm-layout-row__lock){width:44px!important;min-width:44px!important;height:44px!important}html body #pmm-mobile-layout-card#pmm-mobile-layout-card .pmm-layout-range-line{grid-template-columns:44px minmax(0,1fr) 44px!important}}
+/* Keep mobile button labels inside their controls; typography only, surfaces stay unchanged. */
+@media(pointer:coarse),(max-width:768px){
+html body #pmm-mobile-layout-card#pmm-mobile-layout-card :is(.pmm-theme-picker__choices button,.pmm-layout-header-mode button,.pmm-layout-split-presets button){font-size:min(var(--pmm-controller-font,12px),clamp(10px,3vw,13px))!important;line-height:1.25!important;min-width:0!important;white-space:nowrap!important}
+html body #pmm-mobile-layout-card#pmm-mobile-layout-card .pmm-layout-card__footer>button{font-size:min(calc(var(--pmm-controller-font,12px)*.9),clamp(10px,2.8vw,12px))!important}
+html body #pmm-mobile-layout-card#pmm-mobile-layout-card :is(.pmm-layout-step-btn,.pmm-layout-icon-btn){font-size:min(20px,calc(var(--pmm-controller-font,12px)*1.5))!important;line-height:1!important}
+html body #preset-manager-main-panel#preset-manager-main-panel .pm-header>.header-right :is(.card-icon i,.title-action-btn>i,.close-card>i,.title-edit-btn>i,.pmm-preset-search-btn>i,.theme-btn>i){font-size:min(var(--pmm-header-icon-size,12px),calc(var(--pmm-header-button-size,32px)*.48))!important;line-height:1!important}
+}
+/* Opening and dragging use final pixel coordinates; only opacity may transition. */
+html body #pmm-mobile-layout-card#pmm-mobile-layout-card{max-width:100vw!important;transition:opacity .18s ease!important}
 /* Moving surfaces keep a compositor layer; expensive live blur returns after release. */
 html body #pmm-mobile-layout-card{contain:layout style;will-change:transform}
 html body #pmm-mobile-layout-card#pmm-mobile-layout-card.pmm-layout-card--dragging,
