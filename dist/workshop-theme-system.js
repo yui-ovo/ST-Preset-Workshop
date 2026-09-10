@@ -102,7 +102,7 @@ function variables(t){
 }
 function hydrateRoot(root,tone=DOC.documentElement.dataset.pmmThemeTone,vars=lastVariables,attributes=null){
   if(!root||!vars)return;
-  // Late surfaces inherit the committed palette, even while another theme is awaiting capture.
+  // Late surfaces inherit the committed palette, while another theme is pending or deferred by a gesture.
   attributes ||= {pmmFollowTavern:DOC.documentElement.dataset.pmmFollowTavern??String(followTavern),pmmVisualTheme:DOC.documentElement.dataset.pmmVisualTheme||current,pmmThemeTone:tone};
   for(const [key,value] of Object.entries(attributes))if(root.dataset[key]!==value)root.dataset[key]=value;
   for(const [key,value] of Object.entries(vars))if(root.style.getPropertyValue(key)!==value)root.style.setProperty(key,value);
@@ -113,7 +113,7 @@ function apply(forcedTone,animate=false){
   const roots=Array.from(DOC.querySelectorAll(THEME_TARGETS));
   const changed=DOC.documentElement.dataset.pmmFollowTavern!==String(followTavern)||DOC.documentElement.dataset.pmmVisualTheme!==current||DOC.documentElement.dataset.pmmThemeTone!==tone||JSON.stringify(lastTokens)!==JSON.stringify(tokens)||DOC.documentElement.style.getPropertyValue('--pmm-theme-count')!==vars['--pmm-theme-count'];
   if(!changed&&roots.every(root=>root.dataset.pmmVisualTheme===current&&root.dataset.pmmThemeTone===tone&&root.style.getPropertyValue('--pmm-theme-count')===vars['--pmm-theme-count']))return;
-  if(animate&&changed&&lastTokens){DOC.documentElement.classList.add('pmm-theme-transition');TOP.clearTimeout(themeTimer);themeTimer=TOP.setTimeout(()=>DOC.documentElement.classList.remove('pmm-theme-transition'),320)}
+  const before=animate&&changed&&lastTokens?{tokens:lastTokens,theme:DOC.documentElement.dataset.pmmVisualTheme,tone:DOC.documentElement.dataset.pmmThemeTone,following:DOC.documentElement.dataset.pmmFollowTavern==='true'}:null;
   const attributes={pmmFollowTavern:String(followTavern),pmmVisualTheme:current,pmmThemeTone:tone};
   for(const doc of [DOC,document].filter((item,index,array)=>item&&array.indexOf(item)===index)){
     hydrateRoot(doc.documentElement,tone,vars,attributes);
@@ -121,57 +121,62 @@ function apply(forcedTone,animate=false){
   for(const root of roots)hydrateRoot(root,tone,vars,attributes);
   for(const button of DOC.querySelectorAll('[data-pmm-theme-choice]'))button.classList.toggle('is-active',button.dataset.pmmThemeChoice===current);
   lastTokens=tokens;lastVariables=vars;
+  if(before){stopTransition();startSurfaceMotion(before)}
   TOP.dispatchEvent(new CustomEvent('pmm:theme-applied',{detail:{theme:current,tone}}));
 }
-let pendingAnimation=false,pendingNativeMode=null,themeRevision=0,activeTransition=null;
-// Capture only plugin surfaces. No cloned DOM, page-wide snapshot, or animation loop.
-function finishTransition(owner){
-  if(activeTransition!==owner)return;
-  activeTransition=null;
-  for(const [node,value,priority] of owner.names){
-    if(value)node.style.setProperty('view-transition-name',value,priority);
-    else node.style.removeProperty('view-transition-name');
-  }
-  DOC.documentElement.classList.remove('pmm-theme-crossfade');
-}
+let pendingAnimation=false,pendingNativeMode=null,themeRevision=0;
+const interactions=new Set();
+let motionSurfaces=[],motionVariant=false;
 function stopTransition(){
-  const owner=activeTransition;if(!owner)return;
-  owner.transition?.skipTransition?.();finishTransition(owner);
+  TOP.clearTimeout(themeTimer);themeTimer=0;
+  for(const node of motionSurfaces){
+    node.classList.remove('pmm-theme-surface-motion','pmm-theme-motion-alt');
+    node.style.removeProperty('--pmm-theme-motion-from');
+    node.style.removeProperty('--pmm-theme-motion-to');
+  }
+  motionSurfaces=[];
+}
+function surfaceBackground(snapshot,kind){
+  const {tokens,theme,tone,following}=snapshot;
+  if(kind==='controller'&&!following){
+    if(theme==='aqua')return tone==='light'?'rgba(235,247,252,.985)':'rgba(27,47,68,.985)';
+    if(theme==='violet')return 'rgba(31,26,37,.985)';
+  }
+  if(kind==='controller')return tokens.controller||tokens.surface;
+  if(kind==='header')return tokens.raised;
+  if(kind==='handle')return tokens.floating;
+  return tokens.surface;
+}
+function startSurfaceMotion(before){
+  if(interactions.size||DOC.visibilityState==='hidden'||TOP.matchMedia?.('(prefers-reduced-motion:reduce)')?.matches)return;
+  const after={tokens:lastTokens,theme:current,tone:DOC.documentElement.dataset.pmmThemeTone,following:followTavern};
+  const selectors=[['#preset-manager-main-panel .preset-panel','surface'],['#preset-manager-main-panel .pm-header','header'],['#preset-manager-floating-panel .panel-wrapper','surface'],['#pmm-mobile-layout-card','controller'],['#pmm-unified-floating-handle','handle']];
+  const seen=new Set();motionVariant=!motionVariant;
+  for(const [selector,kind] of selectors)for(const node of DOC.querySelectorAll(selector)){
+    if(seen.has(node)||node.isConnected===false||node.hidden||node.style.getPropertyValue('display')==='none'||node.closest?.('[hidden],.pmm-wb-native-hidden,.pmm-unified-floating-root.is-hidden'))continue;
+    seen.add(node);
+    const from=surfaceBackground(before,kind),to=surfaceBackground(after,kind);
+    if(from===to)continue;
+    node.style.setProperty('--pmm-theme-motion-from',from);
+    node.style.setProperty('--pmm-theme-motion-to',to);
+    node.classList.toggle('pmm-theme-motion-alt',motionVariant);
+    node.classList.add('pmm-theme-surface-motion');motionSurfaces.push(node);
+  }
+  if(motionSurfaces.length)themeTimer=TOP.setTimeout(stopTransition,400);
 }
 function commitThemeChange(tone,animate,nativeMode,revision){
-  const resolved=tone||environmentTone();
-  const toneChanged=lastTokens&&(resolved!==DOC.documentElement.dataset.pmmThemeTone||current!==DOC.documentElement.dataset.pmmVisualTheme||String(followTavern)!==DOC.documentElement.dataset.pmmFollowTavern);
-  let committed=false;
-  const commit=()=>{
-    if(committed||disposed||revision!==themeRevision)return;
-    committed=true;
-    if(pendingNativeMode===nativeMode)pendingNativeMode=null;
-    nativeMode?.();apply(resolved);
-    // Vue-owned aliases and native button classes belong to the same captured update.
-    return window.Vue?.nextTick?.();
-  };
-  stopTransition();TOP.clearTimeout(themeTimer);
-  DOC.documentElement.classList.remove('pmm-theme-transition');
-  // Both touch and desktop use a bounded surface crossfade, including material switches.
-  if(!animate||!toneChanged||DOC.visibilityState==='hidden'||TOP.matchMedia?.('(prefers-reduced-motion:reduce)')?.matches){commit();return}
-  const selectors=['#preset-manager-main-panel .pm-panel-container','#preset-manager-floating-panel .panel-wrapper','#pmm-mobile-layout-card','#pmm-unified-floating-handle'];
-  const surfaces=selectors.map(selector=>DOC.querySelector(selector)).filter(node=>node?.getClientRects?.().length);
-  const fallback=()=>{
-    if(disposed||revision!==themeRevision)return;
-    DOC.documentElement.classList.add('pmm-theme-transition');
-    themeTimer=TOP.setTimeout(()=>DOC.documentElement.classList.remove('pmm-theme-transition'),280);
-    commit();
-  };
-  if(typeof DOC.startViewTransition!=='function'||!surfaces.length||TOP.matchMedia?.('(prefers-reduced-motion:reduce)')?.matches){fallback();return}
-  const owner={transition:null,names:surfaces.map(node=>[node,node.style.getPropertyValue('view-transition-name'),node.style.getPropertyPriority('view-transition-name')])};
-  activeTransition=owner;
-  owner.names.forEach(([node],index)=>node.style.setProperty('view-transition-name','pmm-theme-surface-'+index,'important'));
-  DOC.documentElement.classList.add('pmm-theme-crossfade');
-  try{
-    owner.transition=DOC.startViewTransition(commit);
-    owner.transition.ready?.catch(()=>{});
-    owner.transition.finished.then(()=>finishTransition(owner),()=>finishTransition(owner));
-  }catch(_){finishTransition(owner);fallback()}
+  if(disposed||revision!==themeRevision)return;
+  const before=lastTokens&&{tokens:lastTokens,theme:DOC.documentElement.dataset.pmmVisualTheme,tone:DOC.documentElement.dataset.pmmThemeTone,following:DOC.documentElement.dataset.pmmFollowTavern==='true'};
+  stopTransition();
+  if(pendingNativeMode===nativeMode)pendingNativeMode=null;
+  // Commit in this microtask. Animation never gates input on a document screenshot or next frame.
+  nativeMode?.();apply(tone||environmentTone());
+  if(animate&&before)startSurfaceMotion(before);
+}
+function beginInteraction(owner){interactions.add(owner);if(motionSurfaces.length)stopTransition()}
+function endInteraction(owner){
+  if(!interactions.delete(owner)||interactions.size)return;
+  if(pendingTone||pendingNativeMode||pendingAnimation)requestApply();
 }
 function requestApply(tone=null,animate=false){
   if(disposed)return;
@@ -181,6 +186,7 @@ function requestApply(tone=null,animate=false){
   TOP.queueMicrotask(()=>TOP.queueMicrotask(()=>{
     if(disposed)return;
     applyQueued=false;
+    if(interactions.size)return;
     const next=pendingTone,animation=pendingAnimation,nativeMode=pendingNativeMode,revision=themeRevision;
     pendingTone=null;pendingAnimation=false;
     commitThemeChange(next,animation,nativeMode,revision);
@@ -300,16 +306,18 @@ html:is([data-pmm-visual-theme="glass"],[data-pmm-visual-theme="theme"],[data-pm
 html:is([data-pmm-visual-theme="glass"],[data-pmm-visual-theme="theme"],[data-pmm-follow-tavern="true"])[data-pmm-theme-tone] body #pmm-mobile-layout-card :is(.pmm-theme-picker__choices button,.pmm-layout-header-mode button,.pmm-layout-card__footer>button,.pmm-layout-split-presets>button){border:0!important;outline:0!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 2px 4px rgba(0,0,0,.14)!important}
 html body #pmm-unified-floating-handle.is-dragging,html body #pmm-mobile-layout-card.pmm-layout-card--dragging,html body #preset-manager-floating-panel .is-dragging>.panel-wrapper{transition:none!important;animation:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 
-/* PMM_THEME_MOTION: temporal rules only; no material or layout endpoints. */
-html.pmm-theme-crossfade{view-transition-name:none!important}
-html.pmm-theme-crossfade::view-transition{pointer-events:none}
-html.pmm-theme-crossfade body :is(#preset-manager-main-panel,#preset-manager-floating-panel,#pmm-mobile-layout-card,#pmm-unified-floating-handle),html.pmm-theme-crossfade body :is(#preset-manager-main-panel,#preset-manager-floating-panel,#pmm-mobile-layout-card) *{transition:none!important}
-html.pmm-theme-transition body :is(#preset-manager-main-panel .preset-panel,#preset-manager-main-panel .pm-header,#preset-manager-floating-panel .panel-wrapper,#pmm-mobile-layout-card,#pmm-unified-floating-handle){transition-property:background-color,border-color,color,-webkit-text-fill-color,box-shadow!important;transition-duration:.24s!important;transition-timing-function:ease-in-out!important;transition-delay:0s!important}
-html.pmm-theme-crossfade::view-transition-group(pmm-theme-surface-0),html.pmm-theme-crossfade::view-transition-old(pmm-theme-surface-0),html.pmm-theme-crossfade::view-transition-new(pmm-theme-surface-0){animation-duration:.24s!important;animation-timing-function:ease-in-out!important}
-html.pmm-theme-crossfade::view-transition-group(pmm-theme-surface-1),html.pmm-theme-crossfade::view-transition-old(pmm-theme-surface-1),html.pmm-theme-crossfade::view-transition-new(pmm-theme-surface-1){animation-duration:.24s!important;animation-timing-function:ease-in-out!important}
-html.pmm-theme-crossfade::view-transition-group(pmm-theme-surface-2),html.pmm-theme-crossfade::view-transition-old(pmm-theme-surface-2),html.pmm-theme-crossfade::view-transition-new(pmm-theme-surface-2){animation-duration:.24s!important;animation-timing-function:ease-in-out!important}
-html.pmm-theme-crossfade::view-transition-group(pmm-theme-surface-3),html.pmm-theme-crossfade::view-transition-old(pmm-theme-surface-3),html.pmm-theme-crossfade::view-transition-new(pmm-theme-surface-3){animation-duration:.24s!important;animation-timing-function:ease-in-out!important}
-@media(prefers-reduced-motion:reduce){html.pmm-theme-transition body :is(#preset-manager-main-panel .preset-panel,#preset-manager-main-panel .pm-header,#preset-manager-floating-panel .panel-wrapper,#pmm-mobile-layout-card,#pmm-unified-floating-handle){transition:none!important}}
+/* PMM_THEME_MOTION: two background layers only; no document capture, text repaint loop or hit testing. */
+html body :is(#preset-manager-main-panel#preset-manager-main-panel .preset-panel,#preset-manager-main-panel#preset-manager-main-panel .pm-header,#preset-manager-floating-panel#preset-manager-floating-panel .panel-wrapper,#pmm-mobile-layout-card#pmm-mobile-layout-card,#pmm-unified-floating-handle#pmm-unified-floating-handle).pmm-theme-surface-motion{background:transparent!important;isolation:isolate!important;transition:none!important}
+html body #preset-manager-main-panel .pm-header.pmm-theme-surface-motion{position:relative}
+html body :is(#preset-manager-main-panel#preset-manager-main-panel .preset-panel,#preset-manager-main-panel#preset-manager-main-panel .pm-header,#preset-manager-floating-panel#preset-manager-floating-panel .panel-wrapper,#pmm-mobile-layout-card#pmm-mobile-layout-card,#pmm-unified-floating-handle#pmm-unified-floating-handle).pmm-theme-surface-motion *{transition:none!important}
+html body :is(#preset-manager-main-panel#preset-manager-main-panel .preset-panel,#preset-manager-main-panel#preset-manager-main-panel .pm-header,#preset-manager-floating-panel#preset-manager-floating-panel .panel-wrapper,#pmm-mobile-layout-card#pmm-mobile-layout-card,#pmm-unified-floating-handle#pmm-unified-floating-handle).pmm-theme-surface-motion::before,html body :is(#preset-manager-main-panel#preset-manager-main-panel .preset-panel,#preset-manager-main-panel#preset-manager-main-panel .pm-header,#preset-manager-floating-panel#preset-manager-floating-panel .panel-wrapper,#pmm-mobile-layout-card#pmm-mobile-layout-card,#pmm-unified-floating-handle#pmm-unified-floating-handle).pmm-theme-surface-motion::after{content:""!important;position:absolute!important;inset:0!important;width:auto!important;height:auto!important;border:0!important;border-radius:inherit!important;pointer-events:none!important;transform:none!important;filter:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;box-shadow:none!important;animation-duration:360ms!important;animation-timing-function:cubic-bezier(.22,.61,.36,1)!important;animation-fill-mode:both!important;animation-delay:0s!important;animation-iteration-count:1!important;will-change:opacity}
+html body :is(#preset-manager-main-panel#preset-manager-main-panel .preset-panel,#preset-manager-main-panel#preset-manager-main-panel .pm-header,#preset-manager-floating-panel#preset-manager-floating-panel .panel-wrapper,#pmm-mobile-layout-card#pmm-mobile-layout-card,#pmm-unified-floating-handle#pmm-unified-floating-handle).pmm-theme-surface-motion::before{z-index:-2!important;background:var(--pmm-theme-motion-from)!important;animation-name:pmm-theme-layer-out!important}
+html body :is(#preset-manager-main-panel#preset-manager-main-panel .preset-panel,#preset-manager-main-panel#preset-manager-main-panel .pm-header,#preset-manager-floating-panel#preset-manager-floating-panel .panel-wrapper,#pmm-mobile-layout-card#pmm-mobile-layout-card,#pmm-unified-floating-handle#pmm-unified-floating-handle).pmm-theme-surface-motion::after{z-index:-1!important;background:var(--pmm-theme-motion-to)!important;animation-name:pmm-theme-layer-in!important}
+html body :is(#preset-manager-main-panel#preset-manager-main-panel .preset-panel,#preset-manager-main-panel#preset-manager-main-panel .pm-header,#preset-manager-floating-panel#preset-manager-floating-panel .panel-wrapper,#pmm-mobile-layout-card#pmm-mobile-layout-card,#pmm-unified-floating-handle#pmm-unified-floating-handle).pmm-theme-surface-motion.pmm-theme-motion-alt::before{animation-name:pmm-theme-layer-out-alt!important}
+html body :is(#preset-manager-main-panel#preset-manager-main-panel .preset-panel,#preset-manager-main-panel#preset-manager-main-panel .pm-header,#preset-manager-floating-panel#preset-manager-floating-panel .panel-wrapper,#pmm-mobile-layout-card#pmm-mobile-layout-card,#pmm-unified-floating-handle#pmm-unified-floating-handle).pmm-theme-surface-motion.pmm-theme-motion-alt::after{animation-name:pmm-theme-layer-in-alt!important}
+@keyframes pmm-theme-layer-out{from{opacity:1}to{opacity:0}}@keyframes pmm-theme-layer-in{from{opacity:0}to{opacity:1}}
+@keyframes pmm-theme-layer-out-alt{from{opacity:1}to{opacity:0}}@keyframes pmm-theme-layer-in-alt{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){html body :is(#preset-manager-main-panel#preset-manager-main-panel .preset-panel,#preset-manager-main-panel#preset-manager-main-panel .pm-header,#preset-manager-floating-panel#preset-manager-floating-panel .panel-wrapper,#pmm-mobile-layout-card#pmm-mobile-layout-card,#pmm-unified-floating-handle#pmm-unified-floating-handle).pmm-theme-surface-motion::before{opacity:0!important;animation:none!important}html body :is(#preset-manager-main-panel#preset-manager-main-panel .preset-panel,#preset-manager-main-panel#preset-manager-main-panel .pm-header,#preset-manager-floating-panel#preset-manager-floating-panel .panel-wrapper,#pmm-mobile-layout-card#pmm-mobile-layout-card,#pmm-unified-floating-handle#pmm-unified-floating-handle).pmm-theme-surface-motion::after{opacity:1!important;animation:none!important}}
 `;DOC.head.appendChild(style);cleanup.push(()=>style.remove());
 }
 function onDocumentCapture(event){
@@ -348,5 +356,5 @@ function install(){
   media?.addEventListener?.('change',change);cleanup.push(()=>media?.removeEventListener?.('change',change));
   apply();
 }
-const API=Object.freeze({themes:THEMES,getTheme:()=>current,isFollowingTavern:()=>followTavern,getTone:environmentTone,getTokens:()=>lastTokens,setTheme,setTone,toggleFollow,apply,mountPicker,destroy(){disposed=true;themeRevision++;pendingNativeMode=null;stopTransition();TOP.clearTimeout(themeTimer);DOC.documentElement.classList.remove('pmm-theme-transition');while(cleanup.length)try{cleanup.pop()()}catch(_){}delete TOP[API_KEY]}});
+const API=Object.freeze({themes:THEMES,getTheme:()=>current,isFollowingTavern:()=>followTavern,getTone:environmentTone,getTokens:()=>lastTokens,setTheme,setTone,toggleFollow,apply,mountPicker,beginInteraction,endInteraction,destroy(){disposed=true;themeRevision++;pendingNativeMode=null;interactions.clear();stopTransition();TOP.clearTimeout(themeTimer);DOC.documentElement.classList.remove('pmm-theme-transition');while(cleanup.length)try{cleanup.pop()()}catch(_){}delete TOP[API_KEY]}});
 TOP[API_KEY]=API;globalThis[API_KEY]=API;install();export default API;

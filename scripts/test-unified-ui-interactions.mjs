@@ -78,7 +78,7 @@ for(const theme of ['aqua','glass','violet','theme'])for(const tone of ['light',
   microtasks.shift()();assert.equal(api.getTokens(),before,'Allow the native Vue flush to finish');
   flush();assert.equal(events.length,2,'Startup plus exactly one day/night commit');
   assert.equal(api.getTone(),'dark');assert.equal(doc.documentElement.dataset.pmmThemeTone,'dark');
-  assert(doc.documentElement.classList.contains('pmm-theme-transition'));
+  assert(!doc.documentElement.classList.contains('pmm-theme-transition'),'Theme submission cannot wait for a capture animation');
   timers.flush();assert(!doc.documentElement.classList.contains('pmm-theme-transition'));
 }
 
@@ -153,6 +153,20 @@ for(const theme of ['aqua','glass','violet','theme'])for(const tone of ['light',
   assert(layout.includes('@media(orientation:landscape){html body #preset-manager-main-panel .pm-header .title-action-btn>span{display:none!important}}'));
   assert(layout.includes('font-size:var(--pmm-header-icon-size,calc(var(--pmm-header-button-size,32px)*.38))'));
 }
+// Footer actions copy the retained original notification ON recipe, including its dark variant.
+{
+  const layout=read('dist/workshop-layout-controller.js');
+  const footer=between(layout,'/* The reference is the original notification ON style.','/* Moving surfaces');
+  const reference=between(workshop,'  .pmm-layout-notice-btn.pmm-layout-notice-btn--active{','  #pmm-mobile-layout-card[data-pmm-layout-theme="dark"]{');
+  for(const declaration of reference.slice(reference.indexOf('{')+1,reference.indexOf('}')).split(';').map(value=>value.trim()).filter(Boolean)){
+    if(declaration.startsWith('border-color:'))assert(footer.includes(declaration.replace('border-color:','border:1px solid ')));
+    else assert(footer.includes(declaration),'All footer actions must retain original ON colors');
+  }
+  const dark=between(workshop,'  #pmm-mobile-layout-card[data-pmm-layout-theme="dark"] .pmm-layout-notice-btn.pmm-layout-notice-btn--active{','  #preset-manager-main-panel .pmm-split-handle{');
+  for(const declaration of dark.slice(dark.indexOf('{')+1,dark.indexOf('}')).split(';').map(value=>value.trim()).filter(Boolean))assert(footer.includes(declaration));
+  assert(footer.includes('.pmm-layout-card__footer>button{'));
+  assert(!footer.includes('#pmm-mobile-layout-card#pmm-mobile-layout-card button{'),'The reference notification cannot be flattened by an all-button override');
+}
 // System material never depends on Tavern hues; the wand has its own persistent switch.
 for(const tone of ['light','dark']){
   const {api,palette,storage,flush}=bootTheme('theme',tone),base=api.getTokens();
@@ -205,70 +219,53 @@ for(const skin of ['aqua','glass','violet','theme'])for(const follow of [false,t
   callback();assert.equal(mode.value,'dark');assert.equal(updates,1);
 }
 
-// A scoped transition captures the old plugin first, then commits native aliases and all tokens once.
-function captureThemeTransition(){
-  const env=bootTheme('aqua','light'),surface=element(),transitions=[];
-  surface.getClientRects=()=>[{}];surface.style.setProperty('view-transition-name','previous-name');
-  env.doc.querySelector=selector=>selector==='#preset-manager-main-panel .pm-panel-container'?surface:null;
-  env.doc.startViewTransition=update=>{
-    let finish;const finished=new Promise(resolve=>finish=resolve);
-    const entry={update,finished,ready:Promise.resolve(),finish,skipTransition(){this.skipped=true;finish();}};
-    transitions.push(entry);return entry;
-  };
-  return {...env,surface,transitions};
+// The actual theme module commits before paint and uses background-only layers, including touch.
+function motionTheme(){
+  const env=bootTheme('aqua','light'),surface=element();surface.isConnected=true;env.roots.push(surface);
+  env.doc.startViewTransition=()=>{throw Error('Input must not wait for a document screenshot');};
+  surface.getClientRects=()=>{throw Error('Theme motion must not measure the preset tree');};
+  return {...env,surface};
 }
-{
-  const env=captureThemeTransition();let native=0,ticks=0;
-  env.top.Vue={nextTick:async()=>{ticks++;}};
+for(const device of ['desktop','phone','tablet']){
+  const env=motionTheme();let native=0;
+  env.top.matchMedia=query=>({matches:device!=='desktop'&&query.includes('pointer: coarse')});
+  env.top.navigator={maxTouchPoints:device==='tablet'?10:device==='phone'?5:0};
   env.api.setTone('dark',()=>native++);env.flush();
-  assert.equal(env.transitions.length,1);assert.equal(native,0);
-  assert.equal(env.doc.documentElement.dataset.pmmThemeTone,'light','Native colors cannot change before the old surface is captured');
-  assert.equal(env.surface.style.getPropertyValue('view-transition-name'),'pmm-theme-surface-0');
-  await env.transitions[0].update();
-  assert.equal(native,1);assert.equal(ticks,1);assert.equal(env.api.getTokens(),env.api.themes.aqua.dark);
-  assert.equal(env.events.length,2,'One complete theme event after native and material updates');
-  env.transitions[0].finish();await Promise.resolve();
-  assert.equal(env.surface.style.getPropertyValue('view-transition-name'),'previous-name');
-  assert(!env.doc.documentElement.classList.contains('pmm-theme-crossfade'));env.api.destroy();
+  assert.equal(native,1);assert.equal(env.api.getTokens(),env.api.themes.aqua.dark);assert.equal(env.events.length,2);
+  assert(env.surface.classList.contains('pmm-theme-surface-motion'));
+  assert.equal(env.surface.style.getPropertyValue('--pmm-theme-motion-from'),env.api.themes.aqua.light.surface);
+  assert.equal(env.surface.style.getPropertyValue('--pmm-theme-motion-to'),env.api.themes.aqua.dark.surface);
+  env.timers.flush();assert(!env.surface.classList.contains('pmm-theme-surface-motion'));env.api.destroy();
 }
-// Touch day/night changes retain the same bounded surface crossfade as desktop.
-for(const device of ['phone','tablet']){
-  const env=captureThemeTransition();let native=0;
-  env.top.matchMedia=query=>({matches:query.includes('pointer: coarse')});
-  env.top.navigator={maxTouchPoints:device==='tablet'?10:5};
-  env.api.setTone('dark',()=>native++);env.flush();
-  assert.equal(native,0);assert.equal(env.transitions.length,1);
-  await env.transitions[0].update();env.transitions[0].finish();await Promise.resolve();
-  assert.equal(native,1);assert.equal(env.api.getTokens(),env.api.themes.aqua.dark);
-  assert(!env.doc.documentElement.classList.contains('pmm-theme-transition'));
-  env.api.destroy();
-}
-// A queued DOM refresh must retain an uncommitted native mode; a rapid reverse must supersede it.
+// A pending request can be superseded or disposed before the native setter runs.
 for(const action of ['mount','reverse','destroy']){
-  const env=captureThemeTransition();let dark=0,light=0;
-  env.api.setTone('dark',()=>dark++);env.flush();const old=env.transitions[0];
+  const env=motionTheme();let dark=0,light=0;
+  env.api.setTone('dark',()=>dark++);
   if(action==='mount'){
     const observer=env.observers.find(observer=>observer.targets.some(({target,options})=>target===env.doc.body&&options.childList));
-    observer.callback([{addedNodes:[{...element(),matches:()=>true}]}]);env.flush();
-  }else if(action==='reverse'){env.api.setTone('light',()=>light++);env.flush();}
+    observer.callback([{addedNodes:[{...element(),matches:()=>true}]}]);
+  }else if(action==='reverse')env.api.setTone('light',()=>light++);
   else env.api.destroy();
-  await old.update();await Promise.resolve();
-  if(action==='mount'){assert(!old.skipped,'Mounting a controller must not restart an in-flight transition');old.finish();await Promise.resolve();}else assert(old.skipped);
-  assert.equal(dark,action==='mount'?1:0);assert.equal(light,action==='reverse'?1:0);
-  assert.equal(env.doc.documentElement.dataset.pmmThemeTone,action==='mount'?'dark':'light');
-  assert.equal(env.surface.style.getPropertyValue('view-transition-name'),'previous-name');
-  assert(!env.doc.documentElement.classList.contains('pmm-theme-crossfade'));
-  env.api.destroy();
+  env.flush();assert.equal(dark,action==='mount'?1:0);assert.equal(light,action==='reverse'?1:0);
+  assert.equal(env.doc.documentElement.dataset.pmmThemeTone,action==='mount'?'dark':'light');env.api.destroy();
 }
-for(const capability of ['throws','reduced','missing']){
-  const env=captureThemeTransition();let native=0;
-  if(capability==='throws')env.doc.startViewTransition=()=>{throw Error('capture unavailable');};
-  if(capability==='missing')delete env.doc.startViewTransition;
-  if(capability==='reduced')env.top.matchMedia=query=>({matches:query.includes('reduced-motion')});
-  env.api.setTone('dark',()=>native++);env.flush();
-  assert.equal(native,1);assert.equal(env.api.getTokens(),env.api.themes.aqua.dark);assert.equal(env.transitions.length,0);
-  env.timers.flush();assert(!env.doc.documentElement.classList.contains('pmm-theme-transition'));
-  assert.equal(env.surface.style.getPropertyValue('view-transition-name'),'previous-name');env.api.destroy();
+for(const capability of ['reduced','hidden']){
+  const env=motionTheme();let native=0;
+  if(capability==='hidden')env.doc.visibilityState='hidden';
+  else env.top.matchMedia=query=>({matches:query.includes('reduced-motion')});
+  env.api.setTone('dark',()=>native++);env.flush();assert.equal(native,1);assert(!env.surface.classList.contains('pmm-theme-surface-motion'));env.api.destroy();
+}
+// All three gestures stop visual work; requests stay coalesced until the last gesture ends.
+{
+  const env=motionTheme();let native=0;
+  env.api.setTone('dark');env.flush();assert(env.surface.classList.contains('pmm-theme-surface-motion'));
+  for(const owner of ['floating','split','controller'])env.api.beginInteraction(owner);
+  assert(!env.surface.classList.contains('pmm-theme-surface-motion'));
+  env.api.setTone('light',()=>native++);env.api.setTheme('glass');env.flush();
+  assert.equal(native,0);assert.equal(env.api.getTokens(),env.api.themes.aqua.dark);
+  env.api.endInteraction('floating');env.api.endInteraction('split');env.flush();assert.equal(native,0);
+  env.api.endInteraction('controller');env.flush();assert.equal(native,1);assert.equal(env.api.getTokens(),env.api.themes.glass.light);
+  env.api.destroy();assert.equal(env.timers.queue.size,0);
 }
 
 // Slider, numeric input and preset shortcuts share the same live ratio path.
@@ -294,6 +291,7 @@ for(const capability of ['throws','reduced','missing']){
 // A burst of split pointermoves must measure once, render once and save on release.
 for (const vertical of [true,false]) {
   const raf = frames(), doc = element(), root = element(); let measurements = 0, saves = 0, stateReads = 0, captured = 0;
+  const themeEnv=motionTheme();themeEnv.api.setTone('dark');themeEnv.flush();
   const geometry = { vertical, origin:0, available:1000 };
   const state = { values:{ splitRatio:50 }, customized:{ splitRatio:false } };
   const previews = [];
@@ -302,7 +300,7 @@ for (const vertical of [true,false]) {
   const handle = { ...element(), closest:() => container, classList:{ contains:name => name.endsWith(`--${edge}`) }, setPointerCapture(id){assert.equal(id,1);captured++;},hasPointerCapture:()=>true,releasePointerCapture(){captured--;} };
   const source = between(workshop, '  function resizeFromPoint(', '  function resetSplitRatio()') + between(workshop, '  function beginSplitResize(event)', '  function makeHandle(edge)');
   const begin = vm.runInNewContext(`(() => { let activeResizeCleanup=null; ${source}; return beginSplitResize; })()`, {
-    DOC:doc, root, TOP:{}, VIEW:{ requestAnimationFrame:raf.request, cancelAnimationFrame:raf.cancel }, MODE_SELECTOR:'split', Date,
+    DOC:doc, root, TOP:{}, VIEW:{ __PMM_THEME_SYSTEM__:themeEnv.api, requestAnimationFrame:raf.request, cancelAnimationFrame:raf.cancel }, MODE_SELECTOR:'split', Date,
     CONTROLS:[{ key:'splitRatio' }], currentState:() => { stateReads++; return state; }, clamp:(_key,value) => Math.max(28,Math.min(72,value)),
     measureSplitGeometry:() => { measurements++; return geometry; },
     applyControlValue:() => previews.push(state.values.splitRatio), persistSoon:() => saves++, updateOutputs() {}, resetSplitRatio() {},
@@ -314,6 +312,8 @@ for (const vertical of [true,false]) {
   doc.listeners.get('pointerup')({...pointer('pointerup',500),pointerId:2});
   assert.equal(captured,1,'Companion touch and unrelated pointer releases must leave the drag active');
   for (let value=510;value<=700;value++) doc.listeners.get('pointermove')(pointer('pointermove',value));
+  assert(!themeEnv.surface.classList.contains('pmm-theme-surface-motion'),'Split movement stops theme animation');
+  themeEnv.api.setTone('light');themeEnv.flush();assert.equal(themeEnv.doc.documentElement.dataset.pmmThemeTone,'dark');
   assert.equal(measurements, 1);
   assert.equal(previews.length, 0);
   assert.equal(raf.queue.size, 1);
@@ -329,6 +329,7 @@ for (const vertical of [true,false]) {
   assert.equal(stateReads,1,'Dragging must reuse the initial device state without querying viewport/media on each frame');
   doc.listeners.get('pointermove')(pointer('pointermove',300));
   doc.listeners.get('pointerup')(pointer('pointerup',320));
+  themeEnv.flush();assert.equal(themeEnv.doc.documentElement.dataset.pmmThemeTone,'light');themeEnv.api.destroy();
   assert.equal(state.values.splitRatio, 32, 'Pointerup must flush the final pending preview');
   assert.equal(captured,0);
   assert.deepEqual(previews,[32], 'Only release writes the final root variables');
@@ -499,14 +500,17 @@ ${source};return onUp; })()`,{
 // Card movement measures once, paints without a trailing frame, and commits the release coordinate.
 for(const touch of [false,true]){
   const raf=frames(),doc=element(),card=element(),state={};let measurements=0,bounds=0,saves=0;
+  const themeEnv=motionTheme();themeEnv.api.setTone('dark');themeEnv.flush();
   card.getBoundingClientRect=()=>{measurements++;return{left:100,top:100,width:300,height:400};};
   const source=between(workshop,'  function beginCardDrag(event)','  function parseLayoutThemeColor');
   const begin=vm.runInNewContext(`(() => {let activeCardDragCleanup=null;${source};return beginCardDrag;})()`,{
-    card,DOC:doc,VIEW:{requestAnimationFrame:raf.request,cancelAnimationFrame:raf.cancel},state,
+    card,DOC:doc,VIEW:{__PMM_THEME_SYSTEM__:themeEnv.api,requestAnimationFrame:raf.request,cancelAnimationFrame:raf.cancel},state,
     cardViewportBounds:()=>{bounds++;return{};},clampCardPosition:(left,top)=>({left,top}),STORE_PROFILE:()=> 'phone-landscape',persistSoon:()=>saves++,
   });
   const event=(type,x,y)=>({type,clientX:touch?undefined:x,clientY:touch?undefined:y,...(touch?{touches:type==='touchend'?[]:[{clientX:x,clientY:y}],changedTouches:[{clientX:x,clientY:y}]}:{}),target:{closest:()=>null},preventDefault(){},stopPropagation(){}});
   begin(event(touch?'touchstart':'pointerdown',100,100));
+  assert(!themeEnv.surface.classList.contains('pmm-theme-surface-motion'));
+  themeEnv.api.setTone('light');themeEnv.flush();assert.equal(themeEnv.doc.documentElement.dataset.pmmThemeTone,'dark');
   for(let x=110;x<=300;x++)doc.listeners.get(touch?'touchmove':'pointermove')(event(touch?'touchmove':'pointermove',x,200));
   assert.equal(measurements,1);assert.equal(bounds,1);assert.equal(raf.queue.size,0,'Cached card transform needs no extra animation frame');assert.equal(saves,0);
   assert.equal(card.style.getPropertyValue('transform'),'translate3d(200px,100px,0)');
@@ -514,6 +518,7 @@ for(const touch of [false,true]){
   assert.equal(card.style.getPropertyValue('left'),'330px');assert.equal(card.style.getPropertyValue('top'),'240px');
   assert.equal(card.style.getPropertyValue('transform'),'');assert.equal(raf.queue.size,0);assert.equal(doc.listeners.size,0);assert.equal(saves,1);
   assert.equal(state.cardPositions['phone-landscape'].left,330);
+  themeEnv.flush();assert.equal(themeEnv.doc.documentElement.dataset.pmmThemeTone,'light');themeEnv.api.destroy();
 }
 
 
@@ -646,19 +651,15 @@ for(const height of [360,780,1100]){
   assert.equal(env.microtasks.length,0);assert.equal(env.events.length,1,'Opening settings cannot rescan main theme buttons');
   env.api.destroy();
 }
-// Changing material also crossfades on touch, while reselecting the active material does no work.
+// Material switching uses the same immediate commit; late surfaces never receive mixed tokens.
 {
-  const env=captureThemeTransition();env.top.navigator={maxTouchPoints:5};
-  env.api.setTheme('violet');env.flush();assert.equal(env.transitions.length,1);
+  const env=motionTheme();env.top.navigator={maxTouchPoints:5};env.api.setTheme('violet');
   const pendingCard={...element(),matches:()=>true};env.roots.push(pendingCard);
   const mount=env.observers.find(observer=>observer.targets.some(({target,options})=>target===env.doc.body&&options.childList));
-  mount.callback([{addedNodes:[pendingCard]}]);
-  assert.equal(pendingCard.dataset.pmmVisualTheme,'aqua','A late card must inherit the committed palette until capture completes');
-  await env.transitions[0].update();env.transitions[0].finish();await Promise.resolve();
-  assert.equal(env.api.getTokens(),env.api.themes.violet.light);
-  assert.equal(pendingCard.dataset.pmmVisualTheme,'violet');assert.equal(pendingCard.style.getPropertyValue('--pmm-theme-control'),env.api.themes.violet.light.control);
-  env.api.setTheme('violet');env.flush();assert.equal(env.transitions.length,1);assert.equal(env.events.length,2);
-  env.api.destroy();
+  mount.callback([{addedNodes:[pendingCard]}]);assert.equal(pendingCard.dataset.pmmVisualTheme,'aqua');
+  env.flush();assert.equal(env.api.getTokens(),env.api.themes.violet.light);assert.equal(pendingCard.dataset.pmmVisualTheme,'violet');
+  assert.equal(pendingCard.style.getPropertyValue('--pmm-theme-control'),env.api.themes.violet.light.control);
+  env.api.setTheme('violet');env.flush();assert.equal(env.events.length,2);env.api.destroy();
 }
 // Dock geometry is flush to both device edges and leaves the half-screen banner inside the viewport.
 for(const vw of [320,360,390,768,1024]){
@@ -670,7 +671,7 @@ for(const vw of [320,360,390,768,1024]){
   });
   for(const [x,dock] of [[8,'left'],[vw-50,'right']]){
     api.settle({x,y:100,dock:'free'});assert.equal(state.position.dock,dock);
-    assert.equal(state.position.x,dock==='left'?0:vw-44);
+    assert.equal(state.position.x,dock==='left'?0:vw-28);
     state.expanded=true;const expanded=api.clampPosition(state.position);
     assert.equal(expanded.x,dock==='left'?0:vw-28);
     const banner=api.panelPoint(expanded,api.resolveSide(expanded));
@@ -682,7 +683,7 @@ for(const vw of [320,360,390,768,1024]){
 }
 // Sliding vertically along an edge must not introduce a sideways jump at pointermove or release.
 for(const dock of ['left','right']){
-  const gesture={dock,bx:dock==='left'?0:316,by:100,sx:20,sy:100,expanded:false,size:{w:44,h:44},g:{vw:360,vh:800}};
+  const gesture={dock,bx:dock==='left'?0:332,by:100,sx:20,sy:100,expanded:false,size:{w:28,h:28},g:{vw:360,vh:800}};
   const move=vm.runInNewContext(`${between(floating,'function updateDragPoint(event)','function onMove(event)')};updateDragPoint;`,{gesture});
   move({clientX:20,clientY:180});assert.equal(gesture.dx,0);assert.equal(gesture.dy,80);
 }

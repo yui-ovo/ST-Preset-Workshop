@@ -10456,6 +10456,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     event.preventDefault();
     event.stopPropagation();
     activeCardDragCleanup?.();
+    VIEW.__PMM_THEME_SYSTEM__?.beginInteraction?.('controller');
 
     const cardRect = card.getBoundingClientRect();
     const startLeft = cardRect.left;
@@ -10511,6 +10512,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       DOC.removeEventListener('touchend', end, true);
       DOC.removeEventListener('touchcancel', end, true);
       activeCardDragCleanup = null;
+      VIEW.__PMM_THEME_SYSTEM__?.endInteraction?.('controller');
     };
     activeCardDragCleanup = end;
     if (event.type.startsWith('touch')) {
@@ -10964,6 +10966,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
         const distance = mobileResize ? Math.abs(point.clientY - startY) : Math.abs(point.clientX - startX);
         if (distance <= 7) return;
         moved = true;
+        VIEW.__PMM_THEME_SYSTEM__?.beginInteraction?.('split');
         DOC.body.appendChild(preview);
       }
       queuedPoint = { x:point.clientX, y:point.clientY };
@@ -10980,6 +10983,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       dragDocument.removeEventListener('touchend', end, true);
       dragDocument.removeEventListener('touchcancel', end, true);
       activeResizeCleanup = null;
+      VIEW.__PMM_THEME_SYSTEM__?.endInteraction?.('split');
       try { if (pointerId != null && handle.hasPointerCapture?.(pointerId)) handle.releasePointerCapture(pointerId); } catch (_) {}
       const now = Date.now();
       const cancelled = String(endEvent?.type || '').includes('cancel');
