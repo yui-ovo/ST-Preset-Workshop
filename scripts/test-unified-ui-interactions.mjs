@@ -14,9 +14,10 @@ function between(source, start, end) {
 }
 function element() {
   const values = new Map(), priorities = new Map(), classes = new Set(), listeners = new Map();
+  let styleMutations=0;
   return {
-    nodeType:1, dataset:{}, listeners,
-    style:{ getPropertyValue:key => values.get(key) || '', getPropertyPriority:key=>priorities.get(key)||'', setProperty(key,value,priority=''){values.set(key,value);priorities.set(key,priority);}, removeProperty(key){values.delete(key);priorities.delete(key);} },
+    nodeType:1, dataset:{}, listeners, get styleMutations(){return styleMutations;},
+    style:{ getPropertyValue:key => values.get(key) || '', getPropertyPriority:key=>priorities.get(key)||'', setProperty(key,value,priority=''){styleMutations++;values.set(key,value);priorities.set(key,priority);}, removeProperty(key){values.delete(key);priorities.delete(key);}, get cssText(){return [...values].map(([k,v])=>k+':'+v+(priorities.get(k)?' !important':'')).join(';');}, set cssText(text){styleMutations++;values.clear();priorities.clear();for(const item of text.split(';')){const colon=item.indexOf(':');if(colon<0)continue;const key=item.slice(0,colon).trim(),raw=item.slice(colon+1).trim(),priority=/!important$/.test(raw)?'important':'';if(priorities.get(key)&&!priority)continue;values.set(key,raw.replace(/\s*!important$/,''));priorities.set(key,priority);}} },
     classList:{ add:(...names) => names.forEach(name => classes.add(name)), remove:(...names) => names.forEach(name => classes.delete(name)), contains:name => classes.has(name), toggle(name, force) { const next = force ?? !classes.has(name); if (next) classes.add(name); else classes.delete(name); return next; } },
     addEventListener(type, callback) { listeners.set(type, callback); },
     removeEventListener(type, callback) { if (listeners.get(type) === callback) listeners.delete(type); },
@@ -504,10 +505,10 @@ for(const touch of [false,true]){
   const raf=frames(),doc=element(),card=element(),state={};let measurements=0,bounds=0,saves=0;
   const themeEnv=motionTheme();themeEnv.api.setTone('dark');themeEnv.flush();
   card.getBoundingClientRect=()=>{measurements++;return{left:100,top:100,width:300,height:400};};
-  const source=between(workshop,'  function beginCardDrag(event)','  function parseLayoutThemeColor');
+  const source=between(workshop,'  function writeCardPosition(', '  function fitCardToViewport(')+between(workshop,'  function beginCardDrag(event)','  function parseLayoutThemeColor');
   const begin=vm.runInNewContext(`(() => {let activeCardDragCleanup=null;${source};return beginCardDrag;})()`,{
     card,DOC:doc,VIEW:{__PMM_THEME_SYSTEM__:themeEnv.api,requestAnimationFrame:raf.request,cancelAnimationFrame:raf.cancel},state,
-    cardViewportBounds:()=>{bounds++;return{};},clampCardPosition:(left,top)=>({left,top}),STORE_PROFILE:()=> 'phone-landscape',persistSoon:()=>saves++,flushDeferredLayout(){},
+    cardViewportBounds:()=>{bounds++;return{originX:0,originY:0,scaleX:1,scaleY:1};},clampCardPosition:(left,top)=>({left,top}),STORE_PROFILE:()=> 'phone-landscape',persistSoon:()=>saves++,flushDeferredLayout(){},
   });
   const event=(type,x,y)=>({type,clientX:touch?undefined:x,clientY:touch?undefined:y,...(touch?{touches:type==='touchend'?[]:[{clientX:x,clientY:y}],changedTouches:[{clientX:x,clientY:y}]}:{}),target:{closest:()=>null},preventDefault(){},stopPropagation(){}});
   begin(event(touch?'touchstart':'pointerdown',100,100));
@@ -748,11 +749,11 @@ for(const [vw,vh] of [[360,780],[800,1100],[1280,800]])for(const saved of [false
     TOP:{__PMM_FLOATING_STORE__:{getState:()=>({keyboardEditing:true})}},STORE_PROFILE:()=> 'profile',buildCard:()=>card,refreshDeviceValues(){},updateOutputs(){},clearTimeout(){},
     currentState:()=>current,setLayoutVariable:(node,key,value)=>node.style.setProperty(key,value),trigger:null,
   });
-  open();assert.equal(measured,1);assert.equal(card.style.getPropertyValue('visibility'),'');assert(card.classList.contains('pmm-layout-card--positioned'));assert(card.classList.contains('pmm-layout-card--open'));
+  open();assert.equal(measured,2);assert.equal(card.style.getPropertyValue('visibility'),'');assert(card.classList.contains('pmm-layout-card--positioned'));assert(card.classList.contains('pmm-layout-card--open'));
   const x=parseFloat(card.style.getPropertyValue('left')),y=parseFloat(card.style.getPropertyValue('top'));
   assert.equal(x,(vw-current.values.controllerWidth)/2,'Every new open centers, ignoring old saved coordinates');assert.equal(y,(vh-current.values.controllerHeight)/2);
   assert(x>=0&&x+current.values.controllerWidth<=vw);assert(y>=0&&y+current.values.controllerHeight<=vh);
-  open();assert.equal(measured,1,'An already-open controller keeps its position');
+  open();assert.equal(measured,2,'An already-open controller keeps its position');
 }
 // Sliding vertically along an edge must not introduce a sideways jump at pointermove or release.
 for(const dock of ['left','right']){
@@ -789,3 +790,27 @@ for(const changed of [false,true]){
 }
 
 console.log('统一 UI 交互回归通过：主题冻结、主界面例外范围、统一切换/快速反向/降级、比例预览、触摸/指针捕获、设备范围、唯一开关、搜索、半屏默认/全屏上限/比例缩放与横滑记忆。');
+
+// One CSS mutation per theme surface, no loss of drag geometry or inline priorities.
+{
+  const env=bootTheme(),{api,doc,roots,observers,flush}=env;
+  const card=element();card.id='pmm-mobile-layout-card';card.matches=()=>true;roots.push(card);
+  card.style.setProperty('left','123.5px','important');card.style.setProperty('transform','translate3d(10px,20px,0)','important');
+  const mount=observers.find(observer=>observer.targets.some(({target,options})=>target===doc.body&&options.childList));
+  mount.callback([{addedNodes:[card]}]);
+  const before=card.styleMutations,htmlBefore=doc.documentElement.styleMutations;
+  api.setTheme('glass');flush();
+  assert.equal(doc.documentElement.styleMutations-htmlBefore,1,'A theme change must not emit one style mutation for every variable');
+  assert.equal(card.styleMutations-before,3,'One palette batch plus two transition endpoints on an animated surface');
+  assert.equal(card.style.getPropertyValue('--pmm-theme-control'),api.getTokens().control);
+  assert.equal(card.style.getPropertyValue('left'),'123.5px');assert.equal(card.style.getPropertyPriority('left'),'important');
+  assert.equal(card.style.getPropertyValue('transform'),'translate3d(10px,20px,0)');
+  const unchanged=card.styleMutations;api.apply();assert.equal(card.styleMutations,unchanged);
+  let work=0;
+  api.beginInteraction('floating');api.beginInteraction('split');
+  for(let i=0;i<240;i++)assert(api.deferWork('layout',()=>work++));
+  api.deferWork('closed-panel',()=>{throw Error('A destroyed panel cannot update later');});api.cancelWork('closed-panel');
+  api.endInteraction('floating');assert.equal(work,0);api.endInteraction('split');assert.equal(work,1);
+  assert.equal(api.deferWork('layout',()=>work++),false);
+  api.beginInteraction('controller');api.deferWork('layout',()=>work++);api.destroy();api.endInteraction('controller');assert.equal(work,1);
+}

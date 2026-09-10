@@ -10472,27 +10472,44 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     return row;
   }
 
-  function cardViewportBounds(cardRect=null) { const vv=VIEW.visualViewport;return {left:Number(vv?.offsetLeft||0),top:Number(vv?.offsetTop||0),rootWidth:Number(vv?.width||VIEW.innerWidth),rootHeight:Number(vv?.height||VIEW.innerHeight),cardWidth:Number(cardRect?.width||card?.getBoundingClientRect?.().width||0),cardHeight:Number(cardRect?.height||card?.getBoundingClientRect?.().height||0)}; }
+  function cardViewportBounds(cardRect=null) {
+    const vv=VIEW.visualViewport, rect=cardRect||card?.getBoundingClientRect?.()||{};
+    const scaleX=card?.offsetWidth>0&&rect.width>0?rect.width/card.offsetWidth:1;
+    const scaleY=card?.offsetHeight>0&&rect.height>0?rect.height/card.offsetHeight:1;
+    return {left:Number(vv?.offsetLeft||0),top:Number(vv?.offsetTop||0),rootWidth:Number(vv?.width||VIEW.innerWidth),rootHeight:Number(vv?.height||VIEW.innerHeight),cardWidth:Number(rect.width||0),cardHeight:Number(rect.height||0),scaleX,scaleY,
+      originX:Number(rect.left||0)-(parseFloat(card?.style.left)||0)*scaleX,
+      originY:Number(rect.top||0)-(parseFloat(card?.style.top)||0)*scaleY};
+  }
   function clampCardPosition(left, top, bounds = null) {
     if (!card) return { left, top };
     const area=bounds||cardViewportBounds(),marginX=Math.min(7,Math.max(0,(area.rootWidth-area.cardWidth)/2)),marginY=Math.min(7,Math.max(0,(area.rootHeight-area.cardHeight)/2)),minLeft=area.left+marginX,minTop=area.top+marginY;
     return {left:Math.min(Math.max(minLeft,left),Math.max(minLeft,area.left+area.rootWidth-area.cardWidth-marginX)),top:Math.min(Math.max(minTop,top),Math.max(minTop,area.top+area.rootHeight-area.cardHeight-marginY))};
   }
+  function writeCardPosition(point, area) {
+    card.style.setProperty('left', `${(point.left-area.originX)/area.scaleX}px`, 'important');
+    card.style.setProperty('top', `${(point.top-area.originY)/area.scaleY}px`, 'important');
+  }
+  function fitCardToViewport() {
+    // Screen coordinates and CSS coordinates differ under host zoom / transformed body.
+    const area=cardViewportBounds();
+    setLayoutVariable(card, '--pmm-controller-visible-width', area.rootWidth/area.scaleX+'px');
+    setLayoutVariable(card, '--pmm-controller-visible-height', area.rootHeight/area.scaleY+'px');
+    return cardViewportBounds();
+  }
   function placeCardForViewport(force=false) {
     if (!card || !force && TOP.__PMM_FLOATING_STORE__?.getState?.().keyboardEditing) return;
-    const rect = card.getBoundingClientRect(), area = cardViewportBounds(rect);
-    const next = clampCardPosition(area.left + (area.rootWidth-rect.width)/2, area.top + (area.rootHeight-rect.height)/2, area);
-    card.style.setProperty('left', `${next.left}px`, 'important');
-    card.style.setProperty('top', `${next.top}px`, 'important');
+    const area = fitCardToViewport();
+    const next = clampCardPosition(area.left + (area.rootWidth-area.cardWidth)/2, area.top + (area.rootHeight-area.cardHeight)/2, area);
+    writeCardPosition(next, area);
     card.classList.add('pmm-layout-card--positioned');
   }
   function STORE_PROFILE(){return (isMobile()?"mobile":"desktop")+"-"+(VIEW.innerWidth>VIEW.innerHeight?"landscape":"portrait")}
 
   function keepCardInBounds() {
     if (activeCardDragCleanup || !card?.classList.contains('pmm-layout-card--positioned') || TOP.__PMM_FLOATING_STORE__?.getState?.().keyboardEditing) return;
-    const next = clampCardPosition(parseFloat(card.style.left) || 0, parseFloat(card.style.top) || 0);
-    card.style.setProperty('left', `${next.left}px`, 'important');
-    card.style.setProperty('top', `${next.top}px`, 'important');
+    const area=fitCardToViewport();
+    const left=area.originX+(parseFloat(card.style.left)||0)*area.scaleX,top=area.originY+(parseFloat(card.style.top)||0)*area.scaleY;
+    writeCardPosition(clampCardPosition(left,top,area),area);
   }
 
   function beginCardDrag(event) {
@@ -10519,7 +10536,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       const next = clampCardPosition(startLeft + point.clientX - startX, startTop + point.clientY - startY, dragBounds);
       finalLeft = next.left;
       finalTop = next.top;
-      const transform = `translate3d(${finalLeft-startLeft}px,${finalTop-startTop}px,0)`;
+      const transform = `translate3d(${(finalLeft-startLeft)/(dragBounds.scaleX||1)}px,${(finalTop-startTop)/(dragBounds.scaleY||1)}px,0)`;
       if (transform !== paintedTransform) panel.style.setProperty('transform', transform, 'important');
       paintedTransform = transform;
     };
@@ -10535,8 +10552,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
         if (Math.hypot(point.clientX-startX, point.clientY-startY) < 4) return;
         moved = true;
         VIEW.__PMM_THEME_SYSTEM__?.beginInteraction?.('controller');
-        panel.style.setProperty('left', `${startLeft}px`, 'important');
-        panel.style.setProperty('top', `${startTop}px`, 'important');
+        writeCardPosition({left:startLeft,top:startTop},dragBounds);
         panel.classList.add('pmm-layout-card--positioned', 'pmm-layout-card--dragging');
       }
       queuedPoint = { clientX:point.clientX, clientY:point.clientY };
@@ -10565,8 +10581,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       try { dragHandle?.releasePointerCapture?.(pointerId); } catch (_) {}
       if (moved) {
         if (completed && card === panel) {
-          panel.style.setProperty('left', `${finalLeft}px`, 'important');
-          panel.style.setProperty('top', `${finalTop}px`, 'important');
+          writeCardPosition({left:finalLeft,top:finalTop},dragBounds);
           state.cardPositions = { ...(state.cardPositions || {}), [profile]:{left:finalLeft,top:finalTop} };
           persistSoon();
         }
@@ -10676,7 +10691,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   }
 
   function syncLayoutCardTheme(panel = card) {
-    if (panel) panel.dataset.pmmLayoutTheme = resolveLayoutCardTheme();
+    if (panel) { const tone=resolveLayoutCardTheme(); if(panel.dataset.pmmLayoutTheme!==tone)panel.dataset.pmmLayoutTheme=tone; }
   }
 
   function buildCard() {
@@ -10894,6 +10909,8 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     card.style.setProperty('visibility','hidden','important');
     card.style.setProperty('transition','none','important');
     card.style.setProperty('transform','none','important');
+    card.style.setProperty('left','0px','important');
+    card.style.setProperty('top','0px','important');
     updateOutputs();
     for (const key of ['controllerFont','controllerWidth','controllerHeight']) setLayoutVariable(card, '--pmm-'+key.replace(/[A-Z]/g,letter=>'-'+letter.toLowerCase()),currentState().values[key]+'px');
     TOP.__PMM_THEME_SYSTEM__?.mountPicker?.(card);
@@ -11210,6 +11227,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   function sync() {
     scheduledFrame = 0;
     if (activeCardDragCleanup || activeResizeCleanup) { deferredSync = true; return; }
+    if (TOP.__PMM_THEME_SYSTEM__?.deferWork?.('layout-sync',scheduleSync)) return;
     const nextRoot = DOC.querySelector('#preset-manager-main-panel');
     if (root && root !== nextRoot) activeResizeCleanup?.();
     const mobileNow = isMobile();
@@ -12187,6 +12205,8 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
 
   function cleanup() {
     deferredViewportChange = false; deferredSync = false;
+    TOP.__PMM_THEME_SYSTEM__?.cancelWork?.('layout-sync');
+    TOP.__PMM_THEME_SYSTEM__?.cancelWork?.('layout-viewport');
     VIEW.clearTimeout(cardStatusTimer); cardStatusTimer = 0;
     for (const row of card?.querySelectorAll('.pmm-layout-row') || []) row.__pmmControlCleanup?.(false);
     card?.__pmmSearchCleanup?.();
@@ -12205,6 +12225,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     MEDIA?.removeEventListener?.('change', scheduleSync);
     TOP.removeEventListener('resize',onCardViewportChange);
     TOP.visualViewport?.removeEventListener?.('resize',onCardViewportChange);
+    TOP.visualViewport?.removeEventListener?.('scroll',onCardViewportChange);
     TOP.removeEventListener?.('pmm-mobile-dnd-compat-change', onDragCompatChange);
     DOC.getElementById(STYLE_ID)?.remove();
     DOC.querySelectorAll('.pmm-layout-trigger,.pmm-split-handle,#pmm-mobile-layout-card,.pmm-header-overflow-row').forEach(node => node.remove());
@@ -12240,14 +12261,22 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   }
   function onCardViewportChange() {
     if (activeCardDragCleanup || activeResizeCleanup) { deferredViewportChange = true; return; }
+    if (TOP.__PMM_THEME_SYSTEM__?.deferWork?.('layout-viewport',onCardViewportChange)) return;
     if(TOP.__PMM_FLOATING_STORE__?.getState?.().keyboardEditing||card?.__pmmScrolling||DOC.activeElement?.matches?.('input,textarea,select,[contenteditable="true"]'))return;
     const width=VIEW.innerWidth,height=VIEW.innerHeight;
-    if(width===lastViewportWidth&&height===lastViewportHeight)return;
+    if(width===lastViewportWidth&&height===lastViewportHeight){
+      if(card&&VIEW.visualViewport){
+        const vv=VIEW.visualViewport,stamp=[vv.offsetLeft,vv.offsetTop,vv.width,vv.height].join(':');
+        if(card.__pmmVisibleViewport!==stamp){card.__pmmVisibleViewport=stamp;keepCardInBounds();}
+      }
+      return;
+    }
     lastViewportWidth=width;lastViewportHeight=height;
     refreshDeviceValues();setFloatingVariables();scheduleSync();keepCardInBounds();
   }
   TOP.addEventListener('resize',onCardViewportChange,{passive:true});
   TOP.visualViewport?.addEventListener?.('resize',onCardViewportChange,{passive:true});
+  TOP.visualViewport?.addEventListener?.('scroll',onCardViewportChange,{passive:true});
   TOP.addEventListener?.('pmm-mobile-dnd-compat-change', onDragCompatChange);
   TOP[CLEANUP_KEY] = cleanup;
   scheduleSync();
@@ -16993,6 +17022,7 @@ html.pmm-tauri-dnd-active #preset-manager-main-panel { user-select: none !import
 
   function scan() {
     scheduled = 0;
+    if (TOP.__PMM_THEME_SYSTEM__?.deferWork?.('group-layout',schedule)) return;
     const panel = DOC.querySelector(PANEL_SELECTOR);
     if (!panel) return;
     const allGroups = groups(panel);
@@ -17051,6 +17081,7 @@ ${PANEL_SELECTOR} .section-group.pmm-nested-section--hidden { display: none !imp
   }
 
   function cleanup() {
+    TOP.__PMM_THEME_SYSTEM__?.cancelWork?.('group-layout');
     observer?.disconnect();
     mountObserver?.disconnect();
     observer = null;
@@ -17305,6 +17336,7 @@ html.${ROOT_CLASS} ${PANEL_SELECTOR} .${COMPACT_CLASS} > .prompt-editor__expand-
 
   function scan() {
     scheduledFrame = 0;
+    if (TOP.__PMM_THEME_SYSTEM__?.deferWork?.('editor-layout',schedule)) return;
     const headers = Array.from(DOC.querySelectorAll(HEADER_SELECTOR));
     for (const header of headers) {
       if (!observedHeaders.has(header)) {
@@ -17331,6 +17363,7 @@ html.${ROOT_CLASS} ${PANEL_SELECTOR} .${COMPACT_CLASS} > .prompt-editor__expand-
   }
 
   function cleanup() {
+    TOP.__PMM_THEME_SYSTEM__?.cancelWork?.('editor-layout');
     if (scheduledFrame) win.cancelAnimationFrame(scheduledFrame);
     scheduledFrame = 0;
     mutationObserver?.disconnect?.();
