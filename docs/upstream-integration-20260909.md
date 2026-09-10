@@ -2,6 +2,8 @@
 
 本次以作者最新正式版为主体，保留作者版本号 `2.97.29` 和业务入口 `dist/workshop-v3.02.js`。没有 merge 整个 Xiaoci 分支，没有用 ours/theirs 覆盖文件，没有修改历史业务入口。
 
+本记录描述融合提交 `784b58a` 时的状态。后续七项实机反馈的修复及最新验收要求见[移动交互修复记录](mobile-ui-repair-20260909.md)；其中比例拖动策略与主题运行时代码已按后续反馈调整，冻结材质基线保持不变。
+
 ## 基线与安全分支
 
 - Remote：`https://github.com/yui-ovo/ST-Preset-Workshop.git`。

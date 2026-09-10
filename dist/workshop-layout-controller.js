@@ -134,6 +134,37 @@ html body #pmm-mobile-layout-card .pmm-layout-step-btn,html body #pmm-mobile-lay
 html body #pmm-mobile-layout-card .pmm-layout-step-btn{width:44px!important;min-width:44px!important}
 }
 
+/* One geometry contract outranks legacy mobile/snapshot fixed widths. Colors stay in the theme. */
+html body #preset-manager-main-panel#preset-manager-main-panel .pm-header{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;grid-auto-flow:row!important;column-gap:max(0px,var(--pmm-header-gap,4px))!important;align-items:stretch!important}
+html body #preset-manager-main-panel#preset-manager-main-panel .pm-header>:is(.header-left,.header-right){box-sizing:border-box!important;float:none!important;width:100%!important;min-width:0!important;max-width:100%!important;margin:0!important;flex:none!important;grid-row:1!important}
+html body #preset-manager-main-panel#preset-manager-main-panel .pm-header>.header-left{grid-column:1!important;overflow:hidden!important}
+html body #preset-manager-main-panel#preset-manager-main-panel .pm-header>.header-left :is(.title-card,.title-content,.title-row){box-sizing:border-box!important;width:100%!important;min-width:0!important;max-width:100%!important;flex:1 1 0!important;margin:0!important}
+html body #preset-manager-main-panel#preset-manager-main-panel .pm-header>.header-left :is(.title-select,.title-input){box-sizing:border-box!important;width:100%!important;min-width:0!important;max-width:100%!important;flex:1 1 0!important}
+html body #preset-manager-main-panel#preset-manager-main-panel .pm-header>.header-right{grid-column:2!important;display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;direction:ltr!important;justify-content:flex-end!important;align-content:center!important;gap:max(0px,var(--pmm-header-gap,4px))!important}
+html body #preset-manager-main-panel#preset-manager-main-panel .pm-header>.header-right :is(.title-actions,.theme-switch-card){display:contents!important}
+html body #preset-manager-main-panel#preset-manager-main-panel .pm-header>.header-right :is(button,.header-card,.title-actions,.theme-switch-card,.pmm-preset-search-btn){order:0!important}
+html body #preset-manager-main-panel#preset-manager-main-panel.pmm-layout-header-single-row .pm-header>.header-right{flex-wrap:nowrap!important;justify-content:flex-start!important}
+html body #preset-manager-main-panel#preset-manager-main-panel.pmm-layout-header-single-row .pm-header>.header-right::before{content:"";flex:1 0 0!important}
+/* An explicitly placed handle must not push auto-placed panels into an implicit grid column. */
+@media(max-width:768px){
+html body #preset-manager-main-panel#preset-manager-main-panel :is(.pm-panel-container--merge-mode,.pm-panel-container--branch-mode,.pm-panel-container--favorite-mode)>:is(.preset-panel,.pmm-split-handle),
+html body #preset-manager-main-panel#preset-manager-main-panel :is(.pm-panel-container--merge-mode,.pm-panel-container--branch-mode,.pm-panel-container--favorite-mode)>.pm-main-wrapper>:is(.preset-panel,.side-panel-root){grid-column:1!important;min-width:0!important}
+}
+html body #preset-manager-main-panel#preset-manager-main-panel .pmm-split-handle{width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;z-index:100!important;touch-action:none!important}
+html body .pmm-split-preview{position:fixed!important;pointer-events:none!important;background:var(--SmartThemeQuoteColor,#6b8cff);contain:layout style;will-change:transform;box-shadow:none!important;transition:none!important}
+html body .pmm-split-preview::after{content:attr(data-ratio);position:absolute;right:8px;top:5px;padding:4px 8px;border-radius:6px;background:#243244;color:white;font:12px/1.4 sans-serif;white-space:nowrap}
+html body .pmm-split-preview[data-axis="x"]::after{right:auto;left:5px;top:8px}
+/* All controller buttons share the notification button's surface, border, weight and state. */
+html body #pmm-mobile-layout-card#pmm-mobile-layout-card button{box-sizing:border-box!important;background:rgba(116,122,132,.11)!important;border:1px solid rgba(255,255,255,.30)!important;border-radius:999px!important;color:var(--pmm-layout-text,var(--pmm-theme-text))!important;-webkit-text-fill-color:currentColor!important;font-family:inherit!important;font-size:calc(var(--pmm-controller-font,12px)*.9)!important;font-weight:540!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 2px 8px rgba(42,48,58,.08)!important;touch-action:manipulation!important}
+html body #pmm-mobile-layout-card#pmm-mobile-layout-card button:is(.is-active,.pmm-layout-notice-btn--active,[aria-pressed="true"]){border-color:color-mix(in srgb,var(--pmm-theme-accent) 64%,transparent)!important;background:color-mix(in srgb,var(--pmm-theme-accent) 22%,transparent)!important}
+html body #pmm-mobile-layout-card#pmm-mobile-layout-card :is(.pmm-layout-card__footer button,.pmm-theme-picker__choices button,.pmm-layout-header-mode button,.pmm-layout-split-presets button){min-height:36px!important;padding:4px 12px!important}
+@media(pointer:coarse){html body #pmm-mobile-layout-card#pmm-mobile-layout-card button{min-height:44px!important}html body #pmm-mobile-layout-card#pmm-mobile-layout-card :is(.pmm-layout-step-btn,.pmm-layout-icon-btn,.pmm-layout-row__lock){width:44px!important;min-width:44px!important;height:44px!important}html body #pmm-mobile-layout-card#pmm-mobile-layout-card .pmm-layout-range-line{grid-template-columns:44px minmax(0,1fr) 44px!important}}
+/* Moving surfaces keep a compositor layer; expensive live blur returns after release. */
+html body #pmm-mobile-layout-card{contain:layout style;will-change:transform}
+html body #pmm-mobile-layout-card#pmm-mobile-layout-card.pmm-layout-card--dragging,
+html body #pmm-unified-floating-handle#pmm-unified-floating-handle.is-dragging,
+html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root.is-dragging>.panel-wrapper{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;box-shadow:none!important;transition:none!important;animation:none!important}
+
 /* Upstream snapshot actions keep their behavior after moving into the unified right half. */
 html[data-pmm-viewport-profile] body #preset-manager-main-panel .pm-panel-container.pmm-switch-snapshot-capture-mode .pm-header>.header-right .title-actions :is([title="导入"],[title="导出"],[title="保存开关"],[title^="同步开关"]){display:none!important}
 @media(min-width:769px){

@@ -42,7 +42,7 @@ assert(floating.includes('getCoalescedEvents') && floating.includes('if(gesture.
 assert(floating.includes('},300)') && floating.includes('<=280'), '单击执行必须晚于双击判定窗口');
 assert(floating.includes("openController('longpress')"), '长按必须独占打开中控');
 assert(floating.includes("openMain('doubleclick')"), '双击必须独占打开预设工坊主界面');
-assert(floating.includes('if(done.fromHandle){handle?.blur?.();singleTap(event)'), '条幅头部短按必须交回原生快捷预设面板');
+assert(floating.includes('root?.__pmmQuickEntries?.toggle?.()') && !floating.includes('invokeNativeHeaderTap'), '条幅直接调用原生展开动作，不合成鼠标拖动');
 assert(floating.includes('.quick-edit-dropdown') && floating.includes('.dropdown-content'), '快捷预设条目区必须可滚动并限制在视口内');
 for (const label of ['折射玻璃','紫黑','毛玻璃','跟随系统']) assert(themes.includes("name:'" + label + "'"), '主题中文名缺失：' + label);
 assert(layout.includes('flex-flow:row wrap'), '顶栏右半区必须保持 DOM 顺序自然换行');

@@ -21,6 +21,7 @@ function element() {
     addEventListener(type, callback) { listeners.set(type, callback); },
     removeEventListener(type, callback) { if (listeners.get(type) === callback) listeners.delete(type); },
     querySelector:() => null, querySelectorAll:() => [], matches:() => false,
+    createElement:() => element(), body:{appendChild(){}}, getBoundingClientRect:()=>({left:0,top:0,width:1000,height:1000}),
     appendChild:() => {}, remove:() => {}, setAttribute:() => {},
   };
 }
@@ -208,7 +209,7 @@ for(const skin of ['aqua','glass','violet','theme'])for(const follow of [false,t
 function captureThemeTransition(){
   const env=bootTheme('aqua','light'),surface=element(),transitions=[];
   surface.getClientRects=()=>[{}];surface.style.setProperty('view-transition-name','previous-name');
-  env.doc.querySelector=selector=>selector==='#preset-manager-main-panel .pm-overlay'?surface:null;
+  env.doc.querySelector=selector=>selector==='#preset-manager-main-panel .pm-panel-container'?surface:null;
   env.doc.startViewTransition=update=>{
     let finish;const finished=new Promise(resolve=>finish=resolve);
     const entry={update,finished,ready:Promise.resolve(),finish,skipTransition(){this.skipped=true;finish();}};
@@ -230,14 +231,15 @@ function captureThemeTransition(){
   assert.equal(env.surface.style.getPropertyValue('view-transition-name'),'previous-name');
   assert(!env.doc.documentElement.classList.contains('pmm-theme-crossfade'));env.api.destroy();
 }
-// Touch theme changes must never wait for snapshots of multiple large translucent panels.
+// Touch day/night changes retain the same bounded surface crossfade as desktop.
 for(const device of ['phone','tablet']){
   const env=captureThemeTransition();let native=0;
   env.top.matchMedia=query=>({matches:query.includes('pointer: coarse')});
   env.top.navigator={maxTouchPoints:device==='tablet'?10:5};
   env.api.setTone('dark',()=>native++);env.flush();
-  assert.equal(native,1);assert.equal(env.transitions.length,0);
-  assert.equal(env.api.getTokens(),env.api.themes.aqua.dark);
+  assert.equal(native,0);assert.equal(env.transitions.length,1);
+  await env.transitions[0].update();env.transitions[0].finish();await Promise.resolve();
+  assert.equal(native,1);assert.equal(env.api.getTokens(),env.api.themes.aqua.dark);
   assert(!env.doc.documentElement.classList.contains('pmm-theme-transition'));
   env.api.destroy();
 }
@@ -247,11 +249,12 @@ for(const action of ['mount','reverse','destroy']){
   env.api.setTone('dark',()=>dark++);env.flush();const old=env.transitions[0];
   if(action==='mount'){
     const observer=env.observers.find(observer=>observer.targets.some(({target,options})=>target===env.doc.body&&options.childList));
-    observer.callback([{addedNodes:[{nodeType:1,matches:()=>true}]}]);env.flush();
+    observer.callback([{addedNodes:[{...element(),matches:()=>true}]}]);env.flush();
   }else if(action==='reverse'){env.api.setTone('light',()=>light++);env.flush();}
   else env.api.destroy();
   await old.update();await Promise.resolve();
-  assert(old.skipped);assert.equal(dark,action==='mount'?1:0);assert.equal(light,action==='reverse'?1:0);
+  if(action==='mount'){assert(!old.skipped,'Mounting a controller must not restart an in-flight transition');old.finish();await Promise.resolve();}else assert(old.skipped);
+  assert.equal(dark,action==='mount'?1:0);assert.equal(light,action==='reverse'?1:0);
   assert.equal(env.doc.documentElement.dataset.pmmThemeTone,action==='mount'?'dark':'light');
   assert.equal(env.surface.style.getPropertyValue('view-transition-name'),'previous-name');
   assert(!env.doc.documentElement.classList.contains('pmm-theme-crossfade'));
@@ -317,7 +320,7 @@ for (const vertical of [true,false]) {
   raf.flush();
   assert.deepEqual(previews, [], 'Drag preview cannot invalidate inherited variables on the full main panel');
   const property=vertical?'grid-template-rows':'grid-template-columns';
-  assert.equal(container.style.getPropertyValue(property),`minmax(0,70fr) ${vertical?'var(--pmm-toolbar-h)':'auto'} minmax(0,30fr)`);
+  assert.equal(container.style.getPropertyValue(property),'','Dragging must not reflow the preset lists');
   assert.equal(saves, 0);
   for(const value of [651,652]){
     doc.listeners.get('pointermove')(pointer('pointermove',value));raf.flush();
@@ -349,7 +352,7 @@ for(const vertical of [true,false]){
   });
   begin({type:'pointerdown',currentTarget:handle,clientX:500,clientY:500,preventDefault(){},stopPropagation(){}});
   doc.listeners.get('pointermove')({clientX:600,clientY:600,getCoalescedEvents:()=>[{clientX:680,clientY:680}]});raf.flush();
-  assert.equal(state.values.splitRatio,68);assert.equal(commits,0);assert.notEqual(container.style.getPropertyValue(property),'previous-grid');
+  assert.equal(state.values.splitRatio,68);assert.equal(commits,0);assert.equal(container.style.getPropertyValue(property),'previous-grid','Only the lightweight divider is previewed');
   doc.listeners.get('pointercancel')({type:'pointercancel'});
   assert.equal(state.values.splitRatio,50);assert.equal(state.customized.splitRatio,false);assert.equal(saves,0);assert.equal(commits,1);
   assert.equal(container.style.getPropertyValue(property),'previous-grid');assert.equal(container.style.getPropertyValue('transition'),'previous-transition');
@@ -483,7 +486,7 @@ for (const direction of ['horizontal','vertical','closed']) {
 // The final floating pointerup can be newer than all pointermoves. No tail frame remains.
 for(const expanded of [false,true]){
   const raf=frames(),handle=element(),panel=element(),root=element();let committed=null,painted=0;
-  const source=between(floating,'function onUp(event)','function onCancel()');
+  const source=between(floating,'function onUp(event)','function onCancel(event)');
   const update=between(floating,'function updateDragPoint(event)','function onMove(event)');
   const event={pointerId:1,clientX:340,clientY:240,preventDefault(){},stopPropagation(){}};
   const release=vm.runInNewContext(`(() => { let gesture={id:1,fromHandle:true,moved:true,bx:100,by:100,sx:100,sy:100,expanded:${expanded},g:{vw:1000,vh:800,bannerH:240},target:{}};let renderFrame=TOP.requestAnimationFrame(()=>{throw Error('stale render')});${update}
@@ -630,6 +633,85 @@ for(const height of [360,780,1100]){
   search.value='宽度';search.listeners.get('input')();assert.deepEqual(rows.map(row=>row.hidden),[false,false,true]);
   search.value='没有此项';search.listeners.get('input')();assert(!empty.hidden);
   search.value='';search.listeners.get('input')();assert(rows.every(row=>!row.hidden&&row.value===17));assert(empty.hidden);
+}
+
+// A late controller inherits cached tokens without reading layout or restarting a theme animation.
+{
+  const env=bootTheme('aqua','dark');
+  env.top.getComputedStyle=()=>{throw Error('Mounting a control panel forced a main-page style calculation');};
+  const observer=env.observers.find(observer=>observer.targets.some(({target,options})=>target===env.doc.body&&options.childList));
+  const card={...element(),matches:()=>true};
+  for(let i=0;i<100;i++)observer.callback([{addedNodes:[card]}]);
+  assert.equal(card.style.getPropertyValue('--pmm-theme-control'),env.api.themes.aqua.dark.control);
+  assert.equal(env.microtasks.length,0);assert.equal(env.events.length,1,'Opening settings cannot rescan main theme buttons');
+  env.api.destroy();
+}
+// Changing material also crossfades on touch, while reselecting the active material does no work.
+{
+  const env=captureThemeTransition();env.top.navigator={maxTouchPoints:5};
+  env.api.setTheme('violet');env.flush();assert.equal(env.transitions.length,1);
+  const pendingCard={...element(),matches:()=>true};env.roots.push(pendingCard);
+  const mount=env.observers.find(observer=>observer.targets.some(({target,options})=>target===env.doc.body&&options.childList));
+  mount.callback([{addedNodes:[pendingCard]}]);
+  assert.equal(pendingCard.dataset.pmmVisualTheme,'aqua','A late card must inherit the committed palette until capture completes');
+  await env.transitions[0].update();env.transitions[0].finish();await Promise.resolve();
+  assert.equal(env.api.getTokens(),env.api.themes.violet.light);
+  assert.equal(pendingCard.dataset.pmmVisualTheme,'violet');assert.equal(pendingCard.style.getPropertyValue('--pmm-theme-control'),env.api.themes.violet.light.control);
+  env.api.setTheme('violet');env.flush();assert.equal(env.transitions.length,1);assert.equal(env.events.length,2);
+  env.api.destroy();
+}
+// Dock geometry is flush to both device edges and leaves the half-screen banner inside the viewport.
+for(const vw of [320,360,390,768,1024]){
+  const g={vw,vh:900,ball:46,handleW:28,handleH:64,bannerW:vw/2,bannerH:400};
+  const state={expanded:false},commits=[];
+  const code=between(floating,'function controlSize(','function measurePanel(')+between(floating,'function clampPosition(','function ensurePosition(')+between(floating,'function settle(','function singleTap(');
+  const api=vm.runInNewContext(`(()=>{${code};return{settle,clampPosition,panelPoint,resolveSide};})()`,{
+    geometry:g,STORE:{getState:()=>state,commit:patch=>{Object.assign(state,patch);commits.push(patch);}},
+  });
+  for(const [x,dock] of [[8,'left'],[vw-50,'right']]){
+    api.settle({x,y:100,dock:'free'});assert.equal(state.position.dock,dock);
+    assert.equal(state.position.x,dock==='left'?0:vw-44);
+    state.expanded=true;const expanded=api.clampPosition(state.position);
+    assert.equal(expanded.x,dock==='left'?0:vw-28);
+    const banner=api.panelPoint(expanded,api.resolveSide(expanded));
+    assert(banner.x>=0&&banner.x+g.bannerW<=vw);
+    state.expanded=false;
+  }
+  api.settle({x:vw/2-23,y:100,dock:'free'});assert.equal(state.position.dock,'free');
+  assert.equal(commits.length,3,'Only releases persist a position');
+}
+// Sliding vertically along an edge must not introduce a sideways jump at pointermove or release.
+for(const dock of ['left','right']){
+  const gesture={dock,bx:dock==='left'?0:316,by:100,sx:20,sy:100,expanded:false,size:{w:44,h:44},g:{vw:360,vh:800}};
+  const move=vm.runInNewContext(`${between(floating,'function updateDragPoint(event)','function onMove(event)')};updateDragPoint;`,{gesture});
+  move({clientX:20,clientY:180});assert.equal(gesture.dx,0);assert.equal(gesture.dy,80);
+}
+// The square dock opens on the first release; banner taps call the native Vue action exactly once.
+for(const fromHandle of [false,true]){
+  let opened=0,entries=0,waits=0;
+  const release=vm.runInNewContext(`(()=>{let gesture={id:1,fromHandle:${fromHandle},dock:'right',moved:false,target:{}};let renderFrame=0;${between(floating,'function onUp(event)','function onCancel(event)')};return onUp;})()`,{
+    root:{__pmmQuickEntries:{toggle:()=>entries++}},handle:{blur(){}},clearLong(){},clearDragPaint(){},cancelPendingTap(){},
+    STORE:{getState:()=>({expanded:false})},setExpanded:value=>{assert.equal(value,true);opened++;},singleTap:()=>waits++,
+  });
+  release({pointerId:1,preventDefault(){},stopPropagation(){}});
+  assert.equal(opened,fromHandle?1:0);assert.equal(entries,fromHandle?0:1);assert.equal(waits,0);
+}
+// Cancel detaches the dialog, restores only changed settings, and invalidates geometry once.
+for(const changed of [false,true]){
+  const controls=['groupFont','floatingWidth','controllerWidth'].map(key=>({key}));
+  const baseline={mobile:{values:{groupFont:12,floatingWidth:180,controllerWidth:344},customized:{}},headerMode:'multi',glyph:'☰'};
+  const live=structuredClone(baseline),calls=[],events=[],sequence=[];
+  if(changed){live.mobile.values.groupFont=16;live.mobile.values.floatingWidth=170;live.mobile.values.controllerWidth=300;}
+  const closing={remove:()=>sequence.push('detach'),querySelectorAll:()=>controls.map(()=>({__pmmControlCleanup:save=>{assert.equal(save,false);sequence.push('row');}})),__pmmSearchCleanup:()=>sequence.push('search')};
+  const api=vm.runInNewContext(`(()=>{let state=live,cardSnapshot=baseline,card=closing;${between(workshop,'  function closeCard(saveChanges','  function openCard()')};return{closeCard,getState:()=>state,getCard:()=>card};})()`,{
+    live,baseline,closing,CONTROLS:controls,activeCardDragCleanup:null,trigger:null,root:null,isMobile:()=>true,
+    TOP:{dispatchEvent:event=>events.push(event.type)},CustomEvent:class{constructor(type){this.type=type;}},applyControlValue:control=>calls.push(control.key),persistSoon:()=>{throw Error('Cancel must not save');},
+  });
+  api.closeCard(false);assert.equal(api.getCard(),null);assert.equal(api.getState(),baseline);
+  assert(sequence.indexOf('search')<sequence.indexOf('detach'),'Release keyboard ownership before detaching the focused search field');
+  assert(sequence.indexOf('detach')<sequence.indexOf('row'),'Input cleanup cannot relayout the visible dialog');
+  assert.deepEqual(calls,changed?['groupFont','floatingWidth']:[]);
+  assert.deepEqual(events,changed?['pmm:floating-metrics-change']:[]);
 }
 
 console.log('统一 UI 交互回归通过：主题冻结、主界面例外范围、统一切换/快速反向/降级、比例预览、触摸/指针捕获、设备范围、唯一开关、搜索、半屏条幅与横滑记忆。');

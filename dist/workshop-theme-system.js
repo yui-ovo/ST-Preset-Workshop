@@ -31,7 +31,7 @@ const THEMES=Object.freeze({
 });
 
 const cleanup=[];
-let current='aqua',followTavern=false,applyQueued=false,pendingTone=null,themeTimer=0,lastTokens=null,disposed=false;
+let current='aqua',followTavern=false,applyQueued=false,pendingTone=null,themeTimer=0,lastTokens=null,lastVariables=null,disposed=false;
 const THEME_TARGETS='#preset-manager-main-panel,#preset-manager-floating-panel,#pmm-mobile-layout-card,#pmm-unified-floating-handle';
 function readStorage(key){try{return TOP.localStorage?.getItem(key)||''}catch(_){return''}}
 function writeStorage(key,value){try{TOP.localStorage?.setItem(key,value)}catch(_){}}
@@ -100,6 +100,13 @@ function countColor(tokens){
 function variables(t){
   return{'--pmm-theme-count':countColor(t),'--pmm-theme-surface':t.surface,'--pmm-theme-raised':t.raised,'--pmm-theme-control':t.control,'--pmm-theme-controller':t.controller||t.surface,'--pmm-theme-border':t.border,'--pmm-theme-text':t.text,'--pmm-theme-muted':t.muted,'--pmm-theme-accent':t.accent,'--pmm-theme-active-text':t.activeText,'--pmm-theme-badge-text':readableText(t.accent,t.activeText),'--pmm-theme-blur':t.blur,'--pmm-theme-shadow':t.shadow+','+t.highlight,'--pmm-theme-highlight':t.highlight,'--pmm-theme-floating':t.floating,'--pmm-floating-bg':t.floating,'--pmm-floating-text':t.text,'--pmm-floating-border':t.border,'--pmm-floating-blur':t.blur,'--pmm-floating-shadow':t.shadow+','+t.highlight,'--pmm-banner-bg':t.surface,'--pmm-banner-blur':t.blur,'--pmm-banner-shadow':t.shadow+','+t.highlight,'--pmm-layout-accent':t.accent,'--pmm-layout-control':t.control,'--pm-panel-bg':t.surface,'--pm-bar-bg':t.raised,'--pm-card-bg':t.raised,'--pm-card-bg-translucent':t.control,'--pm-control-bg':t.control,'--pm-glass-bg':t.surface,'--pm-hover-bg':t.control,'--pm-border':t.border,'--pm-text-primary':t.text,'--pm-text-secondary':t.muted,'--pm-accent':t.accent,'--pm-accent-color':t.accent,'--pm-quote-color':t.accent,'--fp-glass-bg':t.floating,'--fp-glass-hover-bg':t.raised,'--fp-card-bg':t.raised,'--fp-card-bg-translucent':t.control,'--fp-border-color':t.border,'--fp-text-color':t.text,'--fp-accent-color':t.accent,'--qe-glass-bg':t.surface,'--qe-glass-hover-bg':t.control,'--qe-card-bg':t.raised,'--qe-border-color':t.border,'--qe-text-color':t.text,'--qe-text-secondary':t.muted,'--qe-accent-color':t.accent};
 }
+function hydrateRoot(root,tone=DOC.documentElement.dataset.pmmThemeTone,vars=lastVariables,attributes=null){
+  if(!root||!vars)return;
+  // Late surfaces inherit the committed palette, even while another theme is awaiting capture.
+  attributes ||= {pmmFollowTavern:DOC.documentElement.dataset.pmmFollowTavern??String(followTavern),pmmVisualTheme:DOC.documentElement.dataset.pmmVisualTheme||current,pmmThemeTone:tone};
+  for(const [key,value] of Object.entries(attributes))if(root.dataset[key]!==value)root.dataset[key]=value;
+  for(const [key,value] of Object.entries(vars))if(root.style.getPropertyValue(key)!==value)root.style.setProperty(key,value);
+}
 function apply(forcedTone,animate=false){
   const tone=forcedTone==='light'||forcedTone==='dark'?forcedTone:environmentTone();
   const tokens=followTavern?followedTokens(tone):THEMES[current][tone],vars=variables(tokens);
@@ -107,16 +114,13 @@ function apply(forcedTone,animate=false){
   const changed=DOC.documentElement.dataset.pmmFollowTavern!==String(followTavern)||DOC.documentElement.dataset.pmmVisualTheme!==current||DOC.documentElement.dataset.pmmThemeTone!==tone||JSON.stringify(lastTokens)!==JSON.stringify(tokens)||DOC.documentElement.style.getPropertyValue('--pmm-theme-count')!==vars['--pmm-theme-count'];
   if(!changed&&roots.every(root=>root.dataset.pmmVisualTheme===current&&root.dataset.pmmThemeTone===tone&&root.style.getPropertyValue('--pmm-theme-count')===vars['--pmm-theme-count']))return;
   if(animate&&changed&&lastTokens){DOC.documentElement.classList.add('pmm-theme-transition');TOP.clearTimeout(themeTimer);themeTimer=TOP.setTimeout(()=>DOC.documentElement.classList.remove('pmm-theme-transition'),320)}
+  const attributes={pmmFollowTavern:String(followTavern),pmmVisualTheme:current,pmmThemeTone:tone};
   for(const doc of [DOC,document].filter((item,index,array)=>item&&array.indexOf(item)===index)){
-    doc.documentElement.dataset.pmmFollowTavern=String(followTavern);doc.documentElement.dataset.pmmVisualTheme=current;doc.documentElement.dataset.pmmThemeTone=tone;
-    for(const [key,value] of Object.entries(vars))if(doc.documentElement.style.getPropertyValue(key)!==value)doc.documentElement.style.setProperty(key,value);
+    hydrateRoot(doc.documentElement,tone,vars,attributes);
   }
-  for(const root of roots){
-    root.dataset.pmmFollowTavern=String(followTavern);root.dataset.pmmVisualTheme=current;root.dataset.pmmThemeTone=tone;
-    for(const [key,value] of Object.entries(vars))if(root.style.getPropertyValue(key)!==value)root.style.setProperty(key,value);
-  }
+  for(const root of roots)hydrateRoot(root,tone,vars,attributes);
   for(const button of DOC.querySelectorAll('[data-pmm-theme-choice]'))button.classList.toggle('is-active',button.dataset.pmmThemeChoice===current);
-  lastTokens=tokens;
+  lastTokens=tokens;lastVariables=vars;
   TOP.dispatchEvent(new CustomEvent('pmm:theme-applied',{detail:{theme:current,tone}}));
 }
 let pendingAnimation=false,pendingNativeMode=null,themeRevision=0,activeTransition=null;
@@ -136,7 +140,7 @@ function stopTransition(){
 }
 function commitThemeChange(tone,animate,nativeMode,revision){
   const resolved=tone||environmentTone();
-  const toneChanged=lastTokens&&resolved!==DOC.documentElement.dataset.pmmThemeTone;
+  const toneChanged=lastTokens&&(resolved!==DOC.documentElement.dataset.pmmThemeTone||current!==DOC.documentElement.dataset.pmmVisualTheme||String(followTavern)!==DOC.documentElement.dataset.pmmFollowTavern);
   let committed=false;
   const commit=()=>{
     if(committed||disposed||revision!==themeRevision)return;
@@ -148,10 +152,9 @@ function commitThemeChange(tone,animate,nativeMode,revision){
   };
   stopTransition();TOP.clearTimeout(themeTimer);
   DOC.documentElement.classList.remove('pmm-theme-transition');
-  // Touch devices commit all colors together without rasterizing multiple glass surfaces.
-  const touch=Boolean(TOP.matchMedia?.('(pointer: coarse)')?.matches)||Number(TOP.navigator?.maxTouchPoints||0)>0;
-  if(!animate||!toneChanged||touch||DOC.visibilityState==='hidden'){commit();return}
-  const selectors=['#preset-manager-main-panel .pm-overlay','#preset-manager-floating-panel .panel-wrapper','#pmm-mobile-layout-card','#pmm-unified-floating-handle'];
+  // Both touch and desktop use a bounded surface crossfade, including material switches.
+  if(!animate||!toneChanged||DOC.visibilityState==='hidden'||TOP.matchMedia?.('(prefers-reduced-motion:reduce)')?.matches){commit();return}
+  const selectors=['#preset-manager-main-panel .pm-panel-container','#preset-manager-floating-panel .panel-wrapper','#pmm-mobile-layout-card','#pmm-unified-floating-handle'];
   const surfaces=selectors.map(selector=>DOC.querySelector(selector)).filter(node=>node?.getClientRects?.().length);
   const fallback=()=>{
     if(disposed||revision!==themeRevision)return;
@@ -186,6 +189,7 @@ function requestApply(tone=null,animate=false){
 function setNativeMode(mode){for(const win of [TOP,window])try{win.localStorage?.setItem('preset-manager-theme-mode',mode)}catch(_){}}
 function setTheme(theme){
   if(!(theme in THEMES))return false;
+  if(theme===current&&!followTavern)return true;
   current=theme;followTavern=false;writeStorage(FOLLOW_KEY,'0');
   writeStorage(STORAGE_KEY,current);requestApply(null,true);return true;
 }
@@ -196,7 +200,8 @@ function mountPicker(card){
   const picker=DOC.createElement('section');picker.className='pmm-theme-picker';picker.innerHTML='<span class="pmm-theme-picker__label">视觉主题</span><div class="pmm-theme-picker__choices"></div>';
   const choices=picker.querySelector('.pmm-theme-picker__choices');
   for(const [key,definition] of Object.entries(THEMES)){const button=DOC.createElement('button');button.type='button';button.dataset.pmmThemeChoice=key;button.title=definition.identity;button.innerHTML=`<span class="pmm-theme-swatch" aria-hidden="true"></span><span>${definition.name}</span>`;button.addEventListener('click',()=>setTheme(key));choices.appendChild(button)}
-  body.prepend(picker);apply();
+  for(const button of choices.children)button.classList.toggle('is-active',button.dataset.pmmThemeChoice===current);
+  body.prepend(picker);hydrateRoot(card);
 }
 function installStyle(){
   DOC.getElementById(STYLE_ID)?.remove();const style=DOC.createElement('style');style.id=STYLE_ID;style.textContent=`
@@ -299,12 +304,12 @@ html body #pmm-unified-floating-handle.is-dragging,html body #pmm-mobile-layout-
 html.pmm-theme-crossfade{view-transition-name:none!important}
 html.pmm-theme-crossfade::view-transition{pointer-events:none}
 html.pmm-theme-crossfade body :is(#preset-manager-main-panel,#preset-manager-floating-panel,#pmm-mobile-layout-card,#pmm-unified-floating-handle),html.pmm-theme-crossfade body :is(#preset-manager-main-panel,#preset-manager-floating-panel,#pmm-mobile-layout-card) *{transition:none!important}
-html.pmm-theme-transition body :is(#preset-manager-main-panel,#preset-manager-floating-panel,#pmm-mobile-layout-card,#pmm-unified-floating-handle),html.pmm-theme-transition body :is(#preset-manager-main-panel,#preset-manager-floating-panel,#pmm-mobile-layout-card) *{transition-property:background-color,border-color,color,-webkit-text-fill-color,box-shadow!important;transition-duration:.24s!important;transition-timing-function:ease-in-out!important;transition-delay:0s!important}
+html.pmm-theme-transition body :is(#preset-manager-main-panel .preset-panel,#preset-manager-main-panel .pm-header,#preset-manager-floating-panel .panel-wrapper,#pmm-mobile-layout-card,#pmm-unified-floating-handle){transition-property:background-color,border-color,color,-webkit-text-fill-color,box-shadow!important;transition-duration:.24s!important;transition-timing-function:ease-in-out!important;transition-delay:0s!important}
 html.pmm-theme-crossfade::view-transition-group(pmm-theme-surface-0),html.pmm-theme-crossfade::view-transition-old(pmm-theme-surface-0),html.pmm-theme-crossfade::view-transition-new(pmm-theme-surface-0){animation-duration:.24s!important;animation-timing-function:ease-in-out!important}
 html.pmm-theme-crossfade::view-transition-group(pmm-theme-surface-1),html.pmm-theme-crossfade::view-transition-old(pmm-theme-surface-1),html.pmm-theme-crossfade::view-transition-new(pmm-theme-surface-1){animation-duration:.24s!important;animation-timing-function:ease-in-out!important}
 html.pmm-theme-crossfade::view-transition-group(pmm-theme-surface-2),html.pmm-theme-crossfade::view-transition-old(pmm-theme-surface-2),html.pmm-theme-crossfade::view-transition-new(pmm-theme-surface-2){animation-duration:.24s!important;animation-timing-function:ease-in-out!important}
 html.pmm-theme-crossfade::view-transition-group(pmm-theme-surface-3),html.pmm-theme-crossfade::view-transition-old(pmm-theme-surface-3),html.pmm-theme-crossfade::view-transition-new(pmm-theme-surface-3){animation-duration:.24s!important;animation-timing-function:ease-in-out!important}
-@media(prefers-reduced-motion:reduce){html.pmm-theme-transition body :is(#preset-manager-main-panel,#preset-manager-floating-panel,#pmm-mobile-layout-card,#pmm-unified-floating-handle),html.pmm-theme-transition body :is(#preset-manager-main-panel,#preset-manager-floating-panel,#pmm-mobile-layout-card) *{transition:none!important}}
+@media(prefers-reduced-motion:reduce){html.pmm-theme-transition body :is(#preset-manager-main-panel .preset-panel,#preset-manager-main-panel .pm-header,#preset-manager-floating-panel .panel-wrapper,#pmm-mobile-layout-card,#pmm-unified-floating-handle){transition:none!important}}
 `;DOC.head.appendChild(style);cleanup.push(()=>style.remove());
 }
 function onDocumentCapture(event){
@@ -319,11 +324,17 @@ function install(){
   const nativeStamp=node=>String(node?.className||'').split(/\s+/).filter(name=>!name.startsWith('pmm-')).join(' ')+'|'+(node?.style?.cssText||'').split(';').filter(value=>/--SmartTheme|^\s*(background|color)\s*:/.test(value)).join(';');
   for(const node of [DOC.body,DOC.documentElement].filter(Boolean))stamps.set(node,nativeStamp(node));
   const observer=new MutationObserver(records=>{
-    let changed=false;for(const {target} of records){const stamp=nativeStamp(target);if(stamps.get(target)!==stamp){stamps.set(target,stamp);changed=true}}
+    let changed=false;for(const target of new Set(records.map(record=>record.target))){const stamp=nativeStamp(target);if(stamps.get(target)!==stamp){stamps.set(target,stamp);changed=true}}
     if(changed&&(followTavern||environmentTone()!==DOC.documentElement.dataset.pmmThemeTone))requestApply(null,true);
   });
   for(const node of [DOC.documentElement,DOC.body].filter(Boolean))observer.observe(node,{attributes:true,attributeFilter:['class','style']});
-  const mountObserver=new MutationObserver(records=>{if(records.some(record=>Array.from(record.addedNodes).some(node=>node.nodeType===1&&(node.matches?.(THEME_TARGETS)||node.querySelector?.(THEME_TARGETS)))))requestApply()});
+  const mountObserver=new MutationObserver(records=>{
+    for(const record of records)for(const node of record.addedNodes){
+      if(node.nodeType!==1)continue;
+      if(node.matches?.(THEME_TARGETS))hydrateRoot(node);
+      else for(const root of node.querySelectorAll?.(THEME_TARGETS)||[])hydrateRoot(root);
+    }
+  });
   mountObserver.observe(DOC.body||DOC.documentElement,{childList:true});
   const headObserver=new MutationObserver(records=>{
     const ownStyle=node=>String((node?.nodeType===1?node:node?.parentElement)?.id||'').startsWith('pmm-');
