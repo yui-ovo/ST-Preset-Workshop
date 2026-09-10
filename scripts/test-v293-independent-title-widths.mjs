@@ -8,8 +8,8 @@ const tuner = source.slice(tunerStart, tunerEnd);
 
 assert.notEqual(tunerStart, -1, '找不到手机布局调节模块');
 assert.notEqual(tunerEnd, -1, '找不到手机布局调节模块末尾');
-assert.ok(tuner.includes("if (key === 'presetWidth') return LIMITS.presetWidth;"), '预设名称框没有使用固定独立范围');
-assert.ok(tuner.includes("if (key === 'branchWidth') return LIMITS.branchWidth;"), '分支名称框没有使用固定独立范围');
+assert.ok(tuner.includes("['presetWidth','branchWidth'].includes(key)"), '预设名称框没有使用固定独立范围');
+assert.ok(tuner.includes("viewport.width - LEGACY_PRESET_WIDTH_BASE"), '分支名称框没有使用固定独立范围');
 assert.ok(!tuner.includes('presetWidthMaxOffset'), '预设名称框仍会被动态测量锁死');
 assert.ok(!tuner.includes('branchWidthMaxOffset'), '分支名称框仍会被动态测量锁死');
 assert.ok(!tuner.includes('maximumWidth - Math.max(...nativeWidths)'), '仍会用名称原始宽度反推滑杆上限');

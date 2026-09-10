@@ -228,6 +228,11 @@ function buildRuntimeDocument() {
   const parentJqueryUrl = appendRuntimeVersion(new URL('../bridge/parent-jquery.js', import.meta.url).href);
   const predefineUrl = appendRuntimeVersion(new URL('../bridge/predefine.js', import.meta.url).href);
   const workshopUrl = appendRuntimeVersion(new URL('./workshop-v3.02.js', import.meta.url).href);
+  const windowStackUrl = appendRuntimeVersion(new URL('./workshop-window-stack.js', import.meta.url).href);
+  const floatingStoreUrl = appendRuntimeVersion(new URL('./workshop-floating-store.js', import.meta.url).href);
+  const themeSystemUrl = appendRuntimeVersion(new URL('./workshop-theme-system.js', import.meta.url).href);
+  const floatingControllerUrl = appendRuntimeVersion(new URL('./workshop-floating-controller.js', import.meta.url).href);
+  const layoutControllerUrl = appendRuntimeVersion(new URL('./workshop-layout-controller.js', import.meta.url).href);
   const presetContentEditorUrl = appendRuntimeVersion(new URL('./preset-content-editor.js', import.meta.url).href);
   const worldbookStitchUrl = appendRuntimeVersion(new URL('./worldbook-stitch-test3.js', import.meta.url).href);
   const worldbookLoaderKey = '__PMM_LOAD_WORLDBOOK_STITCH__';
@@ -245,6 +250,15 @@ function buildRuntimeDocument() {
 <body>
 <script>
 (() => {
+  window.addEventListener('pagehide', () => {
+    for (const key of ['__PMM_FLOATING_CONTROLLER__','__PMM_LAYOUT_CONTROLLER__','__PMM_THEME_SYSTEM__','__PMM_FLOATING_STORE__','__PMM_WINDOW_STACK__']) {
+      const api = window[key];
+      if (api && window.parent[key] === api) {
+        try { api.destroy?.(); } catch (_) {}
+        if (window.parent[key] === api) delete window.parent[key];
+      }
+    }
+  }, { once:true });
   const source = ${JSON.stringify(worldbookStitchUrl)};
   const loaderKey = ${JSON.stringify(worldbookLoaderKey)};
   const apiKey = '__PMM_WORLDBOOK_STITCH_TEST3__';
@@ -278,7 +292,12 @@ function buildRuntimeDocument() {
 })();
 </script>
 <script type="module" src="${presetContentEditorUrl}"></script>
+<script type="module" src="${windowStackUrl}"></script>
 <script type="module" src="${workshopUrl}"></script>
+<script type="module" src="${floatingStoreUrl}"></script>
+<script type="module" src="${themeSystemUrl}"></script>
+<script type="module" src="${floatingControllerUrl}"></script>
+<script type="module" src="${layoutControllerUrl}"></script>
 </body>
 </html>`;
 }
@@ -332,7 +351,12 @@ export function stopPresetWorkshop() {
     nativeUpdateReloadTimer = null;
   }
   try { globalThis.__PMM_PRESET_CONTENT_EDITOR_V1__?.cleanup?.(); } catch (_) {}
-  document.getElementById(RUNTIME_ID)?.remove();
+  const runtime = document.getElementById(RUNTIME_ID);
+  if (runtime) {
+    // Android WebViews do not reliably dispatch pagehide when an iframe is removed.
+    try { runtime.contentWindow.dispatchEvent(new runtime.contentWindow.Event('pagehide')); } catch (_) {}
+    runtime.remove();
+  }
 }
 
 globalThis.__ST_PRESET_WORKSHOP__ = {

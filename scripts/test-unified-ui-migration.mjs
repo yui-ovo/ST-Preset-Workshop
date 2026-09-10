@@ -1,0 +1,95 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+
+const read = file => fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+const index = read('dist/index.js');
+const store = read('dist/workshop-floating-store.js');
+const floating = read('dist/workshop-floating-controller.js');
+const layout = read('dist/workshop-layout-controller.js');
+const themes = read('dist/workshop-theme-system.js');
+const workshop = read('dist/workshop-v3.02.js');
+
+for (const moduleName of ['workshop-floating-store.js','workshop-theme-system.js','workshop-floating-controller.js','workshop-layout-controller.js']) {
+  assert(index.includes(moduleName), `${moduleName} 必须由扩展运行时加载`);
+}
+assert(!index.includes('__PMM_UNIFIED_FLOATING_ENABLED__'), '不得用启动旗标误退役仍有兜底作用的旧浮动入口');
+assert(store.includes("const LEGACY_KEY = 'pmui_v5'"), '必须支持一次性读取 p40 位置');
+assert(!store.includes("setItem(LEGACY_KEY"), '禁止写回 pmui_v5');
+for (const profile of ['desktop','tablet','phone','landscape','portrait']) assert(store.includes(profile), `缺少 ${profile} profile`);
+for (const state of ['visible','expanded','position','side','gesture','keyboardEditing']) assert(store.includes(state), `floating store 缺少 ${state}`);
+for (const gesture of ['pointerdown','pointermove','pointerup','pointercancel','longpress','doubleclick']) assert(floating.includes(gesture), `悬浮状态机缺少 ${gesture}`);
+assert(floating.includes('resolveSide'), '条幅必须智能选择左右方向');
+assert(floating.includes('setPointerCapture'), '统一拖拽必须使用 pointer capture');
+assert(floating.includes('panel-header'), '展开条幅头部必须与手柄共享拖动逻辑');
+assert(layout.includes('grid-template-columns:minmax(0,1fr) minmax(0,1fr)'), '顶栏必须严格 50/50');
+assert(layout.includes("__PMM_LAYOUT_CARD_API__"), '主入口必须复用正式中控 API');
+for (const theme of ['aqua','glass','violet','theme']) assert(themes.includes(`${theme}:Object.freeze`), `缺少 ${theme} theme definition`);
+for (const material of ['surface','raised','control','border','text','muted','accent','blur','shadow','highlight','floating']) assert(themes.includes(`${material}:`), `主题缺少 ${material}`);
+assert(workshop.includes("editor.type = 'number'"));
+assert(workshop.includes("editor.inputMode = 'decimal'"));
+assert(workshop.includes('keyboardEditing:true'));
+assert(workshop.includes('if (TOP.__PMM_FLOATING_CONTROLLER__) {'));
+for (const forbidden of ['getComputedStyle = function','style.setProperty = function','setInterval(scanAll','attachShadow']) {
+  assert(!floating.includes(forbidden) && !layout.includes(forbidden) && !themes.includes(forbidden), `正式 UI 模块禁止 ${forbidden}`);
+}
+
+const moveBody = floating.slice(floating.indexOf('function onMove(event)'), floating.indexOf('function clearDragPaint'));
+assert(!moveBody.includes('STORE.setPosition'), 'pointermove 热路径禁止写 store');
+assert(!moveBody.includes('getBoundingClientRect'), 'pointermove 热路径禁止读取布局');
+assert(moveBody.includes('paintDrag()') && !moveBody.includes('requestAnimationFrame'), '悬浮移动必须直接写入最新位移，不能排队追赶手势');
+assert(!moveBody.includes('STORE.getState'), 'pointermove 热路径禁止复制完整状态');
+assert(floating.includes('getCoalescedEvents') && floating.includes('if(gesture.moved)updateDragPoint(event)'), '必须消费最新指针采样与松手位置');
+assert(floating.includes('},300)') && floating.includes('<=280'), '单击执行必须晚于双击判定窗口');
+assert(floating.includes("openController('longpress')"), '长按必须独占打开中控');
+assert(floating.includes("openMain('doubleclick')"), '双击必须独占打开预设工坊主界面');
+assert(floating.includes('if(done.fromHandle){handle?.blur?.();singleTap(event)'), '条幅头部短按必须交回原生快捷预设面板');
+assert(floating.includes('.quick-edit-dropdown') && floating.includes('.dropdown-content'), '快捷预设条目区必须可滚动并限制在视口内');
+for (const label of ['折射玻璃','紫黑','毛玻璃','跟随系统']) assert(themes.includes("name:'" + label + "'"), '主题中文名缺失：' + label);
+assert(layout.includes('flex-flow:row wrap'), '顶栏右半区必须保持 DOM 顺序自然换行');
+assert(workshop.includes('const dragBounds='), '中控拖动必须缓存边界几何');
+assert(workshop.includes('applyControlValue(control, true)'), '中控滑杆必须走单控件热路径');
+assert(workshop.includes('pmm-layout-trigger--divider'), '双面板中间控制区必须保留预设中控入口');
+assert(workshop.includes('rail?.querySelector(":scope > .panel-buttons")'), '中控入口必须作为世界书工具条内的独立流式按钮');
+assert(workshop.includes('headerMode') && workshop.includes('单行横滑'), '中控必须提供顶栏单行横滑/多行选项');
+assert(layout.includes('pmm-layout-header-single-row') && layout.includes('overflow-x:auto'), '单行模式必须在固定右半区横向滚动');
+assert(layout.includes('touch-action:pan-x') && layout.includes('scrollbar-width:none'), '单行模式必须独占触摸横滑并隐藏滚动条');
+assert(layout.includes('>.theme-switch-card{display:contents'), '作者主题三态/魔法棒容器必须完整进入右侧按钮流');
+assert(!workshop.includes('headerObserver ||=') && !workshop.includes('resizeObserver?.observe(root)'), '普通 Vue 更新不得触发整套布局重算');
+assert(workshop.includes('mobileMutationRelevant') && workshop.includes('variableMutationRelevant'), 'DOM 增强扫描必须按相关节点过滤');
+assert(!workshop.includes('pmm-layout-trigger--header'), '主顶栏不得额外插入中控按钮');
+assert(workshop.includes('normalizeHeaderActions()'), '标题名称区的功能按钮必须迁移到右侧按钮区');
+assert(workshop.includes('DOC.createDocumentFragment()'), '顶栏必须移动作者真实按钮 DOM');
+assert(!workshop.includes('pmm-header-mirror-button'), '顶栏禁止复制伪造按钮');
+assert(!layout.includes('row-reverse') && !layout.includes('column-reverse'), '右对齐禁止改变按钮业务顺序');
+assert(workshop.includes("else if (key === 'floatingWidth') value = Math.floor(viewport.width / 2)"), '条幅默认宽度必须随设备取半屏');
+assert(!themes.includes('#preset-manager-main-panel button{'), '主题禁止宽泛污染中控全部按钮');
+assert(!themes.includes('.pm-panel-container,html'), '主题禁止为双面板容器增加重复底板');
+for (const variable of ['--pm-panel-bg','--fp-glass-bg','--qe-glass-bg']) assert(themes.includes(variable), '主题未接入真实组件变量：' + variable);
+for (const control of ['groupFont','presetNameFont','bodyFont','headerIcon','rowButton','itemGap','floatingWidth','floatingHeight','floatingGroupFont','floatingNameFont','floatingBodyFont','floatingButton','headerButton','headerGap','floatingBall','floatingHandleWidth','floatingHandleHeight','floatingHandleFont']) assert(workshop.includes(control), '中控缺少 p40 调节项：' + control);
+assert(workshop.includes('data-pmm-layout-glyph'), '中控缺少悬浮球字符自定义');
+assert(workshop.includes("controllerFont") && workshop.includes('中控界面字号'), '中控必须支持独立字号调节');
+assert(workshop.includes('controllerWidth') && workshop.includes('controllerHeight'), '中控必须支持自身宽高调节');
+assert(workshop.includes('rememberHeaderScroll') && workshop.includes('记住单行按钮滑动位置'), '单行横滑必须提供位置记忆开关');
+assert(workshop.includes('cardSnapshot') && workshop.includes('保存更改') && workshop.includes('取消本次更改'), '中控修改必须支持保存或取消');
+assert(workshop.includes('themeToggle.after(autoToggle)') && workshop.includes('__pmmNativeAutoButton') && workshop.includes("switches.forEach(button => button.remove())") && workshop.includes("setFabEnabled(!visible, false)"), '顶栏必须保留合并日夜、作者魔法棒与唯一悬浮球开关');
+assert(layout.includes('z-index:2147483500'), '中控必须显示在主界面之上');
+const controlHotPath=workshop.slice(workshop.indexOf('function makeControl(control)'),workshop.indexOf('function parseLayoutThemeColor'));
+assert(!controlHotPath.includes('applyState(true)'), '中控单项加减禁止触发完整布局应用');
+assert(controlHotPath.includes("input.addEventListener('change'"), '滑杆必须在手势结束后才提交昂贵同步');
+assert(layout.includes('card.open()') && !layout.includes('requestMain()'), '中控必须独立打开，不能先切换主界面');
+assert(layout.includes('__pmmWorkshopOpenBridge') && layout.includes('attempt<8'), '主界面尚未挂载时，长按入口必须经正式桥挂载后再打开中控');
+assert(floating.includes('bodyObserver.observe(doc.body||doc.documentElement,{childList:true})') && floating.includes('mountObserver.observe(mount,{childList:true})'), '悬浮 DOM 晚挂载必须重新绑定且不能观察整个 body 子树');
+assert(!floating.includes("observer.observe(target,{childList:true,subtree:true})"), '悬浮控制器禁止全树观察 body');
+assert(!workshop.includes("mainObserver.observe(DOC.documentElement, { childList:true, subtree:true })"), '布局控制器禁止全树观察 documentElement');
+for (const badObserver of ['observer.observe(DOC.body || DOC.documentElement, { childList: true, subtree: true })','mo.observe(doc.body, { childList: true, subtree: true })','observer.observe(DOC.documentElement, { childList: true, subtree: true })','mutationObserver.observe(DOC.documentElement, { childList: true, subtree: true, characterData: true })']) assert(!workshop.includes(badObserver), '业务补丁禁止观察 body/documentElement 全树：' + badObserver);
+assert(!workshop.includes('setInterval(requestScan'), '移动 UI 扫描禁止高频轮询');
+assert(!workshop.includes('observer.observe(DOC.documentElement, {\n    childList: true,\n    subtree: true'), '分组增强禁止观察整个 documentElement 子树');
+assert(!workshop.includes('resizeObserver.observe(DOC.documentElement)'), '分组增强禁止用根 ResizeObserver 驱动全量扫描');
+assert(!floating.includes('pmm-floating-drag-active'), '悬浮拖动禁止让整个文档重新匹配样式');
+assert(floating.includes('panel:state.expanded?'), '收起状态拖动只能合成悬浮球自身');
+assert(floating.includes('},360)') && floating.includes('oncontextmenu'), '长按响应必须早于浏览器长按菜单并阻止原生菜单');
+assert(workshop.includes('data-pmm-layout-lock') && workshop.includes('lockedControls'), '中控每个数值项必须可独立锁定');
+assert(controlHotPath.includes('pendingPreviewValue') && controlHotPath.includes('previewFrame'), '滑杆预览必须按动画帧合并');
+assert(themes.includes("toggleFollow()") && themes.includes("nativePalette()") && themes.includes("title.includes('跟随酒馆美化')"), '作者魔法棒必须整体采用酒馆实际配色');
+
+console.log('统一 UI 迁移检查通过：悬浮状态机、中控 API、四主题与旧入口隔离均已覆盖。');

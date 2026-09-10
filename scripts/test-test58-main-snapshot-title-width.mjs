@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 const source = await readFile(new URL('../dist/workshop-v3.02.js', import.meta.url), 'utf8');
 
 assert.ok(source.includes("const HOME_TITLE_CLASS = 'pmm-switch-snapshot-home-title'"), '主页面快照没有独立的标题标记');
-assert.ok(source.includes("const titleContent = actionsHost?.closest?.('.title-content') || null"), '快照入口没有定位主页面标题内容');
+assert.ok(source.includes("const titleContent = actionsHost?.closest?.('.title-content') || actionsHost?.closest?.('.pm-header')?.querySelector('.header-left .title-content') || null"), '快照入口没有定位主页面标题内容');
 assert.ok(source.includes('titleContent?.classList.add(HOME_TITLE_CLASS)'), '快照入口挂载后没有标记主页面标题');
 assert.ok(source.includes('titleContent?.classList.toggle(CAPTURE_TITLE_CLASS, captureActive)'), '快照录制态没有保留独立状态标记');
 

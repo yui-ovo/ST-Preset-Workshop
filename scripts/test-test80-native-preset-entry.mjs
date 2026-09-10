@@ -15,7 +15,7 @@ for (const marker of [
   "TOP[BATCH_API_KEY]?.openBatch",
   "TOP[SNAPSHOT_API_KEY]?.open",
   "source: 'native-preset'",
-  'discoveryObserver.observe(DOC.documentElement, { childList: true, subtree: true })',
+  'discoveryObserver.observe(DOC.body || DOC.documentElement, { childList: true })',
   'discoveryObserver?.disconnect()',
   'button.addEventListener(\'click\'',
   "button.addEventListener(type, event => event.stopPropagation()",

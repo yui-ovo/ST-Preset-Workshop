@@ -14,7 +14,8 @@
   try { TOP[API_KEY]?.cleanup?.(); } catch (_) {}
 
   let observer = null;
-  let resizeObserver = null;
+  let mountObserver = null;
+  let observedPanel = null;
   let scheduled = 0;
   const win = DOC.defaultView || TOP;
 
@@ -223,12 +224,16 @@
       .find(slot => String(slot.dataset.childSectionId || '') === childId) || null;
   }
 
+  function setNestingClass(node, name, enabled) {
+    if (node.classList.contains(name) !== enabled) node.classList.toggle(name, enabled);
+  }
+
   function layoutNestedGroup(child, parent, host) {
     const content = immediateContent(parent);
     let slot = findSlot(host, groupId(child));
     if (!content || parent.classList.contains('section-group--collapsed')) {
       slot?.remove();
-      child.classList.add('pmm-nested-section--hidden');
+      setNestingClass(child, 'pmm-nested-section--hidden', true);
       return;
     }
 
@@ -236,8 +241,8 @@
     const before = promptItemById(content, String(child.dataset.parentBeforeItemId || ''));
     if (slot.parentElement !== content || slot.nextElementSibling !== before) content.insertBefore(slot, before);
 
-    child.classList.remove('pmm-nested-section--hidden');
-    child.classList.add('pmm-nested-section--visual');
+    setNestingClass(child, 'pmm-nested-section--hidden', false);
+    setNestingClass(child, 'pmm-nested-section--visual', true);
     slot.style.height = `${Math.max(52, child.getBoundingClientRect().height || 0) + 8}px`;
 
     const slotRect = slot.getBoundingClientRect();
@@ -263,14 +268,15 @@
       const parent = byId.get(parentId);
       const host = child.parentElement;
       if (!parentId || !parent || !host || parent.parentElement !== host) {
-        child.classList.remove('pmm-nested-section--visual', 'pmm-nested-section--hidden');
+        setNestingClass(child, 'pmm-nested-section--visual', false);
+        setNestingClass(child, 'pmm-nested-section--hidden', false);
         child.style.removeProperty('--pmm-nested-top');
         child.style.removeProperty('--pmm-nested-left');
         child.style.removeProperty('--pmm-nested-width');
         continue;
       }
       liveChildIds.add(groupId(child));
-      host.classList.add('pmm-nested-section-layout');
+      setNestingClass(host, 'pmm-nested-section-layout', true);
       layoutNestedGroup(child, parent, host);
     }
     for (const host of hosts) clearStaleSlots(host, liveChildIds);
@@ -337,9 +343,10 @@ ${PANEL_SELECTOR} .section-group.pmm-nested-section--hidden { display: none !imp
 
   function cleanup() {
     observer?.disconnect();
-    resizeObserver?.disconnect();
+    mountObserver?.disconnect();
     observer = null;
-    resizeObserver = null;
+    mountObserver = null;
+    observedPanel = null;
     if (scheduled) {
       try { win.cancelAnimationFrame?.(scheduled); } catch (_) {}
       try { win.clearTimeout?.(scheduled); } catch (_) {}
@@ -361,20 +368,48 @@ ${PANEL_SELECTOR} .section-group.pmm-nested-section--hidden { display: none !imp
     try { if (TOP[API_KEY]?.cleanup === cleanup) delete TOP[API_KEY]; } catch (_) {}
   }
 
-  installStyle();
-  observer = new win.MutationObserver(schedule);
-  observer.observe(DOC.documentElement, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ['class', 'data-selected-count', 'data-item-count', 'data-enabled-count'],
-  });
-  if (typeof win.ResizeObserver === 'function') {
-    resizeObserver = new win.ResizeObserver(schedule);
-    resizeObserver.observe(DOC.documentElement);
+  function observePanel() {
+    const panel = DOC.querySelector(PANEL_SELECTOR);
+    if (panel === observedPanel) return;
+    observer?.disconnect();
+    observedPanel = panel;
+    if (!panel) return;
+    observer = new win.MutationObserver(records => {
+      const relevant = records.some(record => {
+        if (record.type === 'attributes') {
+          if (record.attributeName === 'class') {
+            const businessClasses = value => String(value || '').split(/\s+/).filter(name => name && !name.startsWith('pmm-')).sort().join(' ');
+            if (businessClasses(record.oldValue) === businessClasses(record.target?.className)) return false;
+          }
+          return record.target?.matches?.(`${GROUP_SELECTOR},.prompt-item,.prompt-item__checkbox`);
+        }
+        return Array.from(record.addedNodes || []).concat(Array.from(record.removedNodes || [])).some(node => (
+          node.nodeType === 1 && (node.matches?.(`${GROUP_SELECTOR},.prompt-item,.section-content`) || node.querySelector?.(`${GROUP_SELECTOR},.prompt-item`))
+        ));
+      });
+      if (relevant) schedule();
+    });
+    observer.observe(panel, {
+      childList:true,
+      subtree:true,
+      attributes:true,
+      attributeFilter:['class','data-selected-count','data-item-count','data-enabled-count'],
+      attributeOldValue:true,
+    });
+    schedule();
   }
+
+  installStyle();
+  mountObserver = new win.MutationObserver(records => {
+    const changed = records.some(record => Array.from(record.addedNodes || []).concat(Array.from(record.removedNodes || [])).some(node => (
+      node.nodeType === 1 && (node.matches?.(PANEL_SELECTOR) || node.querySelector?.(PANEL_SELECTOR))
+    )));
+    if (changed) observePanel();
+  });
+  mountObserver.observe(DOC.body || DOC.documentElement, { childList:true });
+  observePanel();
   win.addEventListener('resize', schedule, { passive: true });
-  TOP[API_KEY] = { cleanup, scan, toggleGroupSelection };
+  TOP[API_KEY] = { cleanup, scan, schedule, toggleGroupSelection };
   schedule();
   console.info('[预设工坊] test.24 已加载：多选模式支持组内全选，同组连续条目可原位建立一层工坊子分组。');
 })();

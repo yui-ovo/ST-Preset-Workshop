@@ -14,7 +14,7 @@ const trigger = section('function mountTrigger()', 'function handleDocumentClick
 for (const marker of [
   'const actionsHost = normalTitleActions()',
   'const host = actionsHost',
-  "const titleContent = actionsHost?.closest?.('.title-content') || null",
+  "const titleContent = actionsHost?.closest?.('.title-content') || actionsHost?.closest?.('.pm-header')?.querySelector('.header-left .title-content') || null",
   'const captureActive = isCaptureMode()',
   "const importButton = actionsHost?.querySelector?.('[title=\"导入\"]')",
   'if (host === actionsHost && importButton) host.insertBefore(button, importButton)',
