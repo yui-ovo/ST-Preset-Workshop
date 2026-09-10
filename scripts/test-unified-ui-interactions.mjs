@@ -303,7 +303,7 @@ for (const vertical of [true,false]) {
     DOC:doc, root, TOP:{}, VIEW:{ __PMM_THEME_SYSTEM__:themeEnv.api, requestAnimationFrame:raf.request, cancelAnimationFrame:raf.cancel }, MODE_SELECTOR:'split', Date,
     CONTROLS:[{ key:'splitRatio' }], currentState:() => { stateReads++; return state; }, clamp:(_key,value) => Math.max(28,Math.min(72,value)),
     measureSplitGeometry:() => { measurements++; return geometry; },
-    applyControlValue:() => previews.push(state.values.splitRatio), persistSoon:() => saves++, updateOutputs() {}, resetSplitRatio() {},
+    applyControlValue:() => previews.push(state.values.splitRatio), persistSoon:() => saves++, updateOutputs() {}, resetSplitRatio() {}, flushDeferredLayout() {},
   });
   const pointer = (type, value) => ({ type, pointerId:1, currentTarget:handle, clientX:value, clientY:value, preventDefault() {}, stopPropagation() {} });
   begin(pointer('pointerdown', 500));
@@ -341,23 +341,24 @@ for (const vertical of [true,false]) {
 }
 
 // Cancelling a ratio gesture restores both the saved ratio and pre-existing inline grid styles.
-for(const vertical of [true,false]){
+for(const vertical of [true,false])for(const endType of ['pointercancel','lostpointercapture','blur']){
   const raf=frames(),doc=element(),root=element(),container=element();let saves=0,commits=0;
   const property=vertical?'grid-template-rows':'grid-template-columns';container.style.setProperty(property,'previous-grid');container.style.setProperty('transition','previous-transition');
   const state={values:{splitRatio:50},customized:{splitRatio:false}},edge=vertical?'top':'left';
   const handle={...element(),closest:()=>container,classList:{contains:name=>name.endsWith('--'+edge)}};
+  const view={...element(),requestAnimationFrame:raf.request,cancelAnimationFrame:raf.cancel};
   const source=between(workshop,'  function resizeFromPoint(','  function resetSplitRatio()')+between(workshop,'  function beginSplitResize(event)','  function makeHandle(edge)');
   const begin=vm.runInNewContext(`(() => {let activeResizeCleanup=null;${source};return beginSplitResize;})()`,{
-    DOC:doc,root,TOP:{},VIEW:{requestAnimationFrame:raf.request,cancelAnimationFrame:raf.cancel},MODE_SELECTOR:'split',Date,CONTROLS:[{key:'splitRatio'}],currentState:()=>state,
-    clamp:(_key,value)=>Math.max(28,Math.min(72,value)),measureSplitGeometry:()=>({vertical,origin:0,available:1000}),applyControlValue:()=>commits++,persistSoon:()=>saves++,updateOutputs(){},resetSplitRatio(){},
+    DOC:doc,root,TOP:{},VIEW:view,MODE_SELECTOR:'split',Date,CONTROLS:[{key:'splitRatio'}],currentState:()=>state,
+    clamp:(_key,value)=>Math.max(28,Math.min(72,value)),measureSplitGeometry:()=>({vertical,origin:0,available:1000}),applyControlValue:()=>commits++,persistSoon:()=>saves++,updateOutputs(){},resetSplitRatio(){},flushDeferredLayout(){},
   });
   begin({type:'pointerdown',currentTarget:handle,clientX:500,clientY:500,preventDefault(){},stopPropagation(){}});
   doc.listeners.get('pointermove')({clientX:600,clientY:600,getCoalescedEvents:()=>[{clientX:680,clientY:680}]});raf.flush();
   assert.equal(state.values.splitRatio,68);assert.equal(commits,0);assert.equal(container.style.getPropertyValue(property),'previous-grid','Only the lightweight divider is previewed');
-  doc.listeners.get('pointercancel')({type:'pointercancel'});
+  (endType==='blur'?view.listeners:endType==='lostpointercapture'?handle.listeners:doc.listeners).get(endType)({type:endType,clientX:0,clientY:0});
   assert.equal(state.values.splitRatio,50);assert.equal(state.customized.splitRatio,false);assert.equal(saves,0);assert.equal(commits,1);
   assert.equal(container.style.getPropertyValue(property),'previous-grid');assert.equal(container.style.getPropertyValue('transition'),'previous-transition');
-  assert.equal(doc.listeners.size,0);assert.equal(raf.queue.size,0);
+  assert.equal(doc.listeners.size,0);assert.equal(handle.listeners.size,0);assert.equal(view.listeners.size,0);assert.equal(raf.queue.size,0);
 }
 
 // Floating movement uses cached geometry and only transforms the two visible surfaces.
@@ -371,13 +372,14 @@ for (const expanded of [false,true]) {
   });
   for (let x=110;x<=300;x++) move({ pointerId:1, clientX:x, clientY:200, preventDefault() {}, stopPropagation() {} });
   assert.equal(captures, 1);
-  assert.equal(raf.queue.size, 0, 'No queued floating paints may trail the pointer');
+  assert.equal(raf.queue.size, 1, 'A burst of samples queues only one paint');
+  assert.equal(handle.style.getPropertyValue('transform'),'');raf.flush();
   assert.equal(handle.style.getPropertyValue('transform'), 'translate3d(200px,100px,0)');
   assert.equal(panel.style.getPropertyValue('transform'), expanded ? 'translate3d(200px,100px,0)' : '');
   move({pointerId:1,clientX:310,clientY:200,getCoalescedEvents:()=>[{clientX:320,clientY:240}],preventDefault(){},stopPropagation(){}});
-  assert.equal(handle.style.getPropertyValue('transform'),'translate3d(220px,140px,0)','Paint the freshest available coalesced sample');
+  raf.flush();assert.equal(handle.style.getPropertyValue('transform'),'translate3d(220px,140px,0)','Paint the freshest available coalesced sample');
   move({pointerId:1,clientX:320.5,clientY:240.25,preventDefault(){},stopPropagation(){}});
-  assert.equal(handle.style.getPropertyValue('transform'),'translate3d(220.5px,140.25px,0)','Preserve subpixel movement on high-density screens');
+  raf.flush();assert.equal(handle.style.getPropertyValue('transform'),'translate3d(220.5px,140.25px,0)','Preserve subpixel movement on high-density screens');
   const lastTransform=handle.style.getPropertyValue('transform');
   move({pointerId:1,clientX:NaN,clientY:NaN});
   move({pointerId:2,clientX:500,clientY:500});
@@ -505,14 +507,15 @@ for(const touch of [false,true]){
   const source=between(workshop,'  function beginCardDrag(event)','  function parseLayoutThemeColor');
   const begin=vm.runInNewContext(`(() => {let activeCardDragCleanup=null;${source};return beginCardDrag;})()`,{
     card,DOC:doc,VIEW:{__PMM_THEME_SYSTEM__:themeEnv.api,requestAnimationFrame:raf.request,cancelAnimationFrame:raf.cancel},state,
-    cardViewportBounds:()=>{bounds++;return{};},clampCardPosition:(left,top)=>({left,top}),STORE_PROFILE:()=> 'phone-landscape',persistSoon:()=>saves++,
+    cardViewportBounds:()=>{bounds++;return{};},clampCardPosition:(left,top)=>({left,top}),STORE_PROFILE:()=> 'phone-landscape',persistSoon:()=>saves++,flushDeferredLayout(){},
   });
   const event=(type,x,y)=>({type,clientX:touch?undefined:x,clientY:touch?undefined:y,...(touch?{touches:type==='touchend'?[]:[{clientX:x,clientY:y}],changedTouches:[{clientX:x,clientY:y}]}:{}),target:{closest:()=>null},preventDefault(){},stopPropagation(){}});
   begin(event(touch?'touchstart':'pointerdown',100,100));
+  doc.listeners.get(touch?'touchmove':'pointermove')(event(touch?'touchmove':'pointermove',110,100));
   assert(!themeEnv.surface.classList.contains('pmm-theme-surface-motion'));
   themeEnv.api.setTone('light');themeEnv.flush();assert.equal(themeEnv.doc.documentElement.dataset.pmmThemeTone,'dark');
   for(let x=110;x<=300;x++)doc.listeners.get(touch?'touchmove':'pointermove')(event(touch?'touchmove':'pointermove',x,200));
-  assert.equal(measurements,1);assert.equal(bounds,1);assert.equal(raf.queue.size,0,'Cached card transform needs no extra animation frame');assert.equal(saves,0);
+  assert.equal(measurements,1);assert.equal(bounds,1);assert.equal(raf.queue.size,1,'A burst of card samples queues only one paint');assert.equal(saves,0);raf.flush();
   assert.equal(card.style.getPropertyValue('transform'),'translate3d(200px,100px,0)');
   doc.listeners.get(touch?'touchend':'pointerup')(event(touch?'touchend':'pointerup',330,240));
   assert.equal(card.style.getPropertyValue('left'),'330px');assert.equal(card.style.getPropertyValue('top'),'240px');
@@ -575,7 +578,7 @@ for(const touch of [false,true]){
   const begin=vm.runInNewContext(`(() => {let activeResizeCleanup=null;${source};return beginSplitResize;})()`,{
     DOC:doc,root,TOP:{},VIEW:{requestAnimationFrame:raf.request,cancelAnimationFrame:raf.cancel},Date,MODE_SELECTOR:'split',
     CONTROLS:[{key:'splitRatio'}],currentState:()=>state,clamp:(_key,n)=>Math.max(28,Math.min(72,n)),
-    measureSplitGeometry:()=>({vertical:true,origin:0,available:1000}),applyControlValue(){},persistSoon:()=>saves++,updateOutputs(){},resetSplitRatio(){},
+    measureSplitGeometry:()=>({vertical:true,origin:0,available:1000}),applyControlValue(){},persistSoon:()=>saves++,updateOutputs(){},resetSplitRatio(){},flushDeferredLayout(){},
   });
   const point=(identifier,y)=>({identifier,clientX:20,clientY:y});
   begin({type:'touchstart',currentTarget:handle,touches:[point(7,500)],preventDefault(){},stopPropagation(){}});
@@ -703,29 +706,24 @@ for(const vw of [320,390,768,1024])for(const bannerW of [vw/2,vw*.9,vw])for(cons
     if(bannerH===800)assert.equal(point.y,0);
   }
 }
-// Narrowing changes one content scale and never overwrites the user's font/spacing settings.
+// Width only changes outer geometry; font alone changes the content scale, in either order.
 {
-  const doc={documentElement:element(),querySelectorAll:()=>[root]},root=element();
-  doc.documentElement.style.setProperty('--pmm-floating-name-font','15px');
-  const code=between(workshop,'  function setLayoutVariable(', '  function setFloatingVariables()');
-  const apply=vm.runInNewContext(`(()=>{${code};return applyFloatingWidth;})()`,{TOP:{},floatingDocuments:()=>[doc],layoutViewport:()=>({width:390,height:844})});
-  for(const [width,expected] of [[195,1],[117,.6],[156,.8],[350,1],[500,1]]){
-    apply(width);
-    for(const node of [root]){
-      assert.equal(Number(node.style.getPropertyValue('--pmm-banner-content-scale')),expected);
-      assert.equal(node.style.getPropertyValue('--pmm-mobile-floating-width'),Math.min(width,390)+'px');
+  const root=element(),doc={...element(),documentElement:element(),querySelectorAll:()=>[root]};
+  const code=between(workshop,'  function applyFloatingWidth(', '  function setFloatingVariables()');
+  const api=vm.runInNewContext(`(()=>{${code};return {width:applyFloatingWidth,font:applyFloatingFont};})()`,{TOP:{},floatingDocuments:()=>[doc],layoutViewport:()=>({width:390,height:844}),setLayoutVariable:(node,key,value)=>node.style.setProperty(key,value)});
+  for(const font of [11,8,22]){
+    api.font(font);
+    for(const width of [117,195,300,390,900]){
+      api.width(width);
+      assert.equal(root.style.getPropertyValue('--pmm-mobile-floating-width'),`${Math.min(width,390)}px`);
+      assert.equal(Number(root.style.getPropertyValue('--pmm-banner-content-scale')),font/11,'Width cannot change the explicit font scale');
     }
-    assert.equal(doc.documentElement.style.getPropertyValue('--pmm-floating-name-font'),'15px');
-    assert.equal(doc.documentElement.style.getPropertyValue('--pmm-banner-content-scale'),'');
-    assert.equal(doc.documentElement.style.getPropertyValue('--pmm-mobile-floating-width'),'','Changing banner size cannot invalidate the whole document');
   }
-  apply(195,8);assert.equal(Number(root.style.getPropertyValue('--pmm-banner-content-scale')),8/11);
-  assert.equal(root.style.getPropertyValue('--pmm-mobile-floating-width'),'195px');
-  apply(195,22);assert.equal(Number(root.style.getPropertyValue('--pmm-banner-content-scale')),2);
-  apply(195,11);assert.equal(root.style.getPropertyValue('--pmm-banner-content-scale'),'1');
+  api.width(195);api.font(8);assert.equal(root.style.getPropertyValue('--pmm-mobile-floating-width'),'195px');
+  assert.equal(doc.documentElement.style.getPropertyValue('--pmm-banner-content-scale'),'');
+  assert.equal(doc.documentElement.style.getPropertyValue('--pmm-mobile-floating-width'),'');
   assert(floating.includes('>.panel-wrapper>:is(.panel-header,.quick-edit-dropdown){zoom:var(--pmm-banner-content-scale,1)'));
   assert(!floating.includes('>.panel-wrapper{zoom:'),'The drag surface and pointer coordinates must not be zoomed');
-  assert(floating.includes('>.panel-wrapper>.quick-edit-dropdown{max-height:none!important}'),'The list uses the outer configured height after scaling');
 }
 // The native tablet/desktop cap remains upstream, but unified geometry has higher specificity.
 {

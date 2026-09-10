@@ -42,7 +42,8 @@ function browser(width=360,height=800) {
     constructor(tag='div'){
       super();this.tagName=tag;this.nodeType=1;this.dataset={};this.children=[];this.attributes=new Map();this.hidden=false;
       const values=new Map(),priorities=new Map(),classes=new Set();
-      this.style={getPropertyValue:key=>values.get(key)||'',getPropertyPriority:key=>priorities.get(key)||'',setProperty(key,value,priority=''){values.set(key,String(value));priorities.set(key,priority);},removeProperty(key){values.delete(key);priorities.delete(key);},get cssText(){return [...values].map(([k,v])=>`${k}:${v}`).join(';');}};
+      this.transformWrites=0;const owner=this;
+      this.style={getPropertyValue:key=>values.get(key)||'',getPropertyPriority:key=>priorities.get(key)||'',setProperty(key,value,priority=''){if(key==='transform')owner.transformWrites++;values.set(key,String(value));priorities.set(key,priority);},removeProperty(key){values.delete(key);priorities.delete(key);},get cssText(){return [...values].map(([k,v])=>`${k}:${v}`).join(';');}};
       Object.defineProperty(this.style,'display',{get(){return values.get('display')||'';},set(value){values.set('display',value);}});
       this.classList={add:(...names)=>names.forEach(name=>classes.add(name)),remove:(...names)=>names.forEach(name=>classes.delete(name)),contains:name=>classes.has(name),toggle(name,force){const value=force??!classes.has(name);if(value)classes.add(name);else classes.delete(name);return value;}};
       Object.defineProperty(this,'className',{get:()=>[...classes].join(' '),set:value=>{classes.clear();String(value).split(/\s+/).filter(Boolean).forEach(name=>classes.add(name));}});
@@ -92,10 +93,10 @@ function browser(width=360,height=800) {
   const load=(file,override)=>{const source=fs.readFileSync(override||new URL(`../dist/${file}`,import.meta.url),'utf8').replace(/export default [^;]+;/g,'');vm.runInContext(`(() => {${source}\n})()`,context,{filename:file});};
   const workshop=fs.readFileSync(new URL('../dist/workshop-v3.02.js',import.meta.url),'utf8');
   const between=(a,b)=>workshop.slice(workshop.indexOf(a),workshop.indexOf(b,workshop.indexOf(a)+a.length));
-  const applyWidth=vm.runInContext(`(()=>{const TOP=window,VIEW=window;${between('  function layoutViewport()', '  function valueRange(')}${between('  function floatingDocuments()', '  function setFloatingVariables()')};return applyFloatingWidth;})()`,context);
+  const applyWidth=vm.runInContext(`(()=>{const TOP=window,VIEW=window;${between('  function layoutViewport()', '  function valueRange(')}${between('  function floatingDocuments()', '  function setFloatingVariables()')};return {width:applyFloatingWidth,font:applyFloatingFont};})()`,context);
   storage.set('pmm_visual_theme_v1','aqua');storage.set('preset-manager-theme-mode','light');
   load('workshop-floating-store.js');load('workshop-theme-system.js');load('workshop-floating-controller.js',process.argv[2]);flush();advance(200);
-  return {top,doc,root,panel,header,icon,integration,metrics,timers,frames,observers,nodes,load,event,flush,advance,applyWidth};
+  return {top,doc,root,panel,header,icon,integration,metrics,timers,frames,observers,nodes,load,event,flush,advance,applyWidth:applyWidth.width,applyFont:applyWidth.font};
 }
 for(const [width,height] of [[360,800],[800,1100]]){
   const env=browser(width,height),{top,doc,panel,header,icon,integration,event,flush,advance,metrics}=env;
@@ -111,13 +112,15 @@ for(const [width,height] of [[360,800],[800,1100]]){
   event(header.querySelector('.pmm-entries-toggle'),'click');assert.equal(integration.entries,3);
   api.setExpanded(false);advance(200);
   tap();advance(100);tap();advance(320);assert.equal(integration.main,1);assert(!api.getState().expanded,'A double tap only opens the main window');
-  event(handle,'pointerdown');advance(360);assert.equal(integration.controller,1);event(top,'pointerup');advance(400);assert(!api.getState().expanded,'A long press cannot also toggle the banner');
+  event(handle,'pointerdown');advance(360);assert.equal(integration.controller,1);const afterLong=JSON.stringify(store.getState().position);event(top,'pointermove',width-10,height-10);flush();assert.equal(handle.style.getPropertyValue('transform'),'','A long press belongs to the opened controller, not another floating drag');assert.equal(JSON.stringify(store.getState().position),afterLong);event(top,'pointerup');advance(400);assert(!api.getState().expanded,'A long press cannot also toggle the banner');
 
   theme.setTone('dark');flush();assert(doc.querySelectorAll('.pmm-theme-surface-motion').length>0);
   event(handle,'pointerdown',width/2,100);event(top,'pointermove',width/2+20,110);
   assert.equal(doc.querySelectorAll('.pmm-theme-surface-motion').length,0,'Dragging cancels surface effects immediately');
   advance(150);const before={...metrics},position=JSON.stringify(store.getState().position);
+  const paintCount=handle.transformWrites;
   for(let i=0;i<240;i++)event(top,'pointermove',width/2+20+i/3,110+i/4);
+  assert.equal(handle.transformWrites,paintCount,'No DOM writes between display frames');flush();assert.equal(handle.transformWrites,paintCount+1,'240 samples need only one transform paint');
   assert.equal(JSON.stringify(store.getState().position),position,'Pointer moves never commit or serialize state');
   assert.deepEqual(metrics,before,'Pointer moves cannot measure DOM, read computed styles or write storage');
   theme.setTone('light');flush();assert.equal(doc.documentElement.dataset.pmmThemeTone,'dark','Theme writes wait until the gesture releases');
@@ -128,7 +131,7 @@ for(const [width,height] of [[360,800],[800,1100]]){
 
   // Edge movement keeps its x coordinate; pointer cancellation discards the preview.
   const docked=JSON.stringify(api.getState().position);
-  event(handle,'pointerdown',width-10,200);event(top,'pointermove',width-10,230);assert.equal(handle.style.getPropertyValue('transform'),'translate3d(0px,30px,0)');
+  event(handle,'pointerdown',width-10,200);event(top,'pointermove',width-10,230);flush();assert.equal(handle.style.getPropertyValue('transform'),'translate3d(0px,30px,0)');
   theme.setTone('dark');flush();event(top,'pointercancel',width-10,230);flush();
   assert.equal(JSON.stringify(api.getState().position),docked);assert.equal(handle.style.getPropertyValue('transform'),'');assert.equal(doc.documentElement.dataset.pmmThemeTone,'dark');
   event(handle,'pointerdown');event(top,'pointerup',100,100,99);assert.equal(handle.pointerCapture,1,'Unrelated pointers cannot finish this gesture');event(top,'pointercancel');
@@ -140,12 +143,12 @@ for(const [width,height] of [[360,800],[800,1100]]){
     env.applyWidth(bannerWidth);doc.documentElement.style.setProperty('--pmm-floating-max-height',String(bannerHeight));
     quick.style.display='';panel.rect={left:0,top:0,width:bannerWidth,height:bannerHeight};
     api.setExpanded(true);resize.callback();flush();advance(200);
-    assert.equal(Number(env.root.style.getPropertyValue('--pmm-banner-content-scale')),Math.min(1,bannerWidth/Math.floor(width/2)));
+    assert.equal(Number(env.root.style.getPropertyValue('--pmm-banner-content-scale')),1);
     const x=Number.parseFloat(env.root.style.getPropertyValue('--pmm-banner-x')),y=Number.parseFloat(env.root.style.getPropertyValue('--pmm-banner-y'));
     assert(x>=0&&x+bannerWidth<=width);assert(y>=0&&y+bannerHeight<=height);
     if(bannerWidth===width){assert.equal(x,0);assert.equal(y,0);assert.notEqual(env.root.dataset.handleOverlap,'none');}
     event(header,'pointerdown',100,100);const before={...metrics};
-    event(top,'pointermove',width+500,height+500);
+    event(top,'pointermove',width+500,height+500);flush();
     assert.deepEqual(metrics,before,'Scaled/full-width banner movement reuses cached geometry');
     assert.equal(handle.style.getPropertyValue('transform'),panel.style.getPropertyValue('transform'));
     const [dx,dy]=panel.style.getPropertyValue('transform').match(/[-\d.]+(?=px)/g).map(Number);
@@ -156,14 +159,15 @@ for(const [width,height] of [[360,800],[800,1100]]){
 
   // Explicit overall font sizes change all internal density without changing the outer width.
   for(const font of [8,22,11]){
-    env.applyWidth(width/2,font);
+    env.applyFont(font);
     assert.equal(Number(env.root.style.getPropertyValue('--pmm-banner-content-scale')),font/11);
     assert.equal(env.root.style.getPropertyValue('--pmm-mobile-floating-width'),width/2+'px');
     assert.equal(doc.documentElement.style.getPropertyValue('--pmm-banner-content-scale'),'');
   }
 
   // A reload destroys the old module, including pending tap/long-press callbacks.
-  api.resetPosition();flush();tap();env.load('workshop-floating-controller.js');flush();advance(500);
+  env.applyFont(8);api.resetPosition();flush();tap();env.load('workshop-floating-controller.js');flush();advance(500);
+  assert.equal(Number(env.root.style.getPropertyValue('--pmm-banner-content-scale')),8/11,'Reload must retain typography applied by the native tuner before module startup');
   api=top.__PMM_FLOATING_CONTROLLER__;handle=doc.getElementById('pmm-unified-floating-handle');
   assert.equal(doc.querySelectorAll('#pmm-unified-floating-handle').length,1);assert.equal(top.listeners.get('pointerup').size,1);assert(!api.getState().expanded);
   advance(200);event(handle,'pointerdown');event(top,'orientationchange');api.destroy();const afterDestroy={...metrics};advance(500);assert.deepEqual(metrics,afterDestroy,'A retired orientation timer cannot update the replacement runtime');assert.equal(integration.controller,1);assert(!doc.getElementById('pmm-unified-floating-handle'));assert.equal(top.listeners.get('pointerup').size,0);assert(!header.querySelector('.pmm-entries-toggle'));
@@ -175,7 +179,7 @@ for(const [width,height] of [[360,800],[800,1100]]){
 {
   const env=browser(390,844),{top,doc,root,observers}=env,api=top.__PMM_FLOATING_CONTROLLER__;
   const mount=root.parentElement;
-  root.remove();env.applyWidth(117);
+  env.applyFont(8);root.remove();env.applyWidth(117);
   assert.equal(doc.documentElement.style.getPropertyValue('--pmm-mobile-floating-width'),'');
   assert.equal(doc.documentElement.style.getPropertyValue('--pmm-banner-content-scale'),'');
   const replacement=doc.createElement('div');replacement.className='floating-panel-root';
@@ -184,7 +188,7 @@ for(const [width,height] of [[360,800],[800,1100]]){
   const observer=observers.find(observer=>observer.targets.some(({node,options})=>node===mount&&options?.childList));
   observer.callback([{addedNodes:[replacement],removedNodes:[root]}]);env.flush();
   assert.equal(replacement.style.getPropertyValue('--pmm-mobile-floating-width'),'117px');
-  assert.equal(replacement.style.getPropertyValue('--pmm-banner-content-scale'),'0.6');
+  assert.equal(Number(replacement.style.getPropertyValue('--pmm-banner-content-scale')),8/11);
   api.destroy();top.__PMM_THEME_SYSTEM__.destroy();top.__PMM_FLOATING_STORE__.destroy();env.flush();
   assert.equal(env.timers.size,0);assert.equal(env.frames.size,0);assert(observers.every(observer=>observer.targets.length===0));
 }

@@ -81,15 +81,15 @@ function between(start,end){
 // Keyboard and visualViewport scrolling must not cause full controller layout synchronization.
 {
   const view={innerWidth:360,innerHeight:780},doc={activeElement:null},card={},store={keyboardEditing:false};let work=0;
-  const change=vm.runInNewContext(`(()=>{let lastViewportWidth=360,lastViewportHeight=780;${between('  const onCardViewportChange=()=>{',"  TOP.addEventListener('resize',onCardViewportChange")};return onCardViewportChange;})()`,{
-    VIEW:view,DOC:doc,card,TOP:{__PMM_FLOATING_STORE__:{getState:()=>store}},activeResizeCleanup:()=>work++,refreshDeviceValues:()=>work++,setFloatingVariables:()=>work++,scheduleSync:()=>work++,keepCardInBounds:()=>work++,
+  const change=vm.runInNewContext(`(()=>{let lastViewportWidth=360,lastViewportHeight=780;${between('  function onCardViewportChange() {',"  TOP.addEventListener('resize',onCardViewportChange")};return onCardViewportChange;})()`,{
+    VIEW:view,DOC:doc,card,TOP:{__PMM_FLOATING_STORE__:{getState:()=>store}},activeResizeCleanup:null,activeCardDragCleanup:null,refreshDeviceValues:()=>work++,setFloatingVariables:()=>work++,scheduleSync:()=>work++,keepCardInBounds:()=>work++,
   });
   for(let i=0;i<100;i++)change();assert.equal(work,0);
   view.innerHeight=480;store.keyboardEditing=true;change();assert.equal(work,0);
   store.keyboardEditing=false;doc.activeElement={matches:()=>true};change();assert.equal(work,0);
   doc.activeElement=null;card.__pmmScrolling=true;change();assert.equal(work,0);
-  card.__pmmScrolling=false;view.innerWidth=780;view.innerHeight=360;change();assert.equal(work,5,'An actual rotation must still update bounds and defaults');
-  change();assert.equal(work,5,'Paired window/visualViewport events must coalesce');
+  card.__pmmScrolling=false;view.innerWidth=780;view.innerHeight=360;change();assert.equal(work,4,'An actual rotation must still update bounds and defaults');
+  change();assert.equal(work,4,'Paired window/visualViewport events must coalesce');
 }
 
 // The legacy batch module watches title controls, not every progressively loaded prompt.

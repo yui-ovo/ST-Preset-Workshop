@@ -9782,6 +9782,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   let saveTimer = 0;
   let activeResizeCleanup = null;
   let activeCardDragCleanup = null;
+  let deferredViewportChange = false, deferredSync = false;
   let currentMobileLayout = null;
   let lastViewportWidth = VIEW.innerWidth, lastViewportHeight = VIEW.innerHeight;
   let lastFloatingGlyph = null;
@@ -9970,19 +9971,31 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     if (node?.style.getPropertyValue(name) !== text) node?.style.setProperty(name, text);
   }
 
-  function applyFloatingWidth(width, font = 11) {
+  function applyFloatingWidth(width) {
     const viewport = layoutViewport();
     const actualWidth = Math.min(viewport.width, Math.max(1, Number(width) || Math.floor(viewport.width / 2)));
-    const scale = Math.min(1, actualWidth / Math.max(1, Math.floor(viewport.width / 2))) * Math.min(22, Math.max(6, Number(font) || 11)) / 11;
     const controller = TOP.__PMM_FLOATING_CONTROLLER__;
     if (typeof controller?.setBannerWidth === 'function') {
-      controller.setBannerWidth(actualWidth, scale);
+      controller.setBannerWidth(actualWidth);
       return;
     }
     for (const currentDocument of floatingDocuments()) {
       for (const panel of currentDocument.querySelectorAll('#preset-manager-floating-panel .floating-panel-root')) {
         setLayoutVariable(panel, '--pmm-mobile-floating-width', `${actualWidth}px`);
-        setLayoutVariable(panel, '--pmm-banner-content-scale', String(scale));
+      }
+    }
+  }
+
+  function applyFloatingFont(font) {
+    const value = Math.min(22, Math.max(6, Number(font) || 11));
+    const controller = TOP.__PMM_FLOATING_CONTROLLER__;
+    if (typeof controller?.setBannerFont === 'function') {
+      controller.setBannerFont(value);
+      return;
+    }
+    for (const currentDocument of floatingDocuments()) {
+      for (const panel of currentDocument.querySelectorAll('#preset-manager-floating-panel .floating-panel-root')) {
+        setLayoutVariable(panel, '--pmm-banner-content-scale', String(value / 11));
       }
     }
   }
@@ -9994,7 +10007,8 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     for (const [name,value] of Object.entries(vars)) setLayoutVariable(DOC.documentElement, name, value + "px");
     for (const key of ["controllerFont","controllerWidth","controllerHeight"]) setLayoutVariable(DOC.documentElement, "--pmm-"+key.replace(/[A-Z]/g,letter=>"-"+letter.toLowerCase()),current.values[key]+"px");
     for (const key of ["controllerFont","controllerWidth","controllerHeight"]) if (card) setLayoutVariable(card, "--pmm-"+key.replace(/[A-Z]/g,letter=>"-"+letter.toLowerCase()),current.values[key]+"px");
-    applyFloatingWidth(current.values.floatingWidth, current.values.floatingFont);
+    applyFloatingWidth(current.values.floatingWidth);
+    applyFloatingFont(current.values.floatingFont);
     const glyph = state.glyph || "☰";
     if (lastFloatingGlyph !== glyph) {
       lastFloatingGlyph = glyph;
@@ -10020,7 +10034,6 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     setLayoutVariable(target, '--pmm-user-group-gap', `${current.values.groupGap}px`);
     setLayoutVariable(target, '--pmm-user-preset-width-offset', `${current.values.presetWidth}px`);
     setLayoutVariable(target, '--pmm-user-branch-width-offset', `${current.values.branchWidth}px`);
-    setLayoutVariable(target, '--pmm-mobile-floating-width', `${current.values.floatingWidth}px`);
     setLayoutVariable(DOC.documentElement, "--pmm-floating-max-height", current.values.floatingHeight + "px");
     setLayoutVariable(DOC.documentElement, "--pmm-floating-group-font", current.values.floatingGroupFont + "px");
     setLayoutVariable(DOC.documentElement, "--pmm-floating-name-font", current.values.floatingNameFont + "px");
@@ -10038,7 +10051,8 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     setLayoutVariable(DOC.documentElement, "--pmm-controller-width", current.values.controllerWidth + "px");
     setLayoutVariable(DOC.documentElement, "--pmm-controller-height", current.values.controllerHeight + "px");
     for (const key of ["controllerFont","controllerWidth","controllerHeight"]) if (card) setLayoutVariable(card, "--pmm-"+key.replace(/[A-Z]/g,letter=>"-"+letter.toLowerCase()),current.values[key]+"px");
-    applyFloatingWidth(current.values.floatingWidth, current.values.floatingFont);
+    applyFloatingWidth(current.values.floatingWidth);
+    applyFloatingFont(current.values.floatingFont);
     setLayoutVariable(target, '--pmm-user-split-top', `${current.values.splitRatio}fr`);
     setLayoutVariable(target, '--pmm-user-split-bottom', `${100 - current.values.splitRatio}fr`);
     setLayoutVariable(target, '--pmm-user-split-left', `${current.values.splitRatio}fr`);
@@ -10180,10 +10194,10 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   /* 滑杆热路径只更新当前变量；完整 DOM 同步留给打开、换模式和重置。 */
   function applyControlValue(control, save = false) {
     const current = currentState();
-    const pxVars = {controllerFont:"--pmm-controller-font",controllerWidth:"--pmm-controller-width",controllerHeight:"--pmm-controller-height",groupFont:"--pmm-user-group-font",presetNameFont:"--pmm-user-preset-name-font",bodyFont:"--pmm-user-body-font",headerIcon:"--pmm-header-icon-size",rowButton:"--pmm-row-button-size",groupHeight:"--pmm-user-group-height",itemFont:"--pmm-user-item-font",itemHeight:"--pmm-user-item-height",itemGap:"--pmm-user-item-gap",groupGap:"--pmm-user-group-gap",presetWidth:"--pmm-user-preset-width-offset",branchWidth:"--pmm-user-branch-width-offset",floatingWidth:"--pmm-mobile-floating-width",headerButton:"--pmm-header-button-size",headerGap:"--pmm-header-gap"};
+    const pxVars = {controllerFont:"--pmm-controller-font",controllerWidth:"--pmm-controller-width",controllerHeight:"--pmm-controller-height",groupFont:"--pmm-user-group-font",presetNameFont:"--pmm-user-preset-name-font",bodyFont:"--pmm-user-body-font",headerIcon:"--pmm-header-icon-size",rowButton:"--pmm-row-button-size",groupHeight:"--pmm-user-group-height",itemFont:"--pmm-user-item-font",itemHeight:"--pmm-user-item-height",itemGap:"--pmm-user-item-gap",groupGap:"--pmm-user-group-gap",presetWidth:"--pmm-user-preset-width-offset",branchWidth:"--pmm-user-branch-width-offset",headerButton:"--pmm-header-button-size",headerGap:"--pmm-header-gap"};
     const percentVars = {outerPadding:"--pmm-main-padding",mainHeight:"--pmm-main-height",mainWidth:"--pmm-main-width"};
     const floatingVars = {floatingHeight:"--pmm-floating-max-height",floatingGroupFont:"--pmm-floating-group-font",floatingNameFont:"--pmm-floating-name-font",floatingBodyFont:"--pmm-floating-body-font",floatingGap:"--pmm-floating-item-gap",floatingItemHeight:"--pmm-floating-item-height",floatingButton:"--pmm-floating-button-size",floatingBall:"--pmm-floating-ball-size",floatingHandleWidth:"--pmm-floating-handle-width",floatingHandleHeight:"--pmm-floating-handle-height",floatingHandleFont:"--pmm-floating-handle-font"};
-    if (root && !control.key.startsWith("controller") && control.key !== "floatingFont") {
+    if (root && !control.key.startsWith("controller") && !control.key.startsWith("floating")) {
       if (pxVars[control.key]) root.style.setProperty(pxVars[control.key], current.values[control.key] + "px");
       if (percentVars[control.key]) root.style.setProperty(percentVars[control.key], current.values[control.key] + "%");
       if (control.key === 'splitRatio') {
@@ -10198,7 +10212,8 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     if (floatingVars[control.key]) DOC.documentElement.style.setProperty(floatingVars[control.key], current.values[control.key] + "px");
     if (control.key === "floatingGap") DOC.documentElement.classList.toggle("pmm-floating-negative-gap", current.values.floatingGap < 0);
     if (["controllerFont","controllerWidth","controllerHeight"].includes(control.key)) (card || DOC.documentElement).style.setProperty("--pmm-" + control.key.replace(/[A-Z]/g, letter => "-" + letter.toLowerCase()), current.values[control.key] + "px");
-    if (control.key === "floatingWidth" || control.key === "floatingFont") applyFloatingWidth(current.values.floatingWidth, current.values.floatingFont);
+    if (control.key === "floatingWidth") applyFloatingWidth(current.values.floatingWidth);
+    if (control.key === "floatingFont") applyFloatingFont(current.values.floatingFont);
     const output = card?.querySelector("[data-pmm-layout-output=\"" + control.key + "\"]");
     if (output && !output.querySelector("input")) output.textContent = current.values[control.key] + control.unit;
     if (save && ["floatingWidth","floatingHeight","floatingFont","floatingBall","floatingHandleWidth","floatingHandleHeight"].includes(control.key)) TOP.dispatchEvent(new CustomEvent("pmm:floating-metrics-change"));
@@ -10454,89 +10469,100 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   function STORE_PROFILE(){return (isMobile()?"mobile":"desktop")+"-"+(VIEW.innerWidth>VIEW.innerHeight?"landscape":"portrait")}
 
   function keepCardInBounds() {
-    if (!card?.classList.contains('pmm-layout-card--positioned') || TOP.__PMM_FLOATING_STORE__?.getState?.().keyboardEditing) return;
+    if (activeCardDragCleanup || !card?.classList.contains('pmm-layout-card--positioned') || TOP.__PMM_FLOATING_STORE__?.getState?.().keyboardEditing) return;
     const next = clampCardPosition(parseFloat(card.style.left) || 0, parseFloat(card.style.top) || 0);
     card.style.setProperty('left', `${next.left}px`, 'important');
     card.style.setProperty('top', `${next.top}px`, 'important');
   }
 
   function beginCardDrag(event) {
-    if (!card || event.target?.closest?.('button,input')) return;
-    if (event.isPrimary === false) return;
-    if (event.button != null && event.button !== 0) return;
-    const pointerId = event.pointerId, touchId = event.touches?.[0]?.identifier, dragHandle = event.currentTarget;
+    if (!card || activeCardDragCleanup || event.target?.closest?.('button,input,select,textarea,a,[contenteditable="true"]')) return;
+    if (event.isPrimary === false || event.button != null && event.button !== 0) return;
+    const panel = card, pointerId = event.pointerId, touchId = event.touches?.[0]?.identifier, dragHandle = event.currentTarget;
     const firstPoint = event.touches?.[0] || event;
-    const startX = Number(firstPoint.clientX);
-    const startY = Number(firstPoint.clientY);
+    const startX = Number(firstPoint.clientX), startY = Number(firstPoint.clientY);
     if (!Number.isFinite(startX) || !Number.isFinite(startY)) return;
     event.preventDefault();
     event.stopPropagation();
-    activeCardDragCleanup?.();
-    VIEW.__PMM_THEME_SYSTEM__?.beginInteraction?.('controller');
-
-    const cardRect = card.getBoundingClientRect();
-    const startLeft = cardRect.left;
-    const startTop = cardRect.top;
-    const dragBounds=cardViewportBounds(cardRect);
-    let queuedPoint = null;
-    let finalLeft = startLeft;
-    let finalTop = startTop;
-    let paintedTransform = null;
-    card.style.setProperty('left', `${startLeft}px`, 'important');
-    card.style.setProperty('top', `${startTop}px`, 'important');
-    card.classList.add('pmm-layout-card--positioned', 'pmm-layout-card--dragging');
+    const cardRect = panel.getBoundingClientRect();
+    const startLeft = cardRect.left, startTop = cardRect.top;
+    const dragBounds = cardViewportBounds(cardRect);
+    const profile = STORE_PROFILE();
+    let queuedPoint = null, frame = 0, moved = false, ended = false;
+    let finalLeft = startLeft, finalTop = startTop, paintedTransform = null;
 
     const render = () => {
-      if (!queuedPoint || !card) return;
+      frame = 0;
+      if (!queuedPoint || ended || card !== panel) return;
       const point = queuedPoint;
       queuedPoint = null;
-      const next = clampCardPosition(
-        startLeft + Number(point.clientX) - startX,
-        startTop + Number(point.clientY) - startY,
-        dragBounds,
-      );
+      const next = clampCardPosition(startLeft + point.clientX - startX, startTop + point.clientY - startY, dragBounds);
       finalLeft = next.left;
       finalTop = next.top;
       const transform = `translate3d(${finalLeft-startLeft}px,${finalTop-startTop}px,0)`;
-      if (transform !== paintedTransform) card.style.setProperty('transform', transform, 'important');
+      if (transform !== paintedTransform) panel.style.setProperty('transform', transform, 'important');
       paintedTransform = transform;
     };
     const move = moveEvent => {
-      if(pointerId!=null&&moveEvent.pointerId!==pointerId)return;
+      if (ended || pointerId != null && moveEvent.pointerId !== pointerId) return;
       const samples = moveEvent.getCoalescedEvents?.();
-      const point = (touchId!=null?Array.from(moveEvent.touches||[]).find(point=>point.identifier===touchId):moveEvent.touches?.[0]) || samples?.[samples.length - 1] || moveEvent;
-      if (!Number.isFinite(point.clientX) || !Number.isFinite(point.clientY)) return;
+      const point = touchId != null ? Array.from(moveEvent.touches || []).find(point => point.identifier === touchId) : moveEvent.touches?.[0] || samples?.[samples.length - 1] || moveEvent;
+      if (!Number.isFinite(point?.clientX) || !Number.isFinite(point?.clientY)) return;
       moveEvent.preventDefault?.();
       moveEvent.stopPropagation?.();
+      if (!moved) {
+        if (Math.hypot(point.clientX-startX, point.clientY-startY) < 4) return;
+        moved = true;
+        VIEW.__PMM_THEME_SYSTEM__?.beginInteraction?.('controller');
+        panel.style.setProperty('left', `${startLeft}px`, 'important');
+        panel.style.setProperty('top', `${startTop}px`, 'important');
+        panel.classList.add('pmm-layout-card--positioned', 'pmm-layout-card--dragging');
+      }
       queuedPoint = { clientX:point.clientX, clientY:point.clientY };
-      // This is a cached transform only: paint the latest point without an extra frame of delay.
-      render();
+      // Coalesce high-rate touch samples into one compositor write per display frame.
+      if (!frame) frame = VIEW.requestAnimationFrame(render);
     };
     const end = endEvent => {
-      if(pointerId!=null&&endEvent?.pointerId!=null&&endEvent.pointerId!==pointerId)return;
-      if(touchId!=null&&endEvent?.changedTouches?.length&&!Array.from(endEvent.changedTouches).some(point=>point.identifier===touchId))return;
-      try{dragHandle?.releasePointerCapture?.(pointerId)}catch(_){}
-      const point=(touchId!=null?Array.from(endEvent?.changedTouches||[]).find(point=>point.identifier===touchId):endEvent?.changedTouches?.[0])||endEvent;
-      if(!String(endEvent?.type||'').includes('cancel')&&Number.isFinite(point?.clientX)&&Number.isFinite(point?.clientY))queuedPoint={clientX:point.clientX,clientY:point.clientY};
-      render();
-      card?.classList.remove('pmm-layout-card--dragging');
-      if(card){card.style.removeProperty('transform');card.style.setProperty('left',`${finalLeft}px`,'important');card.style.setProperty('top',`${finalTop}px`,'important');if(Number.isFinite(finalLeft)&&Number.isFinite(finalTop)){state.cardPositions={...(state.cardPositions||{}),[STORE_PROFILE()]:{left:finalLeft,top:finalTop}};persistSoon()}}
-      DOC.removeEventListener('pointermove', move, true);
-      DOC.removeEventListener('pointerup', end, true);
-      DOC.removeEventListener('pointercancel', end, true);
-      DOC.removeEventListener('touchmove', move, true);
-      DOC.removeEventListener('touchend', end, true);
-      DOC.removeEventListener('touchcancel', end, true);
+      if (ended || pointerId != null && endEvent?.pointerId != null && endEvent.pointerId !== pointerId) return;
+      if (touchId != null && endEvent?.changedTouches?.length && !Array.from(endEvent.changedTouches).some(point => point.identifier === touchId)) return;
+      const completed = endEvent?.type === 'pointerup' || endEvent?.type === 'touchend';
+      if (frame) VIEW.cancelAnimationFrame(frame);
+      frame = 0;
+      if (moved && completed) {
+        const point = touchId != null ? Array.from(endEvent.changedTouches || []).find(point => point.identifier === touchId) : endEvent.changedTouches?.[0] || endEvent;
+        if (Number.isFinite(point?.clientX) && Number.isFinite(point?.clientY)) queuedPoint = point;
+        render();
+      }
+      ended = true;
+      queuedPoint = null;
+      for (const type of ['pointermove','touchmove']) DOC.removeEventListener(type, move, true);
+      for (const type of ['pointerup','pointercancel','touchend','touchcancel']) DOC.removeEventListener(type, end, true);
+      dragHandle?.removeEventListener?.('lostpointercapture', end);
+      VIEW.removeEventListener?.('blur', end);
       activeCardDragCleanup = null;
-      VIEW.__PMM_THEME_SYSTEM__?.endInteraction?.('controller');
+      try { dragHandle?.releasePointerCapture?.(pointerId); } catch (_) {}
+      if (moved) {
+        if (completed && card === panel) {
+          panel.style.setProperty('left', `${finalLeft}px`, 'important');
+          panel.style.setProperty('top', `${finalTop}px`, 'important');
+          state.cardPositions = { ...(state.cardPositions || {}), [profile]:{left:finalLeft,top:finalTop} };
+          persistSoon();
+        }
+        panel.style.removeProperty('transform');
+        panel.classList.remove('pmm-layout-card--dragging');
+        VIEW.__PMM_THEME_SYSTEM__?.endInteraction?.('controller');
+      }
+      flushDeferredLayout();
     };
-    activeCardDragCleanup = end;
+    activeCardDragCleanup = () => end({type:'pmm-cancel'});
+    VIEW.addEventListener?.('blur', end);
     if (event.type.startsWith('touch')) {
       DOC.addEventListener('touchmove', move, { capture:true, passive:false });
       DOC.addEventListener('touchend', end, true);
       DOC.addEventListener('touchcancel', end, true);
     } else {
-      try{dragHandle?.setPointerCapture?.(pointerId)}catch(_){}
+      dragHandle?.addEventListener?.('lostpointercapture', end);
+      try { dragHandle?.setPointerCapture?.(pointerId); } catch (_) {}
       DOC.addEventListener('pointermove', move, { capture:true, passive:false });
       DOC.addEventListener('pointerup', end, true);
       DOC.addEventListener('pointercancel', end, true);
@@ -10744,7 +10770,9 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       applyState(true);
     });
     const header = panel.querySelector('.pmm-layout-card__header');
-    if ('PointerEvent' in TOP) header.addEventListener('pointerdown', beginCardDrag);
+    header.addEventListener('contextmenu', event => { if (!event.target?.closest?.('button,input')) { event.preventDefault(); event.stopPropagation(); } });
+    header.addEventListener('selectstart', event => event.preventDefault());
+    if ('PointerEvent' in TOP) header.addEventListener('pointerdown', beginCardDrag, {passive:false});
     else header.addEventListener('touchstart', beginCardDrag, { passive:false });
     return panel;
   }
@@ -10945,7 +10973,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     const startX = Number(firstPoint.clientX);
     const startY = Number(firstPoint.clientY);
     const startAt = Date.now();
-    let moved = false;
+    let moved = false, ended = false;
     event.preventDefault();
     event.stopPropagation();
     activeResizeCleanup?.();
@@ -10994,9 +11022,13 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       if (!frame) frame = VIEW.requestAnimationFrame(render);
     };
     const end = endEvent => {
+      if (ended) return;
       if (pointerId != null && endEvent?.pointerId != null && pointerId !== endEvent.pointerId) return;
       if (touchId != null && endEvent?.changedTouches?.length && !Array.from(endEvent.changedTouches).some(point => point.identifier === touchId)) return;
+      ended = true;
       preview.remove();
+      handle.removeEventListener?.('lostpointercapture', end);
+      VIEW.removeEventListener?.('blur', end);
       dragDocument.removeEventListener('pointermove', move, true);
       dragDocument.removeEventListener('pointerup', end, true);
       dragDocument.removeEventListener('pointercancel', end, true);
@@ -11007,7 +11039,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       VIEW.__PMM_THEME_SYSTEM__?.endInteraction?.('split');
       try { if (pointerId != null && handle.hasPointerCapture?.(pointerId)) handle.releasePointerCapture(pointerId); } catch (_) {}
       const now = Date.now();
-      const cancelled = String(endEvent?.type || '').includes('cancel');
+      const cancelled = !['pointerup','touchend'].includes(endEvent?.type);
       if (frame) VIEW.cancelAnimationFrame(frame);
       frame = 0;
       if (moved) {
@@ -11036,8 +11068,10 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       } else {
         delete handle.dataset.pmmLastTapAt;
       }
+      flushDeferredLayout();
     };
     activeResizeCleanup = () => end({ type:'pmm-cancel' });
+    VIEW.addEventListener?.('blur', end);
     if (event.type.startsWith('touch')) {
       dragDocument.addEventListener('touchmove', move, { capture:true, passive:false });
       dragDocument.addEventListener('touchend', end, true);
@@ -11046,6 +11080,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       dragDocument.addEventListener('pointermove', move, { capture:true, passive:false });
       dragDocument.addEventListener('pointerup', end, true);
       dragDocument.addEventListener('pointercancel', end, true);
+      handle.addEventListener?.('lostpointercapture', end);
       try { handle.setPointerCapture?.(pointerId); } catch (_) {}
     }
   }
@@ -11062,6 +11097,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     };
     handle.setAttribute('aria-label', labels[edge]);
     handle.innerHTML = '<span></span><span></span><span></span>';
+    handle.addEventListener('contextmenu', event => { event.preventDefault(); event.stopPropagation(); });
     if ('PointerEvent' in TOP) handle.addEventListener('pointerdown', beginSplitResize, { capture:true, passive:false });
     else handle.addEventListener('touchstart', beginSplitResize, { capture:true, passive:false });
     return handle;
@@ -11100,6 +11136,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
 
   function sync() {
     scheduledFrame = 0;
+    if (activeCardDragCleanup || activeResizeCleanup) { deferredSync = true; return; }
     const nextRoot = DOC.querySelector('#preset-manager-main-panel');
     if (root && root !== nextRoot) activeResizeCleanup?.();
     const mobileNow = isMobile();
@@ -12076,6 +12113,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   }
 
   function cleanup() {
+    deferredViewportChange = false; deferredSync = false;
     for (const row of card?.querySelectorAll('.pmm-layout-row') || []) row.__pmmControlCleanup?.(false);
     card?.__pmmSearchCleanup?.();
     DOC.documentElement.classList.remove("pmm-floating-negative-gap");
@@ -12121,13 +12159,19 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   });
   mainObserver.observe(DOC.body || DOC.documentElement, { childList:true });
   MEDIA?.addEventListener?.('change', scheduleSync);
-  const onCardViewportChange=()=>{
+  function flushDeferredLayout() {
+    if (activeCardDragCleanup || activeResizeCleanup) return;
+    if (deferredViewportChange) { deferredViewportChange = false; onCardViewportChange(); }
+    if (deferredSync) { deferredSync = false; scheduleSync(); }
+  }
+  function onCardViewportChange() {
+    if (activeCardDragCleanup || activeResizeCleanup) { deferredViewportChange = true; return; }
     if(TOP.__PMM_FLOATING_STORE__?.getState?.().keyboardEditing||card?.__pmmScrolling||DOC.activeElement?.matches?.('input,textarea,select,[contenteditable="true"]'))return;
     const width=VIEW.innerWidth,height=VIEW.innerHeight;
     if(width===lastViewportWidth&&height===lastViewportHeight)return;
     lastViewportWidth=width;lastViewportHeight=height;
-    activeResizeCleanup?.();refreshDeviceValues();setFloatingVariables();scheduleSync();keepCardInBounds();
-  };
+    refreshDeviceValues();setFloatingVariables();scheduleSync();keepCardInBounds();
+  }
   TOP.addEventListener('resize',onCardViewportChange,{passive:true});
   TOP.visualViewport?.addEventListener?.('resize',onCardViewportChange,{passive:true});
   TOP.addEventListener?.('pmm-mobile-dnd-compat-change', onDragCompatChange);

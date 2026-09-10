@@ -167,6 +167,9 @@ html body #pmm-mobile-layout-card#pmm-mobile-layout-card .pmm-layout-card__foote
 html body #pmm-mobile-layout-card#pmm-mobile-layout-card :is(.pmm-layout-step-btn,.pmm-layout-icon-btn){font-size:min(20px,calc(var(--pmm-controller-font,12px)*1.5))!important;line-height:1!important}
 html body #preset-manager-main-panel#preset-manager-main-panel .pm-header>.header-right :is(.card-icon i,.title-action-btn>i,.close-card>i,.title-edit-btn>i,.pmm-preset-search-btn>i,.theme-btn>i){font-size:min(var(--pmm-header-icon-size,12px),calc(var(--pmm-header-button-size,32px)*.48))!important;line-height:1!important}
 }
+/* Long presses on the drag grip belong to the panel, not native text selection/callouts. */
+html body #pmm-mobile-layout-card#pmm-mobile-layout-card .pmm-layout-card__header{touch-action:none!important;user-select:none!important;-webkit-user-select:none!important;-webkit-touch-callout:none!important}
+html body #preset-manager-main-panel .pmm-split-handle{-webkit-touch-callout:none!important;user-select:none!important;-webkit-user-select:none!important}
 /* Opening and dragging use final pixel coordinates; only opacity may transition. */
 html body #pmm-mobile-layout-card#pmm-mobile-layout-card{max-width:100vw!important;transition:opacity .18s ease!important}
 /* Moving surfaces keep a compositor layer; expensive live blur returns after release. */

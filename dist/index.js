@@ -18,6 +18,7 @@ let rapidVersionCheckStopTimer = null;
 let nativeUpdateReloadTimer = null;
 let singleExtensionUpdatePending = false;
 let bulkExtensionUpdateInProgress = false;
+let updateReloadDeferred = false;
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -67,11 +68,10 @@ async function checkForInstalledUpdate() {
       /* 单独更新时酒馆会自己弹成功提示，留一秒给原生提示显示，不再重复弹第二条。 */
       await sleep(NATIVE_UPDATE_RELOAD_DELAY);
     } else {
-      notify('info', `扩展已更新至 v${nextVersion}，正在自动刷新酒馆`);
+      notify('info', `扩展已更新至 v${nextVersion}`);
       await sleep(450);
     }
-    globalThis.__PMM_PERFORMANCE_GUARD_V275__?.markReloadReason?.('extension-update');
-    globalThis.location.reload();
+    markExtensionUpdateReload();
   } catch (error) {
     console.debug(`[${EXTENSION_NAME}] 暂未检测到可自动载入的新版本。`, error);
   } finally {
@@ -124,9 +124,32 @@ function startRapidVersionCheck() {
   );
 }
 
+function canAutoReloadAfterUpdate() {
+  // Context is a live snapshot, so check again immediately before every reload.
+  // Never attempt to "flush" an empty/loading chat by calling a chat save API here.
+  try {
+    const context = globalThis.SillyTavern?.getContext?.();
+    if (!context || !Array.isArray(context.chat)) return false;
+    const selected = value => value !== undefined && value !== null && value !== '';
+    if (selected(context.chatId) || selected(context.characterId) || selected(context.groupId)) return false;
+    if (context.chat.length || context.streamingProcessor) return false;
+    if (document.activeElement?.matches?.('input,textarea,[contenteditable="true"]')) return false;
+    return true;
+  } catch (_) { return false; }
+}
+
 function markExtensionUpdateReload() {
+  nativeUpdateReloadTimer = null;
+  if (!canAutoReloadAfterUpdate()) {
+    if (!updateReloadDeferred) {
+      updateReloadDeferred = true;
+      notify('info', '扩展更新已完成；为避免中断聊天，请在聊天保存完成后手动刷新。');
+    }
+    return false;
+  }
   globalThis.__PMM_PERFORMANCE_GUARD_V275__?.markReloadReason?.('extension-update');
   globalThis.location.reload();
+  return true;
 }
 
 function scheduleNativeSingleUpdateReload() {

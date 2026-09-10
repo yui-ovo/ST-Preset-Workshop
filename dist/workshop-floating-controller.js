@@ -5,8 +5,8 @@ if(!STORE)throw new Error('[预设工坊] floating store 未加载');
 try{TOP[API_KEY]?.destroy?.()}catch(_){}
 
 const cleanup=[];const boundHeaders=new WeakSet(),boundCollapses=new WeakSet();
-let managedPanel=null,managedDisplay=null,expandFrame=0,bannerSizing=null;
-let root=null,handle=null,gesture=null,renderFrame=0,resizeFrame=0,orientationTimer=0,tapTimer=0,longTimer=0,lastTapAt=0,lastTapPoint=null,suppressMouseUntil=0,panelResizeObserver=null;
+let managedPanel=null,managedDisplay=null,expandFrame=0,bannerSizing={width:null,scale:null};
+let root=null,handle=null,gesture=null,renderFrame=0,dragFrame=0,resizeFrame=0,orientationTimer=0,tapTimer=0,longTimer=0,lastTapAt=0,lastTapPoint=null,suppressMouseUntil=0,panelResizeObserver=null;
 let geometry={vw:1,vh:1,coarse:false,bannerW:180,bannerH:240,ball:46,handleW:28,handleH:64};
 function listen(target,type,fn,options){target?.addEventListener?.(type,fn,options);cleanup.push(()=>target?.removeEventListener?.(type,fn,options?.capture??options))}
 function docs(){const result=[DOC];try{if(document&&!result.includes(document))result.push(document)}catch(_){}return result}
@@ -28,14 +28,22 @@ function ensurePosition(){const state=STORE.getState(),next=clampPosition(state.
 function paintVariable(node,key,value){if(node?.style.getPropertyValue(key)!==value)node?.style.setProperty(key,value)}
 function applyBannerSizing(){
   if(!root||!bannerSizing)return;
-  paintVariable(root,'--pmm-mobile-floating-width',bannerSizing.width+'px');
+  // The native tuner may have applied saved settings before this module was loaded.
+  if(bannerSizing.width==null){const width=parseFloat(root.style.getPropertyValue('--pmm-mobile-floating-width'));if(width>0)bannerSizing.width=width}
+  if(bannerSizing.scale==null){const scale=Number(root.style.getPropertyValue('--pmm-banner-content-scale'));bannerSizing.scale=scale>0?Math.min(2,scale):1}
+  if(bannerSizing.width!=null)paintVariable(root,'--pmm-mobile-floating-width',bannerSizing.width+'px');
   paintVariable(root,'--pmm-banner-content-scale',String(bannerSizing.scale));
 }
-function setBannerWidth(width,scale=1){
-  if(!Number.isFinite(width)||width<=0||!Number.isFinite(scale)||scale<=0)return;
-  bannerSizing={width,scale:Math.min(2,scale)};
-  // Cache for late mounts; slider input never writes an inherited document-level variable.
-  applyBannerSizing();
+function setBannerWidth(width){
+  if(!Number.isFinite(width)||width<=0)return;
+  bannerSizing.width=width;
+  // Geometry never changes typography, including late/replaced native mounts.
+  if(root)paintVariable(root,'--pmm-mobile-floating-width',width+'px');
+}
+function setBannerFont(font){
+  if(!Number.isFinite(font)||font<=0)return;
+  bannerSizing.scale=Math.min(22,Math.max(6,font))/11;
+  if(root)paintVariable(root,'--pmm-banner-content-scale',String(bannerSizing.scale));
 }
 function paint(position,side){const point=panelPoint(position,side);paintVariable(handle,'--pmm-floating-x',position.x+'px');paintVariable(handle,'--pmm-floating-y',position.y+'px');if(handle.dataset.side!==side)handle.dataset.side=side;if(root){if(root.dataset.side!==side)root.dataset.side=side;paintVariable(root,'--pmm-banner-x',point.x+'px');paintVariable(root,'--pmm-banner-y',point.y+'px');paintVariable(root,'--pmm-banner-max-width',geometry.vw+'px');const overlap=STORE.getState().expanded&&geometry.bannerW+geometry.handleW+16>geometry.vw?(position.x+geometry.handleW/2<=geometry.vw/2?'left':'right'):'none';if(root.dataset.handleOverlap!==overlap)root.dataset.handleOverlap=overlap;paintVariable(root,'--pmm-banner-handle-gutter',geometry.handleW+8+'px')}}
 function restorePanelDisplay(){
@@ -97,6 +105,7 @@ function onDown(event){
   clearLong();longTimer=TOP.setTimeout(()=>{if(!gesture||gesture.moved)return;gesture.longPressed=true;gesture.suppressClick=true;cancelPendingTap();openController('longpress')},360);
 }
 function paintDrag(){
+  dragFrame=0;
   if(!gesture?.moved)return;
   const transform=`translate3d(${gesture.dx}px,${gesture.dy}px,0)`;
   if(gesture.paintedTransform===transform)return;
@@ -117,7 +126,7 @@ function updateDragPoint(event){
   return point;
 }
 function onMove(event){
-  if(!gesture||(gesture.id!=null&&event.pointerId!==gesture.id))return;
+  if(!gesture||gesture.longPressed||(gesture.id!=null&&event.pointerId!==gesture.id))return;
   const point=updateDragPoint(event);
   if(!point||!gesture.moved&&Math.hypot(point.clientX-gesture.sx,point.clientY-gesture.sy)<4)return;
   if(!gesture.moved){
@@ -127,10 +136,10 @@ function onMove(event){
     if(gesture.panel){root?.classList.add('is-dragging');gesture.panel.style.setProperty('animation','none','important');}
     try{gesture.target.setPointerCapture(event.pointerId)}catch(_){}
   }
-  // Only two cached compositor surfaces are written; no frame queue can trail pointerup.
-  paintDrag();event.preventDefault();event.stopPropagation();
+  // Latest sample wins: at most two surface writes per display frame, flushed on release.
+  if(!dragFrame)dragFrame=TOP.requestAnimationFrame(paintDrag);event.preventDefault();event.stopPropagation();
 }
-function clearDragPaint(){handle?.classList.remove('is-dragging');if(handle){handle.style.removeProperty('transform');handle.style.removeProperty('transition');}root?.classList.remove('is-dragging');root?.querySelector?.(':scope > .panel-wrapper')?.style.removeProperty('transform')}
+function clearDragPaint(){if(dragFrame)TOP.cancelAnimationFrame(dragFrame);dragFrame=0;handle?.classList.remove('is-dragging');if(handle){handle.style.removeProperty('transform');handle.style.removeProperty('transition');}root?.classList.remove('is-dragging');root?.querySelector?.(':scope > .panel-wrapper')?.style.removeProperty('transform')}
 function settle(position,g=geometry){
   const expanded=STORE.getState().expanded,s=controlSize(expanded,g),distance=Math.min(72,Math.max(40,g.vw*.08));
   const dock=position.x<distance?'left':g.vw-position.x-s.w<distance?'right':'free';
@@ -146,7 +155,7 @@ function onUp(event){
   if(done.fromHandle){handle?.blur?.();if(done.dock&&done.dock!=='free'){cancelPendingTap();setExpanded(!STORE.getState().expanded,'dock-tap')}else singleTap(event);event.preventDefault();event.stopPropagation()}
   else root?.__pmmQuickEntries?.toggle?.()
 }
-function onCancel(event){if(gesture?.id!=null&&event?.pointerId!=null&&gesture.id!==event.pointerId)return;try{gesture?.target?.releasePointerCapture?.(gesture.id)}catch(_){}gesture=null;TOP.__PMM_THEME_SYSTEM__?.endInteraction?.('floating');clearLong();cancelPendingTap();clearDragPaint();schedule()}
+function onCancel(event){if(!gesture)return;if(gesture?.id!=null&&event?.pointerId!=null&&gesture.id!==event.pointerId)return;const done=gesture;gesture=null;try{done.target?.releasePointerCapture?.(done.id)}catch(_){}TOP.__PMM_THEME_SYSTEM__?.endInteraction?.('floating');clearLong();cancelPendingTap();clearDragPaint();schedule()}
 function suppressNativeMouse(event){if(Date.now()>=suppressMouseUntil)return;event.preventDefault();event.stopImmediatePropagation()}
 function suppressSyntheticClick(event){
   if(gesture?.suppressClick||event.currentTarget.__pmmSuppressClick){event.preventDefault();event.stopImmediatePropagation();event.currentTarget.__pmmSuppressClick=false;return}
@@ -189,7 +198,7 @@ html body #${HANDLE_ID}#${HANDLE_ID}.is-docked .pmm-handle-glyph::before{content
 html body #${HANDLE_ID}#${HANDLE_ID}.is-docked[data-dock="right"] .pmm-handle-glyph::before{transform:rotate(135deg)}
 #preset-manager-floating-panel .pmm-unified-floating-root .pmm-entries-toggle{flex:0 0 auto;min-height:32px;padding:3px 6px;border:1px solid var(--pmm-theme-border);border-radius:6px;background:var(--pmm-theme-control);color:var(--pmm-theme-text);font-size:11px;touch-action:manipulation}
 
-/* Scale native text, controls and spacing together; the draggable outer surface stays unzoomed. */
+/* Only the explicit overall font setting scales content. Width/height never change this value. */
 #preset-manager-floating-panel .pmm-unified-floating-root>.panel-wrapper>:is(.panel-header,.quick-edit-dropdown){zoom:var(--pmm-banner-content-scale,1);min-width:0!important}
 #preset-manager-floating-panel .pmm-unified-floating-root>.panel-wrapper>.quick-edit-dropdown{max-height:none!important}
 #preset-manager-floating-panel .pmm-unified-floating-root[data-handle-overlap="left"]>.panel-wrapper>.panel-header{padding-left:var(--pmm-banner-handle-gutter,36px)!important;min-height:max(44px,var(--pmm-floating-handle-height,64px))!important}
@@ -217,7 +226,7 @@ html.pmm-floating-negative-gap #preset-manager-floating-panel .pmm-unified-float
 `;doc.head.appendChild(style);cleanup.push(()=>style.remove())}
 function findRoot(){for(const doc of docs()){const found=doc.querySelector?.('#preset-manager-floating-panel .floating-panel-root');if(found)return found}return null}
 function watchPanel(){panelResizeObserver?.disconnect();panelResizeObserver=null;const panel=root?.querySelector?.(':scope > .panel-wrapper');if(panel&&typeof TOP.ResizeObserver==='function'){panelResizeObserver=new TOP.ResizeObserver(()=>{if(!gesture){measurePanel();schedule()}});panelResizeObserver.observe(panel)}}
-function bindRoot(){const found=findRoot();if(found!==root){root=found;applyBannerSizing();root?.querySelectorAll('.pmm-preset-visible-label').forEach(label=>label.remove());watchPanel();measurePanel();schedule()}const header=root?.querySelector?.(':scope > .panel-wrapper > .panel-header');if(header&&!boundHeaders.has(header)){boundHeaders.add(header);listen(header,'pointerdown',onDown,{capture:true,passive:false});listen(header,'click',suppressSyntheticClick,{capture:true})}if(header&&!header.querySelector('.pmm-entries-toggle')){const button=header.ownerDocument.createElement('button');button.type='button';button.className='pmm-entries-toggle';button.textContent='条目';button.title='展开或收起当前预设条目';button.setAttribute('aria-label',button.title);listen(button,'click',event=>{event.stopPropagation();root?.__pmmQuickEntries?.toggle?.()});header.appendChild(button);cleanup.push(()=>button.remove())}const collapse=root?.querySelector?.(':scope > .panel-wrapper .panel-collapse');if(collapse&&!boundCollapses.has(collapse)){boundCollapses.add(collapse);listen(collapse,'click',()=>TOP.queueMicrotask(()=>setExpanded(false,'collapse')))}}
+function bindRoot(){const found=findRoot();if(found!==root){root=found;applyBannerSizing();root?.querySelectorAll('.pmm-preset-visible-label').forEach(label=>label.remove());watchPanel();measurePanel();schedule()}const header=root?.querySelector?.(':scope > .panel-wrapper > .panel-header');if(header&&!boundHeaders.has(header)){boundHeaders.add(header);listen(header,'pointerdown',onDown,{capture:true,passive:false});listen(header,'lostpointercapture',onCancel);listen(header,'contextmenu',event=>{if(!interactiveTarget(event.target)){event.preventDefault();event.stopPropagation()}});listen(header,'click',suppressSyntheticClick,{capture:true})}if(header&&!header.querySelector('.pmm-entries-toggle')){const button=header.ownerDocument.createElement('button');button.type='button';button.className='pmm-entries-toggle';button.textContent='条目';button.title='展开或收起当前预设条目';button.setAttribute('aria-label',button.title);listen(button,'click',event=>{event.stopPropagation();root?.__pmmQuickEntries?.toggle?.()});header.appendChild(button);cleanup.push(()=>button.remove())}const collapse=root?.querySelector?.(':scope > .panel-wrapper .panel-collapse');if(collapse&&!boundCollapses.has(collapse)){boundCollapses.add(collapse);listen(collapse,'click',()=>TOP.queueMicrotask(()=>setExpanded(false,'collapse')))}}
 function installObservers(){
   for(const doc of docs()){
     let mount=null,observedRoot=null,observedPanel=null;
@@ -244,8 +253,8 @@ function installObservers(){
     attach();cleanup.push(()=>{bodyObserver.disconnect();mountObserver.disconnect()});
   }
 }
-function onViewportChange(){if(gesture||STORE.getState().keyboardEditing)return;if(resizeFrame)TOP.cancelAnimationFrame(resizeFrame);resizeFrame=TOP.requestAnimationFrame(()=>{resizeFrame=0;refreshViewport();measurePanel();STORE.syncProfile();const next=clampPosition(STORE.getState().position||defaultPosition());STORE.commit({position:next,side:resolveSide(next)},'viewport');schedule()})}
+function onViewportChange(){if(gesture||STORE.getState().keyboardEditing)return;if(resizeFrame)TOP.cancelAnimationFrame(resizeFrame);resizeFrame=TOP.requestAnimationFrame(()=>{resizeFrame=0;if(gesture||STORE.getState().keyboardEditing)return;refreshViewport();measurePanel();STORE.syncProfile();const next=clampPosition(STORE.getState().position||defaultPosition());STORE.commit({position:next,side:resolveSide(next)},'viewport');schedule()})}
 function readGlyph(){try{const saved=JSON.parse(TOP.localStorage?.getItem("pmm_mobile_layout_shared_v2")||"{}");return String(saved?.glyph||"☰").slice(0,4)||"☰"}catch(_){return"☰"}}
-function install(){refreshViewport();for(const doc of docs()){installStyle(doc);doc.documentElement?.classList.remove('pmm-mobile-toolbar-ready');doc.getElementById('pm-mobile-fab-standalone')?.remove()}DOC.getElementById(HANDLE_ID)?.remove();handle=DOC.createElement('button');handle.id=HANDLE_ID;handle.type='button';handle.tabIndex=-1;handle.setAttribute('aria-label','预设悬浮入口：单击展开，双击打开主界面，长按打开中控');handle.innerHTML="<span class=\"pmm-ball-glyph\" aria-hidden=\"true\"></span><span class=\"pmm-handle-glyph\" aria-hidden=\"true\">‹</span>";handle.querySelector(".pmm-ball-glyph").textContent=readGlyph();DOC.body.appendChild(handle);cleanup.push(()=>handle?.remove());listen(handle,'pointerdown',onDown,{passive:false});listen(handle,'click',event=>{event.preventDefault();event.stopImmediatePropagation();handle?.blur?.()},{capture:true,passive:false});listen(TOP,'pointermove',onMove,{capture:true,passive:false});listen(TOP,'pointerup',onUp,{capture:true,passive:false});listen(TOP,'pointercancel',onCancel,{capture:true,passive:true});listen(DOC,'mouseup',suppressNativeMouse,{capture:true,passive:false});listen(TOP,"pmm:floating-glyph-change",event=>{const glyph=handle?.querySelector(".pmm-ball-glyph");if(glyph){const value=String(event?.detail?.glyph||"☰").slice(0,4);if(glyph.textContent!==value)glyph.textContent=value}});listen(TOP,'pmm:floating-metrics-change',()=>{refreshViewport();const state=STORE.getState(),position=clampPosition(state.position||defaultPosition(),state.expanded);STORE.commit({position,side:resolveSide(position)},'metrics',false);schedule()});listen(TOP,'resize',onViewportChange,{passive:true});listen(TOP,'orientationchange',()=>{TOP.clearTimeout(orientationTimer);orientationTimer=TOP.setTimeout(()=>{orientationTimer=0;onViewportChange()},160)},{passive:true});cleanup.push(STORE.subscribe((_state,reason)=>{if(reason!=='drag-frame')schedule()}));installObservers();bindRoot();render();if(STORE.getState().expanded)TOP.__PMM_WINDOW_STACK__?.open('floating',[DOC.getElementById('preset-manager-floating-panel'),handle])}
-const API=Object.freeze({getState:STORE.getState,setBannerWidth,setVisible(value){const visible=Boolean(value);try{TOP.localStorage?.setItem('pmm_mobile_fab_visible_v1',visible?'1':'0')}catch(_){}STORE.update({visible},'visibility')},setExpanded,toggle(){setExpanded(!STORE.getState().expanded,'toggle')},openController,resetPosition(){const position=defaultPosition();STORE.commit({position,side:resolveSide(position)},'reset-position')},destroy(){onCancel();TOP.__PMM_WINDOW_STACK__?.close('floating');cancelPendingTap();clearLong();if(expandFrame)TOP.cancelAnimationFrame(expandFrame);expandFrame=0;restorePanelDisplay();if(renderFrame)TOP.cancelAnimationFrame(renderFrame);if(resizeFrame)TOP.cancelAnimationFrame(resizeFrame);TOP.clearTimeout(orientationTimer);orientationTimer=0;panelResizeObserver?.disconnect();while(cleanup.length)try{cleanup.pop()()}catch(_){}root?.classList.remove('pmm-unified-floating-root','is-expanded','is-hidden','is-dragging');if(root){delete root.dataset.handleOverlap;root.style.removeProperty('--pmm-banner-handle-gutter')}delete TOP[API_KEY]}});
+function install(){refreshViewport();for(const doc of docs()){installStyle(doc);doc.documentElement?.classList.remove('pmm-mobile-toolbar-ready');doc.getElementById('pm-mobile-fab-standalone')?.remove()}DOC.getElementById(HANDLE_ID)?.remove();handle=DOC.createElement('button');handle.id=HANDLE_ID;handle.type='button';handle.tabIndex=-1;handle.setAttribute('aria-label','预设悬浮入口：单击展开，双击打开主界面，长按打开中控');handle.innerHTML="<span class=\"pmm-ball-glyph\" aria-hidden=\"true\"></span><span class=\"pmm-handle-glyph\" aria-hidden=\"true\">‹</span>";handle.querySelector(".pmm-ball-glyph").textContent=readGlyph();DOC.body.appendChild(handle);cleanup.push(()=>handle?.remove());listen(handle,'pointerdown',onDown,{passive:false});listen(handle,'lostpointercapture',onCancel);listen(TOP,'blur',()=>onCancel());listen(handle,'click',event=>{event.preventDefault();event.stopImmediatePropagation();handle?.blur?.()},{capture:true,passive:false});listen(TOP,'pointermove',onMove,{capture:true,passive:false});listen(TOP,'pointerup',onUp,{capture:true,passive:false});listen(TOP,'pointercancel',onCancel,{capture:true,passive:true});listen(DOC,'mouseup',suppressNativeMouse,{capture:true,passive:false});listen(TOP,"pmm:floating-glyph-change",event=>{const glyph=handle?.querySelector(".pmm-ball-glyph");if(glyph){const value=String(event?.detail?.glyph||"☰").slice(0,4);if(glyph.textContent!==value)glyph.textContent=value}});listen(TOP,'pmm:floating-metrics-change',()=>{refreshViewport();const state=STORE.getState(),position=clampPosition(state.position||defaultPosition(),state.expanded);STORE.commit({position,side:resolveSide(position)},'metrics',false);schedule()});listen(TOP,'resize',onViewportChange,{passive:true});listen(TOP,'orientationchange',()=>{TOP.clearTimeout(orientationTimer);orientationTimer=TOP.setTimeout(()=>{orientationTimer=0;onViewportChange()},160)},{passive:true});cleanup.push(STORE.subscribe((_state,reason)=>{if(reason!=='drag-frame')schedule()}));installObservers();bindRoot();render();if(STORE.getState().expanded)TOP.__PMM_WINDOW_STACK__?.open('floating',[DOC.getElementById('preset-manager-floating-panel'),handle])}
+const API=Object.freeze({getState:STORE.getState,setBannerWidth,setBannerFont,setVisible(value){const visible=Boolean(value);try{TOP.localStorage?.setItem('pmm_mobile_fab_visible_v1',visible?'1':'0')}catch(_){}STORE.update({visible},'visibility')},setExpanded,toggle(){setExpanded(!STORE.getState().expanded,'toggle')},openController,resetPosition(){const position=defaultPosition();STORE.commit({position,side:resolveSide(position)},'reset-position')},destroy(){onCancel();TOP.__PMM_WINDOW_STACK__?.close('floating');cancelPendingTap();clearLong();if(expandFrame)TOP.cancelAnimationFrame(expandFrame);expandFrame=0;restorePanelDisplay();if(renderFrame)TOP.cancelAnimationFrame(renderFrame);if(resizeFrame)TOP.cancelAnimationFrame(resizeFrame);TOP.clearTimeout(orientationTimer);orientationTimer=0;panelResizeObserver?.disconnect();while(cleanup.length)try{cleanup.pop()()}catch(_){}root?.classList.remove('pmm-unified-floating-root','is-expanded','is-hidden','is-dragging');if(root){delete root.dataset.handleOverlap;root.style.removeProperty('--pmm-banner-handle-gutter')}delete TOP[API_KEY]}});
 TOP[API_KEY]=API;globalThis[API_KEY]=API;install();if(handle){handle.oncontextmenu=event=>{event.preventDefault();event.stopPropagation();return false};handle.onselectstart=()=>false}export default API;

@@ -36,7 +36,8 @@ for (const forbidden of ['getComputedStyle = function','style.setProperty = func
 const moveBody = floating.slice(floating.indexOf('function onMove(event)'), floating.indexOf('function clearDragPaint'));
 assert(!moveBody.includes('STORE.setPosition'), 'pointermove 热路径禁止写 store');
 assert(!moveBody.includes('getBoundingClientRect'), 'pointermove 热路径禁止读取布局');
-assert(moveBody.includes('paintDrag()') && !moveBody.includes('requestAnimationFrame'), '悬浮移动必须直接写入最新位移，不能排队追赶手势');
+assert(moveBody.includes('if(!dragFrame)dragFrame=TOP.requestAnimationFrame(paintDrag)'), '悬浮移动必须合并为每显示帧一次最新位移');
+assert(floating.includes('if(dragFrame)TOP.cancelAnimationFrame(dragFrame);dragFrame=0;'), '松手及取消必须清除待绘制帧，禁止拖尾');
 assert(!moveBody.includes('STORE.getState'), 'pointermove 热路径禁止复制完整状态');
 assert(floating.includes('getCoalescedEvents') && floating.includes('if(gesture.moved)updateDragPoint(event)'), '必须消费最新指针采样与松手位置');
 assert(floating.includes('},300)') && floating.includes('<=280'), '单击执行必须晚于双击判定窗口');
@@ -46,7 +47,7 @@ assert(floating.includes('root?.__pmmQuickEntries?.toggle?.()') && !floating.inc
 assert(floating.includes('.quick-edit-dropdown') && floating.includes('.dropdown-content'), '快捷预设条目区必须可滚动并限制在视口内');
 for (const label of ['折射玻璃','紫黑','毛玻璃','跟随系统']) assert(themes.includes("name:'" + label + "'"), '主题中文名缺失：' + label);
 assert(layout.includes('flex-flow:row wrap'), '顶栏右半区必须保持 DOM 顺序自然换行');
-assert(workshop.includes('const dragBounds='), '中控拖动必须缓存边界几何');
+assert(/const dragBounds\s*=\s*cardViewportBounds\(cardRect\)/.test(workshop), '中控拖动必须缓存边界几何');
 assert(workshop.includes('applyControlValue(control, true)'), '中控滑杆必须走单控件热路径');
 assert(workshop.includes('pmm-layout-trigger--divider'), '双面板中间控制区必须保留预设中控入口');
 assert(workshop.includes('rail?.querySelector(":scope > .panel-buttons")'), '中控入口必须作为世界书工具条内的独立流式按钮');
