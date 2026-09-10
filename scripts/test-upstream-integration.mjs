@@ -102,7 +102,7 @@ function controlHarness(android = false) {
   assert.equal(e.state.values.splitRatio, 50, 'Cancelling a horizontal drag restores its initial value');
 }
 assert(layout.includes('min-width:44px!important;height:44px!important;min-height:44px!important'));
-assert(floating.includes('width:min(var(--pmm-mobile-floating-width,50vw),50vw,var(--pmm-banner-max-width))'));
+assert(floating.includes('width:min(var(--pmm-mobile-floating-width,50vw),100vw,var(--pmm-banner-max-width,100vw))'));
 // Main and floating feature integrations keep upstream's own transactional APIs and controls.
 assert(source.includes("actionsHost?.closest?.('.pm-header')?.querySelector('.header-left .title-content')"));
 const syncFloating = between(source, '  function syncRoot(root)', '  function sync()');
@@ -186,4 +186,4 @@ for (const initiallyReady of [true, false]) {
   assert.equal(host.children.length, 0); assert.equal(frames.size, 0);
 }
 
-console.log('upstream 融合回归通过：打开顺序、半屏宽度、锁定提交、输入草稿、触摸取消、快照标题及新模块回收。');
+console.log('upstream 融合回归通过：打开顺序、半屏默认与设备宽度上限、锁定提交、输入草稿、触摸取消、快照标题及新模块回收。');

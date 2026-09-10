@@ -71,7 +71,7 @@ function browser(width=360,height=800) {
   const top=new EventTarget();Object.assign(top,{document:doc,innerWidth:width,innerHeight:height,navigator:{maxTouchPoints:5},MutationObserver:Observer,ResizeObserver:Observer,
     localStorage:{getItem:key=>storage.get(key)??null,setItem(key,value){metrics.storageWrites++;storage.set(key,String(value));}},
     matchMedia:query=>({matches:query.includes('pointer: coarse'),addEventListener(){},removeEventListener(){}}),
-    getComputedStyle(){metrics.computedReads++;return {getPropertyValue:key=>({'--SmartThemeBlurTintColor':'rgba(46,84,112,.7)','--SmartThemeBodyColor':'#e3eff9','--SmartThemeQuoteColor':'#8ad5ed'}[key]||'')};},
+    getComputedStyle(node){metrics.computedReads++;return {getPropertyValue:key=>node.style.getPropertyValue(key)||({'--SmartThemeBlurTintColor':'rgba(46,84,112,.7)','--SmartThemeBodyColor':'#e3eff9','--SmartThemeQuoteColor':'#8ad5ed'}[key]||'')};},
     setTimeout(fn,delay=0){const id=++nextId;timers.set(id,{fn,at:now+delay});return id;},clearTimeout:id=>timers.delete(id),
     requestAnimationFrame(fn){const id=++nextId;frames.set(id,fn);return id;},cancelAnimationFrame:id=>frames.delete(id),queueMicrotask:fn=>microtasks.push(fn),
   });top.top=top;doc.defaultView=top;
@@ -90,9 +90,12 @@ function browser(width=360,height=800) {
   root.__pmmQuickEntries={toggle(){integration.entries++;},open(){integration.entries++;}};
   const context=vm.createContext({window:top,document:doc,MutationObserver:Observer,CustomEvent:class {constructor(type,init){this.type=type;this.detail=init?.detail;}},Date:class extends Date {static now(){return now;}},console});
   const load=(file,override)=>{const source=fs.readFileSync(override||new URL(`../dist/${file}`,import.meta.url),'utf8').replace(/export default [^;]+;/g,'');vm.runInContext(`(() => {${source}\n})()`,context,{filename:file});};
+  const workshop=fs.readFileSync(new URL('../dist/workshop-v3.02.js',import.meta.url),'utf8');
+  const between=(a,b)=>workshop.slice(workshop.indexOf(a),workshop.indexOf(b,workshop.indexOf(a)+a.length));
+  const applyWidth=vm.runInContext(`(()=>{const TOP=window,VIEW=window;${between('  function layoutViewport()', '  function valueRange(')}${between('  function floatingDocuments()', '  function setFloatingVariables()')};return applyFloatingWidth;})()`,context);
   storage.set('pmm_visual_theme_v1','aqua');storage.set('preset-manager-theme-mode','light');
   load('workshop-floating-store.js');load('workshop-theme-system.js');load('workshop-floating-controller.js',process.argv[2]);flush();advance(200);
-  return {top,doc,root,panel,header,icon,integration,metrics,timers,frames,observers,nodes,load,event,flush,advance};
+  return {top,doc,root,panel,header,icon,integration,metrics,timers,frames,observers,nodes,load,event,flush,advance,applyWidth};
 }
 for(const [width,height] of [[360,800],[800,1100]]){
   const env=browser(width,height),{top,doc,panel,header,icon,integration,event,flush,advance,metrics}=env;
@@ -130,12 +133,51 @@ for(const [width,height] of [[360,800],[800,1100]]){
   assert.equal(JSON.stringify(api.getState().position),docked);assert.equal(handle.style.getPropertyValue('transform'),'');assert.equal(doc.documentElement.dataset.pmmThemeTone,'dark');
   event(handle,'pointerdown');event(top,'pointerup',100,100,99);assert.equal(handle.pointerCapture,1,'Unrelated pointers cannot finish this gesture');event(top,'pointercancel');
 
+  // Real settings writes + ResizeObserver updates carry custom dimensions through the full controller.
+  const resize=env.observers.find(observer=>observer.targets.some(({node,options})=>node===panel&&options===undefined));
+  const quick=panel.querySelector('.quick-edit-dropdown');
+  for(const [bannerWidth,bannerHeight] of [[width*.3,height/2],[width*.9,height*.9],[width,height]]){
+    env.applyWidth(bannerWidth);doc.documentElement.style.setProperty('--pmm-floating-max-height',String(bannerHeight));
+    quick.style.display='';panel.rect={left:0,top:0,width:bannerWidth,height:bannerHeight};
+    api.setExpanded(true);resize.callback();flush();advance(200);
+    assert.equal(Number(env.root.style.getPropertyValue('--pmm-banner-content-scale')),Math.min(1,bannerWidth/Math.floor(width/2)));
+    const x=Number.parseFloat(env.root.style.getPropertyValue('--pmm-banner-x')),y=Number.parseFloat(env.root.style.getPropertyValue('--pmm-banner-y'));
+    assert(x>=0&&x+bannerWidth<=width);assert(y>=0&&y+bannerHeight<=height);
+    if(bannerWidth===width){assert.equal(x,0);assert.equal(y,0);assert.notEqual(env.root.dataset.handleOverlap,'none');}
+    event(header,'pointerdown',100,100);const before={...metrics};
+    event(top,'pointermove',width+500,height+500);
+    assert.deepEqual(metrics,before,'Scaled/full-width banner movement reuses cached geometry');
+    assert.equal(handle.style.getPropertyValue('transform'),panel.style.getPropertyValue('transform'));
+    const [dx,dy]=panel.style.getPropertyValue('transform').match(/[-\d.]+(?=px)/g).map(Number);
+    assert(x+dx>=0&&x+dx+bannerWidth<=width);assert(y+dy>=0&&y+dy+bannerHeight<=height);
+    event(top,'pointercancel');flush();api.setExpanded(false);advance(200);
+  }
+  quick.style.display='none';env.applyWidth(width/2);panel.rect={left:0,top:0,width:width/2,height:240};resize.callback();flush();
+
   // A reload destroys the old module, including pending tap/long-press callbacks.
   api.resetPosition();flush();tap();env.load('workshop-floating-controller.js');flush();advance(500);
   api=top.__PMM_FLOATING_CONTROLLER__;handle=doc.getElementById('pmm-unified-floating-handle');
   assert.equal(doc.querySelectorAll('#pmm-unified-floating-handle').length,1);assert.equal(top.listeners.get('pointerup').size,1);assert(!api.getState().expanded);
   advance(200);event(handle,'pointerdown');event(top,'orientationchange');api.destroy();const afterDestroy={...metrics};advance(500);assert.deepEqual(metrics,afterDestroy,'A retired orientation timer cannot update the replacement runtime');assert.equal(integration.controller,1);assert(!doc.getElementById('pmm-unified-floating-handle'));assert.equal(top.listeners.get('pointerup').size,0);assert(!header.querySelector('.pmm-entries-toggle'));
   assert.equal(panel.style.display,'none','Teardown restores the native display owner');
+  assert.equal(env.root.dataset.handleOverlap,undefined);assert.equal(env.root.style.getPropertyValue('--pmm-banner-handle-gutter'),'');
   theme.destroy();store.destroy();flush();assert.equal(env.timers.size,0);assert.equal(env.frames.size,0);assert(env.observers.every(observer=>observer.targets.length===0));
 }
-console.log('完整悬浮模块回归通过：手机/平板点击、魔法棒后点击、双击、长按、吸附、条目、拖动零读写、主题避让和销毁重载。');
+// A cached size reaches a replaced/late-mounted native root without touching document inheritance.
+{
+  const env=browser(390,844),{top,doc,root,observers}=env,api=top.__PMM_FLOATING_CONTROLLER__;
+  const mount=root.parentElement;
+  root.remove();env.applyWidth(117);
+  assert.equal(doc.documentElement.style.getPropertyValue('--pmm-mobile-floating-width'),'');
+  assert.equal(doc.documentElement.style.getPropertyValue('--pmm-banner-content-scale'),'');
+  const replacement=doc.createElement('div');replacement.className='floating-panel-root';
+  const panel=doc.createElement('div');panel.className='panel-wrapper';panel.style.display='none';replacement.appendChild(panel);
+  const header=doc.createElement('div');header.className='panel-header';panel.appendChild(header);mount.appendChild(replacement);
+  const observer=observers.find(observer=>observer.targets.some(({node,options})=>node===mount&&options?.childList));
+  observer.callback([{addedNodes:[replacement],removedNodes:[root]}]);env.flush();
+  assert.equal(replacement.style.getPropertyValue('--pmm-mobile-floating-width'),'117px');
+  assert.equal(replacement.style.getPropertyValue('--pmm-banner-content-scale'),'0.6');
+  api.destroy();top.__PMM_THEME_SYSTEM__.destroy();top.__PMM_FLOATING_STORE__.destroy();env.flush();
+  assert.equal(env.timers.size,0);assert.equal(env.frames.size,0);assert(observers.every(observer=>observer.targets.length===0));
+}
+console.log('完整悬浮模块回归通过：手机/平板点击、魔法棒后点击、双击、长按、吸附、条目、缩窄/满屏尺寸、拖动零读写、主题避让和销毁重载。');

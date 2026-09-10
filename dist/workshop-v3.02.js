@@ -9803,14 +9803,17 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     viewport ||= layoutViewport();
     let maximum = range[1];
     if (key === 'controllerWidth') maximum = viewport.width;
-    else if (key === 'floatingWidth') maximum = Math.floor(viewport.width / 2);
+    else if (key === 'floatingWidth') maximum = viewport.width;
     else if (key === 'controllerHeight') maximum = viewport.height;
-    else if (key === 'floatingHeight') maximum = Math.floor(viewport.height / 2);
+    else if (key === 'floatingHeight') maximum = viewport.height;
     else if (['presetWidth','branchWidth'].includes(key)) maximum = Math.max(0, viewport.width - LEGACY_PRESET_WIDTH_BASE);
     else if (['groupHeight','itemHeight','floatingItemHeight','floatingHandleHeight'].includes(key)) maximum = Math.min(maximum, viewport.height);
     else if (['rowButton','headerButton','floatingBall','floatingButton','floatingHandleWidth'].includes(key)) maximum = Math.min(maximum, viewport.width, viewport.height);
-    const minimum = ['controllerWidth','floatingWidth','controllerHeight','floatingHeight'].includes(key)
-      ? Math.min(range[0], Math.floor(maximum * .6)) : Math.min(range[0], maximum);
+    // Default half-screen dimensions are independent of the full-viewport upper bound.
+    const minimum = ['floatingWidth','floatingHeight'].includes(key)
+      ? Math.min(range[0], Math.floor(maximum * .3))
+      : ['controllerWidth','controllerHeight'].includes(key)
+        ? Math.min(range[0], Math.floor(maximum * .6)) : Math.min(range[0], maximum);
     return [minimum, maximum];
   }
 
@@ -9964,9 +9967,18 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   }
 
   function applyFloatingWidth(width) {
+    const viewport = layoutViewport();
+    const actualWidth = Math.min(viewport.width, Math.max(1, Number(width) || Math.floor(viewport.width / 2)));
+    const scale = Math.min(1, actualWidth / Math.max(1, Math.floor(viewport.width / 2)));
+    const controller = TOP.__PMM_FLOATING_CONTROLLER__;
+    if (typeof controller?.setBannerWidth === 'function') {
+      controller.setBannerWidth(actualWidth, scale);
+      return;
+    }
     for (const currentDocument of floatingDocuments()) {
       for (const panel of currentDocument.querySelectorAll('#preset-manager-floating-panel .floating-panel-root')) {
-        setLayoutVariable(panel, '--pmm-mobile-floating-width', `${width}px`);
+        setLayoutVariable(panel, '--pmm-mobile-floating-width', `${actualWidth}px`);
+        setLayoutVariable(panel, '--pmm-banner-content-scale', String(scale));
       }
     }
   }

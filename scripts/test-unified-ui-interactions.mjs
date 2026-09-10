@@ -534,13 +534,19 @@ for(const touch of [false,true]){
     Object.assign(size,{width,height});
     current=api.makeLayoutState();
     assert.equal(api.valueRange('controllerWidth')[1],width);
-    assert.equal(api.valueRange('floatingWidth')[1],Math.floor(width/2));
+    assert.equal(api.valueRange('floatingWidth')[1],width);
     assert.equal(api.valueRange('controllerHeight')[1],height);
-    assert.equal(api.valueRange('floatingHeight')[1],Math.floor(height/2));
-    assert(api.valueRange('floatingHeight')[0]<api.valueRange('floatingHeight')[1],'Short landscape screens must still allow height adjustment below the half-screen cap');
+    assert.equal(api.valueRange('floatingHeight')[1],height);
+    assert(api.valueRange('floatingHeight')[0]<api.valueRange('floatingHeight')[1],'The full-screen upper bound cannot consume the useful lower range');
     assert(current.values.controllerWidth<=width&&current.values.controllerHeight<=height);
     assert.equal(current.values.floatingWidth,Math.floor(width/2),'Default banner width is exactly half the device viewport');
     assert.equal(current.values.floatingHeight,Math.floor(height/2),'Default expanded banner must fill half the screen even on tall tablets');
+    assert(api.valueRange('floatingWidth')[0]<current.values.floatingWidth);
+    assert(api.valueRange('floatingHeight')[0]<current.values.floatingHeight);
+    const larger=api.makeLayoutState({floatingWidth:width*.9,floatingHeight:height*.9},{floatingWidth:true,floatingHeight:true});
+    assert.equal(larger.values.floatingWidth,width*.9);assert.equal(larger.values.floatingHeight,height*.9);
+    const maximum=api.makeLayoutState({floatingWidth:width+100,floatingHeight:height+100},{floatingWidth:true,floatingHeight:true});
+    assert.equal(maximum.values.floatingWidth,width);assert.equal(maximum.values.floatingHeight,height);
     for(const key of ['itemGap','groupGap','floatingGap','headerGap']){
       assert.equal(api.valueRange(key)[0],-50);
       assert.equal(api.makeLayoutState({[key]:-60},{[key]:true}).values[key],-50);
@@ -617,13 +623,13 @@ for(const touch of [false,true]){
   assert.equal(top.__PMM_LAYOUT_CARD_API__.isOpen(),true);
 }
 
-// Expanded-panel measurements use the same half-screen limit as the rendered scroll container.
+// Expanded-panel measurements respect custom heights up to the full screen.
 for(const height of [360,780,1100]){
   const geometry={vh:height},panel={getBoundingClientRect:()=>({width:328,height:80}),querySelector:()=>({style:{display:''}})};
   const source=between(floating,'function measurePanel()','function defaultPosition()');
   vm.runInNewContext(`${source};measurePanel();`,{root:{querySelector:()=>panel},geometry,DOC:{documentElement:{}},TOP:{getComputedStyle:()=>({getPropertyValue:()=> '560'})}});
-  assert.equal(geometry.bannerH,Math.min(560,Math.floor(height/2)));
-  assert(floating.includes('max-height:min(var(--pmm-floating-max-height,560px),50dvh,calc(100dvh - var(--pmm-banner-y,6px) - 6px))'));
+  assert.equal(geometry.bannerH,Math.min(560,height));
+  assert(floating.includes('max-height:min(var(--pmm-floating-max-height,50dvh),calc(100dvh - var(--pmm-banner-y,0px)))'));
 }
 
 // Search filters existing rows without losing values, then restores the complete list.
@@ -681,6 +687,38 @@ for(const vw of [320,360,390,768,1024]){
   api.settle({x:vw/2-23,y:100,dock:'free'});assert.equal(state.position.dock,'free');
   assert.equal(commits.length,3,'Only releases persist a position');
 }
+// Full-screen custom banners remain inside the viewport at both edges and protect the handle corner.
+for(const vw of [320,390,768,1024])for(const bannerW of [vw/2,vw*.9,vw])for(const bannerH of [300,800]){
+  const g={vw,vh:800,ball:46,handleW:28,handleH:64,bannerW,bannerH};
+  const code=between(floating,'function controlSize(','function measurePanel(')+between(floating,'function clampPosition(','function ensurePosition(');
+  const api=vm.runInNewContext(`(()=>{${code};return{clampPosition,panelPoint,resolveSide};})()`,{geometry:g,STORE:{getState:()=>({expanded:true})}});
+  for(const dock of ['free','left','right']){
+    const position=api.clampPosition({x:vw/2,y:600,dock}),point=api.panelPoint(position,api.resolveSide(position));
+    assert(point.x>=0&&point.x+bannerW<=vw);assert(point.y>=0&&point.y+bannerH<=800);
+    if(bannerW===vw){assert.equal(point.x,0);assert([0,vw-28].includes(position.x),'A full-width banner keeps the handle at an edge');}
+    if(bannerH===800)assert.equal(point.y,0);
+  }
+}
+// Narrowing changes one content scale and never overwrites the user's font/spacing settings.
+{
+  const doc={documentElement:element(),querySelectorAll:()=>[root]},root=element();
+  doc.documentElement.style.setProperty('--pmm-floating-name-font','15px');
+  const code=between(workshop,'  function setLayoutVariable(', '  function setFloatingVariables()');
+  const apply=vm.runInNewContext(`(()=>{${code};return applyFloatingWidth;})()`,{TOP:{},floatingDocuments:()=>[doc],layoutViewport:()=>({width:390,height:844})});
+  for(const [width,expected] of [[195,1],[117,.6],[156,.8],[350,1],[500,1]]){
+    apply(width);
+    for(const node of [root]){
+      assert.equal(Number(node.style.getPropertyValue('--pmm-banner-content-scale')),expected);
+      assert.equal(node.style.getPropertyValue('--pmm-mobile-floating-width'),Math.min(width,390)+'px');
+    }
+    assert.equal(doc.documentElement.style.getPropertyValue('--pmm-floating-name-font'),'15px');
+    assert.equal(doc.documentElement.style.getPropertyValue('--pmm-banner-content-scale'),'');
+    assert.equal(doc.documentElement.style.getPropertyValue('--pmm-mobile-floating-width'),'','Changing banner size cannot invalidate the whole document');
+  }
+  assert(floating.includes('>.panel-wrapper>:is(.panel-header,.quick-edit-dropdown){zoom:var(--pmm-banner-content-scale,1)'));
+  assert(!floating.includes('>.panel-wrapper{zoom:'),'The drag surface and pointer coordinates must not be zoomed');
+  assert(floating.includes('>.panel-wrapper>.quick-edit-dropdown{max-height:none!important}'),'The list uses the outer configured height after scaling');
+}
 // Sliding vertically along an edge must not introduce a sideways jump at pointermove or release.
 for(const dock of ['left','right']){
   const gesture={dock,bx:dock==='left'?0:332,by:100,sx:20,sy:100,expanded:false,size:{w:28,h:28},g:{vw:360,vh:800}};
@@ -715,4 +753,4 @@ for(const changed of [false,true]){
   assert.deepEqual(events,changed?['pmm:floating-metrics-change']:[]);
 }
 
-console.log('统一 UI 交互回归通过：主题冻结、主界面例外范围、统一切换/快速反向/降级、比例预览、触摸/指针捕获、设备范围、唯一开关、搜索、半屏条幅与横滑记忆。');
+console.log('统一 UI 交互回归通过：主题冻结、主界面例外范围、统一切换/快速反向/降级、比例预览、触摸/指针捕获、设备范围、唯一开关、搜索、半屏默认/全屏上限/比例缩放与横滑记忆。');

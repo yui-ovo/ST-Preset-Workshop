@@ -63,10 +63,11 @@ function between(start,end){
   const html=node(),root=node(),floating=node(),doc={documentElement:html,querySelectorAll:()=>[floating]};
   const state={glyph:'☰'},current={values:{},customized:{}};
   const constants=between('  const DEFAULTS = Object.freeze({','  const CUSTOM_CLASSES = Object.freeze({');
+  const viewport=between('  function layoutViewport()', '  function valueRange(');
   const floatingWrites=between('  function setLayoutVariable(','  function setVariables(');
   const layoutWrites=between('  function setVariables(','  function ');
-  const api=vm.runInNewContext(`(()=>{let lastFloatingGlyph=null;${constants};Object.assign(current.values,DEFAULTS);${floatingWrites}${layoutWrites};return{setFloatingVariables,setVariables};})()`,{
-    current,state,card:null,currentState:()=>current,DOC:doc,floatingDocuments:()=>[doc],CUSTOM_CLASSES:{},TOP:{dispatchEvent(){events++;}},CustomEvent:class{},
+  const api=vm.runInNewContext(`(()=>{let lastFloatingGlyph=null;${constants};Object.assign(current.values,DEFAULTS);${viewport}${floatingWrites}${layoutWrites};return{setFloatingVariables,setVariables};})()`,{
+    current,state,card:null,currentState:()=>current,VIEW:{innerWidth:360,innerHeight:780},DOC:doc,floatingDocuments:()=>[doc],CUSTOM_CLASSES:{},TOP:{dispatchEvent(){events++;}},CustomEvent:class{},
   });
   api.setFloatingVariables();api.setVariables(root);
   const initial=writes;assert(initial>20);assert.equal(events,1);
