@@ -115,7 +115,7 @@ for(const [width,height] of [[360,800],[800,1100]]){
   event(handle,'pointerdown');advance(360);assert.equal(integration.controller,1);const afterLong=JSON.stringify(store.getState().position);event(top,'pointermove',width-10,height-10);flush();assert.equal(handle.style.getPropertyValue('transform'),'','A long press belongs to the opened controller, not another floating drag');assert.equal(JSON.stringify(store.getState().position),afterLong);event(top,'pointerup');advance(400);assert(!api.getState().expanded,'A long press cannot also toggle the banner');
 
   theme.setTone('dark');flush();assert(doc.querySelectorAll('.pmm-theme-surface-motion').length>0);
-  event(handle,'pointerdown',width/2,100);event(top,'pointermove',width/2+20,110);
+  event(handle,'pointerdown',width/2,100);event(top,'pointermove',width/2+20,110);assert.equal(handle.style.getPropertyValue('transform'),'translate3d(20px,10px,0)','First motion is visible immediately');
   assert.equal(doc.querySelectorAll('.pmm-theme-surface-motion').length,0,'Dragging cancels surface effects immediately');
   advance(150);const before={...metrics},position=JSON.stringify(store.getState().position);
   const paintCount=handle.transformWrites;

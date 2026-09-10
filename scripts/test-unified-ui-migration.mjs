@@ -36,7 +36,7 @@ for (const forbidden of ['getComputedStyle = function','style.setProperty = func
 const moveBody = floating.slice(floating.indexOf('function onMove(event)'), floating.indexOf('function clearDragPaint'));
 assert(!moveBody.includes('STORE.setPosition'), 'pointermove 热路径禁止写 store');
 assert(!moveBody.includes('getBoundingClientRect'), 'pointermove 热路径禁止读取布局');
-assert(moveBody.includes('if(!dragFrame)dragFrame=TOP.requestAnimationFrame(paintDrag)'), '悬浮移动必须合并为每显示帧一次最新位移');
+assert(moveBody.includes('if(firstMove)paintDrag();else if(!dragFrame)dragFrame=TOP.requestAnimationFrame(paintDrag)'), '悬浮移动必须合并为每显示帧一次最新位移');
 assert(floating.includes('if(dragFrame)TOP.cancelAnimationFrame(dragFrame);dragFrame=0;'), '松手及取消必须清除待绘制帧，禁止拖尾');
 assert(!moveBody.includes('STORE.getState'), 'pointermove 热路径禁止复制完整状态');
 assert(floating.includes('getCoalescedEvents') && floating.includes('if(gesture.moved)updateDragPoint(event)'), '必须消费最新指针采样与松手位置');

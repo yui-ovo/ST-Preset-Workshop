@@ -129,15 +129,16 @@ function onMove(event){
   if(!gesture||gesture.longPressed||(gesture.id!=null&&event.pointerId!==gesture.id))return;
   const point=updateDragPoint(event);
   if(!point||!gesture.moved&&Math.hypot(point.clientX-gesture.sx,point.clientY-gesture.sy)<4)return;
-  if(!gesture.moved){
+  const firstMove=!gesture.moved;
+  if(firstMove){
     gesture.moved=true;clearLong();cancelPendingTap();gesture.suppressClick=true;
     TOP.__PMM_THEME_SYSTEM__?.beginInteraction?.('floating');
     handle.classList.add('is-dragging');handle.style.setProperty('transition','none','important');
     if(gesture.panel){root?.classList.add('is-dragging');gesture.panel.style.setProperty('animation','none','important');}
     try{gesture.target.setPointerCapture(event.pointerId)}catch(_){}
   }
-  // Latest sample wins: at most two surface writes per display frame, flushed on release.
-  if(!dragFrame)dragFrame=TOP.requestAnimationFrame(paintDrag);event.preventDefault();event.stopPropagation();
+  // Respond to gesture activation immediately; coalesce subsequent samples into one frame.
+  if(firstMove)paintDrag();else if(!dragFrame)dragFrame=TOP.requestAnimationFrame(paintDrag);event.preventDefault();event.stopPropagation();
 }
 function clearDragPaint(){if(dragFrame)TOP.cancelAnimationFrame(dragFrame);dragFrame=0;handle?.classList.remove('is-dragging');if(handle){handle.style.removeProperty('transform');handle.style.removeProperty('transition');}root?.classList.remove('is-dragging');root?.querySelector?.(':scope > .panel-wrapper')?.style.removeProperty('transform')}
 function settle(position,g=geometry){

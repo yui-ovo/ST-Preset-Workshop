@@ -170,6 +170,9 @@ html body #preset-manager-main-panel#preset-manager-main-panel .pm-header>.heade
 /* Long presses on the drag grip belong to the panel, not native text selection/callouts. */
 html body #pmm-mobile-layout-card#pmm-mobile-layout-card .pmm-layout-card__header{touch-action:none!important;user-select:none!important;-webkit-user-select:none!important;-webkit-touch-callout:none!important}
 html body #preset-manager-main-panel .pmm-split-handle{-webkit-touch-callout:none!important;user-select:none!important;-webkit-user-select:none!important}
+/* Save feedback is local and non-blocking; it does not depend on the top-notification toggle. */
+html body #pmm-mobile-layout-card .pmm-layout-save-status{position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:3;max-width:calc(100% - 80px);padding:8px 14px;border:1px solid var(--pmm-theme-accent);border-radius:10px;background:var(--pmm-theme-raised,var(--pm-panel-bg));color:var(--pmm-theme-text,var(--pm-text-primary));font-family:inherit;font-size:13px;line-height:1.4;text-align:center;pointer-events:none;box-shadow:0 3px 12px rgba(0,0,0,.12)}
+html body #pmm-mobile-layout-card .pmm-layout-save-status[hidden]{display:none!important}
 /* Opening and dragging use final pixel coordinates; only opacity may transition. */
 html body #pmm-mobile-layout-card#pmm-mobile-layout-card{max-width:100vw!important;transition:opacity .18s ease!important}
 /* Moving surfaces keep a compositor layer; expensive live blur returns after release. */

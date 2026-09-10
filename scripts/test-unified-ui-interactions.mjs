@@ -356,7 +356,7 @@ for(const vertical of [true,false])for(const endType of ['pointercancel','lostpo
   doc.listeners.get('pointermove')({clientX:600,clientY:600,getCoalescedEvents:()=>[{clientX:680,clientY:680}]});raf.flush();
   assert.equal(state.values.splitRatio,68);assert.equal(commits,0);assert.equal(container.style.getPropertyValue(property),'previous-grid','Only the lightweight divider is previewed');
   (endType==='blur'?view.listeners:endType==='lostpointercapture'?handle.listeners:doc.listeners).get(endType)({type:endType,clientX:0,clientY:0});
-  assert.equal(state.values.splitRatio,50);assert.equal(state.customized.splitRatio,false);assert.equal(saves,0);assert.equal(commits,1);
+  assert.equal(state.values.splitRatio,50);assert.equal(state.customized.splitRatio,false);assert.equal(saves,0);assert.equal(commits,0,'Cancelled previews never rewrite main layout');
   assert.equal(container.style.getPropertyValue(property),'previous-grid');assert.equal(container.style.getPropertyValue('transition'),'previous-transition');
   assert.equal(doc.listeners.size,0);assert.equal(handle.listeners.size,0);assert.equal(view.listeners.size,0);assert.equal(raf.queue.size,0);
 }
@@ -373,7 +373,7 @@ for (const expanded of [false,true]) {
   for (let x=110;x<=300;x++) move({ pointerId:1, clientX:x, clientY:200, preventDefault() {}, stopPropagation() {} });
   assert.equal(captures, 1);
   assert.equal(raf.queue.size, 1, 'A burst of samples queues only one paint');
-  assert.equal(handle.style.getPropertyValue('transform'),'');raf.flush();
+  assert.equal(handle.style.getPropertyValue('transform'),'translate3d(10px,100px,0)','First motion is visible immediately');raf.flush();
   assert.equal(handle.style.getPropertyValue('transform'), 'translate3d(200px,100px,0)');
   assert.equal(panel.style.getPropertyValue('transform'), expanded ? 'translate3d(200px,100px,0)' : '');
   move({pointerId:1,clientX:310,clientY:200,getCoalescedEvents:()=>[{clientX:320,clientY:240}],preventDefault(){},stopPropagation(){}});
@@ -750,7 +750,7 @@ for(const [vw,vh] of [[360,780],[800,1100],[1280,800]])for(const saved of [false
   });
   open();assert.equal(measured,1);assert.equal(card.style.getPropertyValue('visibility'),'');assert(card.classList.contains('pmm-layout-card--positioned'));assert(card.classList.contains('pmm-layout-card--open'));
   const x=parseFloat(card.style.getPropertyValue('left')),y=parseFloat(card.style.getPropertyValue('top'));
-  if(!saved){assert.equal(x,(vw-current.values.controllerWidth)/2);assert.equal(y,(vh-current.values.controllerHeight)/2);}
+  assert.equal(x,(vw-current.values.controllerWidth)/2,'Every new open centers, ignoring old saved coordinates');assert.equal(y,(vh-current.values.controllerHeight)/2);
   assert(x>=0&&x+current.values.controllerWidth<=vw);assert(y>=0&&y+current.values.controllerHeight<=vh);
   open();assert.equal(measured,1,'An already-open controller keeps its position');
 }
@@ -779,7 +779,7 @@ for(const changed of [false,true]){
   const closing={remove:()=>sequence.push('detach'),querySelectorAll:()=>controls.map(()=>({__pmmControlCleanup:save=>{assert.equal(save,false);sequence.push('row');}})),__pmmSearchCleanup:()=>sequence.push('search')};
   const api=vm.runInNewContext(`(()=>{let state=live,cardSnapshot=baseline,card=closing;${between(workshop,'  function closeCard(saveChanges','  function openCard()')};return{closeCard,getState:()=>state,getCard:()=>card};})()`,{
     live,baseline,closing,CONTROLS:controls,activeCardDragCleanup:null,trigger:null,root:null,isMobile:()=>true,
-    TOP:{dispatchEvent:event=>events.push(event.type)},CustomEvent:class{constructor(type){this.type=type;}},applyControlValue:control=>calls.push(control.key),persistSoon:()=>{throw Error('Cancel must not save');},
+    VIEW:{clearTimeout(){}},cardStatusTimer:0,TOP:{dispatchEvent:event=>events.push(event.type)},CustomEvent:class{constructor(type){this.type=type;}},applyControlValue:control=>calls.push(control.key),persistSoon:()=>{throw Error('Cancel must not save');},
   });
   api.closeCard(false);assert.equal(api.getCard(),null);assert.equal(api.getState(),baseline);
   assert(sequence.indexOf('search')<sequence.indexOf('detach'),'Release keyboard ownership before detaching the focused search field');
