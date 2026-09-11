@@ -179,6 +179,7 @@ html.${ROOT_CLASS} ${PANEL_SELECTOR} .${COMPACT_CLASS} > .prompt-editor__expand-
 
   function scan() {
     scheduledFrame = 0;
+    if (TOP.__PMM_THEME_SYSTEM__?.deferWork?.('editor-layout',schedule)) return;
     const headers = Array.from(DOC.querySelectorAll(HEADER_SELECTOR));
     for (const header of headers) {
       if (!observedHeaders.has(header)) {
@@ -205,6 +206,7 @@ html.${ROOT_CLASS} ${PANEL_SELECTOR} .${COMPACT_CLASS} > .prompt-editor__expand-
   }
 
   function cleanup() {
+    TOP.__PMM_THEME_SYSTEM__?.cancelWork?.('editor-layout');
     if (scheduledFrame) win.cancelAnimationFrame(scheduledFrame);
     scheduledFrame = 0;
     mutationObserver?.disconnect?.();
@@ -225,8 +227,18 @@ html.${ROOT_CLASS} ${PANEL_SELECTOR} .${COMPACT_CLASS} > .prompt-editor__expand-
   resizeObserver = typeof win.ResizeObserver === 'function'
     ? new win.ResizeObserver(schedule)
     : null;
-  mutationObserver = new win.MutationObserver(schedule);
-  mutationObserver.observe(DOC.documentElement, { childList: true, subtree: true, characterData: true });
+  let observedEditorPanel = null;
+  const observeEditorPanel = () => {
+    const panel = DOC.querySelector(PANEL_SELECTOR);
+    if (panel === observedEditorPanel) return;
+    mutationObserver.disconnect();
+    observedEditorPanel = panel;
+    mutationObserver.observe(DOC.body || DOC.documentElement, { childList:true });
+    if (panel) mutationObserver.observe(panel, { childList:true, subtree:true, characterData:true });
+  };
+  mutationObserver = new win.MutationObserver(() => { observeEditorPanel();schedule(); });
+  mutationObserver.observe(DOC.body || DOC.documentElement, { childList:true });
+  observeEditorPanel();
   TOP.addEventListener?.('resize', onResize);
   TOP.addEventListener?.('orientationchange', onResize);
   scan();

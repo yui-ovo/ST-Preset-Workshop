@@ -12,8 +12,8 @@ for (const snippet of [
   "branchWidth: 0",
   "branchWidth: [0, 128]",
   "branchWidth: 'pmm-layout-custom-branch-width'",
-  "{ key:'branchWidth', label:'分支名称框长度', unit:'px', step:1 }",
-  "target.style.setProperty('--pmm-user-branch-width-offset', `${current.values.branchWidth}px`)",
+  "{ key:'branchWidth', label:'分支名称框长度', unit:'px', step:.1 }",
+  "setLayoutVariable(target, '--pmm-user-branch-width-offset', `${current.values.branchWidth}px`)",
 ]) {
   assert.ok(source.includes(snippet), `分支名称长度缺少独立状态：${snippet}`);
 }

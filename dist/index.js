@@ -18,6 +18,7 @@ let rapidVersionCheckStopTimer = null;
 let nativeUpdateReloadTimer = null;
 let singleExtensionUpdatePending = false;
 let bulkExtensionUpdateInProgress = false;
+let updateReloadDeferred = false;
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -67,11 +68,10 @@ async function checkForInstalledUpdate() {
       /* 单独更新时酒馆会自己弹成功提示，留一秒给原生提示显示，不再重复弹第二条。 */
       await sleep(NATIVE_UPDATE_RELOAD_DELAY);
     } else {
-      notify('info', `扩展已更新至 v${nextVersion}，正在自动刷新酒馆`);
+      notify('info', `扩展已更新至 v${nextVersion}`);
       await sleep(450);
     }
-    globalThis.__PMM_PERFORMANCE_GUARD_V275__?.markReloadReason?.('extension-update');
-    globalThis.location.reload();
+    markExtensionUpdateReload();
   } catch (error) {
     console.debug(`[${EXTENSION_NAME}] 暂未检测到可自动载入的新版本。`, error);
   } finally {
@@ -124,9 +124,32 @@ function startRapidVersionCheck() {
   );
 }
 
+function canAutoReloadAfterUpdate() {
+  // Context is a live snapshot, so check again immediately before every reload.
+  // Never attempt to "flush" an empty/loading chat by calling a chat save API here.
+  try {
+    const context = globalThis.SillyTavern?.getContext?.();
+    if (!context || !Array.isArray(context.chat)) return false;
+    const selected = value => value !== undefined && value !== null && value !== '';
+    if (selected(context.chatId) || selected(context.characterId) || selected(context.groupId)) return false;
+    if (context.chat.length || context.streamingProcessor) return false;
+    if (document.activeElement?.matches?.('input,textarea,[contenteditable="true"]')) return false;
+    return true;
+  } catch (_) { return false; }
+}
+
 function markExtensionUpdateReload() {
+  nativeUpdateReloadTimer = null;
+  if (!canAutoReloadAfterUpdate()) {
+    if (!updateReloadDeferred) {
+      updateReloadDeferred = true;
+      notify('info', '扩展更新已完成；为避免中断聊天，请在聊天保存完成后手动刷新。');
+    }
+    return false;
+  }
   globalThis.__PMM_PERFORMANCE_GUARD_V275__?.markReloadReason?.('extension-update');
   globalThis.location.reload();
+  return true;
 }
 
 function scheduleNativeSingleUpdateReload() {
@@ -228,6 +251,11 @@ function buildRuntimeDocument() {
   const parentJqueryUrl = appendRuntimeVersion(new URL('../bridge/parent-jquery.js', import.meta.url).href);
   const predefineUrl = appendRuntimeVersion(new URL('../bridge/predefine.js', import.meta.url).href);
   const workshopUrl = appendRuntimeVersion(new URL('./workshop-v3.02.js', import.meta.url).href);
+  const windowStackUrl = appendRuntimeVersion(new URL('./workshop-window-stack.js', import.meta.url).href);
+  const floatingStoreUrl = appendRuntimeVersion(new URL('./workshop-floating-store.js', import.meta.url).href);
+  const themeSystemUrl = appendRuntimeVersion(new URL('./workshop-theme-system.js', import.meta.url).href);
+  const floatingControllerUrl = appendRuntimeVersion(new URL('./workshop-floating-controller.js', import.meta.url).href);
+  const layoutControllerUrl = appendRuntimeVersion(new URL('./workshop-layout-controller.js', import.meta.url).href);
   const presetContentEditorUrl = appendRuntimeVersion(new URL('./preset-content-editor.js', import.meta.url).href);
   const worldbookStitchUrl = appendRuntimeVersion(new URL('./worldbook-stitch-test3.js', import.meta.url).href);
   const worldbookLoaderKey = '__PMM_LOAD_WORLDBOOK_STITCH__';
@@ -245,6 +273,15 @@ function buildRuntimeDocument() {
 <body>
 <script>
 (() => {
+  window.addEventListener('pagehide', () => {
+    for (const key of ['__PMM_FLOATING_CONTROLLER__','__PMM_LAYOUT_CONTROLLER__','__PMM_THEME_SYSTEM__','__PMM_FLOATING_STORE__','__PMM_WINDOW_STACK__']) {
+      const api = window[key];
+      if (api && window.parent[key] === api) {
+        try { api.destroy?.(); } catch (_) {}
+        if (window.parent[key] === api) delete window.parent[key];
+      }
+    }
+  }, { once:true });
   const source = ${JSON.stringify(worldbookStitchUrl)};
   const loaderKey = ${JSON.stringify(worldbookLoaderKey)};
   const apiKey = '__PMM_WORLDBOOK_STITCH_TEST3__';
@@ -278,7 +315,12 @@ function buildRuntimeDocument() {
 })();
 </script>
 <script type="module" src="${presetContentEditorUrl}"></script>
+<script type="module" src="${windowStackUrl}"></script>
 <script type="module" src="${workshopUrl}"></script>
+<script type="module" src="${floatingStoreUrl}"></script>
+<script type="module" src="${themeSystemUrl}"></script>
+<script type="module" src="${floatingControllerUrl}"></script>
+<script type="module" src="${layoutControllerUrl}"></script>
 </body>
 </html>`;
 }
@@ -332,7 +374,12 @@ export function stopPresetWorkshop() {
     nativeUpdateReloadTimer = null;
   }
   try { globalThis.__PMM_PRESET_CONTENT_EDITOR_V1__?.cleanup?.(); } catch (_) {}
-  document.getElementById(RUNTIME_ID)?.remove();
+  const runtime = document.getElementById(RUNTIME_ID);
+  if (runtime) {
+    // Android WebViews do not reliably dispatch pagehide when an iframe is removed.
+    try { runtime.contentWindow.dispatchEvent(new runtime.contentWindow.Event('pagehide')); } catch (_) {}
+    runtime.remove();
+  }
 }
 
 globalThis.__ST_PRESET_WORKSHOP__ = {
