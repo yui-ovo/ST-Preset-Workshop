@@ -10074,34 +10074,37 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   function updateOutputs(controls = currentControls()) {
     if (!card) return;
     const current = currentState();
+    const set = (node, key, value) => { if (node && node[key] !== value) node[key] = value; };
     for (const control of controls) {
-      const input = card.querySelector(`[data-pmm-layout-input="${control.key}"]`);
-      const output = card.querySelector(`[data-pmm-layout-output="${control.key}"]`);
-      const lock = card.querySelector(`[data-pmm-layout-lock="${control.key}"]`);
+      const nodes = card.__pmmControls?.get(control.key);
+      const input = nodes?.input || card.querySelector(`[data-pmm-layout-input="${control.key}"]`);
+      const output = nodes?.output || card.querySelector(`[data-pmm-layout-output="${control.key}"]`);
+      const lock = nodes?.lock || card.querySelector(`[data-pmm-layout-lock="${control.key}"]`);
       const range = valueRange(control.key);
       const locked = isControlLocked(control.key);
       if (input) {
-        input.min = String(range[0]);
-        input.max = String(range[1]);
-        input.value = String(current.values[control.key]);
-        input.disabled = locked;
+        set(input, 'min', String(range[0]));
+        set(input, 'max', String(range[1]));
+        set(input, 'value', String(current.values[control.key]));
+        set(input, 'disabled', locked);
       }
-      const minus = card.querySelector(`[data-pmm-layout-step="${control.key}"][data-direction="-1"]`);
-      const plus = card.querySelector(`[data-pmm-layout-step="${control.key}"][data-direction="1"]`);
-      if (minus) minus.disabled = locked || current.values[control.key] <= range[0];
-      if (plus) plus.disabled = locked || current.values[control.key] >= range[1];
+      const minus = nodes?.minus || card.querySelector(`[data-pmm-layout-step="${control.key}"][data-direction="-1"]`);
+      const plus = nodes?.plus || card.querySelector(`[data-pmm-layout-step="${control.key}"][data-direction="1"]`);
+      if (minus) set(minus, 'disabled', locked || current.values[control.key] <= range[0]);
+      if (plus) set(plus, 'disabled', locked || current.values[control.key] >= range[1]);
       if (output && !output.querySelector('input')) {
         const customized = current.customized[control.key] === true;
-        output.textContent = `${current.values[control.key]}${control.unit}`;
-        output.disabled = locked;
-        output.title = customized ? '点击直接输入数值' : '当前为默认值，点击直接输入数值';
+        set(output, 'textContent', `${current.values[control.key]}${control.unit}`);
+        set(output, 'disabled', locked);
+        set(output, 'title', customized ? '点击直接输入数值' : '当前为默认值，点击直接输入数值');
       }
       if (lock) {
         lock.classList.toggle('is-locked', locked);
-        lock.setAttribute('aria-pressed', String(locked));
-        lock.setAttribute('aria-label', `${locked ? '解锁' : '锁定'}${control.label}`);
-        lock.title = locked ? '已锁定：点击后允许调节' : '点击锁定，防止滑动时误触';
-        lock.textContent = locked ? '🔒' : '🔓';
+        if (lock.getAttribute?.('aria-pressed') !== String(locked)) lock.setAttribute('aria-pressed', String(locked));
+        const label = `${locked ? '解锁' : '锁定'}${control.label}`;
+        if (lock.getAttribute?.('aria-label') !== label) lock.setAttribute('aria-label', label);
+        set(lock, 'title', locked ? '已锁定：点击后允许调节' : '点击锁定，防止滑动时误触');
+        set(lock, 'textContent', locked ? '🔒' : '🔓');
       }
     }
     for (const button of (controls.some(control => control.key === 'splitRatio') ? card.querySelectorAll('[data-pmm-split-ratio]') : [])) {
@@ -10161,7 +10164,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       customKey:'presetWidth',
     });
     /* 统一短视窗不能依赖首次同步时的测量顺序；世界书可能先于手机布局类挂载。 */
-    root.style.setProperty('--pmm-primary-title-viewport-width', '150px');
+    setLayoutVariable(root, '--pmm-primary-title-viewport-width', '150px');
 
     /* 分支页下方的分支名称单独测量、单独保存。 */
     const branchHeaders = mode === 'branch'
@@ -10425,6 +10428,8 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       const output = event.currentTarget;
       if (isControlLocked(control.key)) return;
       if (output.querySelector('input')) return;
+      // Settle the older slider sample before starting a newer numeric draft.
+      flushPreview();
       const original = active.values[control.key];
       const editor = DOC.createElement('input');
       editor.type = 'number';
@@ -10448,7 +10453,10 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
         floatingStore?.update?.({ keyboardEditing:false }, 'number-blur', false);
         VIEW.clearTimeout?.(boundsTimer);
         boundsTimer = VIEW.setTimeout?.(() => { boundsTimer = 0; if (row.isConnected) keepCardInBounds(); }, 260);
+        // Save can arrive before blur/compositionend; the editor owns the latest visible value.
+        draft = editor.value;
         const parsed = Number.parseFloat(draft);
+        flushPreview(false);
         output.replaceChildren();
         if (commit && Number.isFinite(parsed)) applyRangeValue(parsed, true);
         else updateOutputs([control]);
@@ -10469,6 +10477,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       try { editor.focus({ preventScroll:true }); } catch (_) { editor.focus(); }
       editor.select();
     });
+    row.__pmmControlNodes = { input, lock, output:row.querySelector('[data-pmm-layout-output]'), minus:row.querySelector('[data-pmm-layout-step][data-direction="-1"]'), plus:row.querySelector('[data-pmm-layout-step][data-direction="1"]') };
     return row;
   }
 
@@ -10717,6 +10726,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
         <button type="button" class="pmm-layout-done-btn" data-pmm-layout-done>保存更改</button>
       </footer>`;
     const body = panel.querySelector(".pmm-layout-card__body");
+    panel.__pmmControls = new Map();
     let scrollGesture=null,blockClickUntil=0;
     body.addEventListener("pointerdown",event=>{blockClickUntil=0;scrollGesture={id:event.pointerId,x:event.clientX,y:event.clientY,moved:false}},{capture:true,passive:true});
     body.addEventListener("pointermove",event=>{if(!scrollGesture||(scrollGesture.id!=null&&event.pointerId!==scrollGesture.id))return;if(Math.abs(event.clientY-scrollGesture.y)>8&&Math.abs(event.clientY-scrollGesture.y)>Math.abs(event.clientX-scrollGesture.x)){scrollGesture.moved=true;panel.__pmmScrolling=true;blockClickUntil=Date.now()+260}},{capture:true,passive:true});
@@ -10748,6 +10758,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     headerModeRow.appendChild(scrollMemoryRow);
     const splitControl = currentControls().find(control => control.key === 'splitRatio');
     const splitRow = makeControl(splitControl);
+    panel.__pmmControls.set(splitControl.key, splitRow.__pmmControlNodes);
     splitRow.classList.add('pmm-layout-split-ratio');
     const splitShortcuts = DOC.createElement('div');
     splitShortcuts.className = 'pmm-layout-split-presets';
@@ -10764,7 +10775,11 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     splitRow.appendChild(splitShortcuts);
     body.prepend(splitRow);
     for (const control of currentControls()) {
-      if (control.key !== 'splitRatio') body.appendChild(makeControl(control));
+      if (control.key !== 'splitRatio') {
+        const row = makeControl(control);
+        panel.__pmmControls.set(control.key, row.__pmmControlNodes);
+        body.appendChild(row);
+      }
     }
     const search = panel.querySelector('.pmm-layout-search');
     const searchEditing = value => TOP.__PMM_FLOATING_STORE__?.update?.({keyboardEditing:value}, 'controller-search', false);
@@ -10837,6 +10852,10 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     try {
       const storage = TOP.localStorage;
       if (typeof storage?.setItem !== 'function') throw new Error('浏览器存储不可用');
+      // Complete the preview on every mounted surface before reporting a successful save.
+      applyState();
+      TOP.dispatchEvent(new CustomEvent('pmm:floating-metrics-change'));
+      keepCardInBounds();
       const saved = JSON.stringify(state);
       storage.setItem(STORAGE_KEY, saved);
       // Subsequent cancel rolls back to this successful save, not the opening snapshot.
@@ -10884,7 +10903,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       for (const control of CONTROLS) {
         const key = control.key;
         if (before[profile].values[key] !== state[profile].values[key] || before[profile].customized[key] !== state[profile].customized[key]) {
-          if (!key.startsWith('controller')) applyControlValue(control);
+          applyControlValue(control);
           if (['floatingWidth','floatingHeight','floatingFont','floatingBall','floatingHandleWidth','floatingHandleHeight'].includes(key)) metricsChanged = true;
         }
       }
@@ -10898,7 +10917,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   }
 
   function openCard() {
-    if (card?.isConnected) { TOP.__PMM_WINDOW_STACK__?.open('controller',[card]); return; }
+    if (card?.isConnected) { keepCardInBounds(); TOP.__PMM_WINDOW_STACK__?.open('controller',[card]); return; }
     card = null;
     refreshDeviceValues();
     state.lockedControls=Object.fromEntries(CONTROLS.map(control=>[control.key,true]));
@@ -11067,19 +11086,22 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     // Cache the device state before preview writes; no viewport/media query reads while moving.
     geometry.state = currentState();
     const original = { value:geometry.state.values.splitRatio, customized:geometry.state.customized.splitRatio };
-    const lineOrigin = geometry.origin;
-    // The initial touch may land anywhere in the 44px target; preserve the current ratio.
+    // Preserve the grab offset anywhere within the handle; no ratio jump on pointerdown.
     geometry.origin = (geometry.vertical ? startY : startX) - original.value / 100 * geometry.available;
-    const preview = DOC.createElement('div');
-    preview.className = 'pmm-split-preview';
-    preview.setAttribute('aria-hidden','true');
-    preview.dataset.axis = geometry.vertical ? 'y' : 'x';
-    const bounds = splitContainer.getBoundingClientRect();
-    preview.style.cssText = `left:${bounds.left}px;top:${bounds.top}px;width:${geometry.vertical ? bounds.width : 2}px;height:${geometry.vertical ? 2 : bounds.height}px;z-index:${Number(root.style.zIndex)||2147482400}`;
+    const property = geometry.vertical ? 'grid-template-rows' : 'grid-template-columns';
+    const savedGrid = splitContainer.style.getPropertyValue(property);
+    const savedPriority = splitContainer.style.getPropertyPriority?.(property) || '';
+    const savedTransition = splitContainer.style.getPropertyValue('transition');
+    const transitionPriority = splitContainer.style.getPropertyPriority?.('transition') || '';
     geometry.preview = value => {
-      const offset = lineOrigin + geometry.available * value / 100 - (geometry.vertical ? bounds.top : bounds.left);
-      preview.style.transform = geometry.vertical ? `translate3d(0,${offset}px,0)` : `translate3d(${offset}px,0,0)`;
-      preview.dataset.ratio = `${value.toFixed(1)} : ${(100-value).toFixed(1)}`;
+      const middle = geometry.vertical ? 'var(--pmm-toolbar-h,40px)' : 'auto';
+      splitContainer.style.setProperty(property, `minmax(0,${value}fr) ${middle} minmax(0,${100-value}fr)`, 'important');
+    };
+    const restoreGrid = () => {
+      if (savedGrid) splitContainer.style.setProperty(property, savedGrid, savedPriority);
+      else splitContainer.style.removeProperty(property);
+      if (savedTransition) splitContainer.style.setProperty('transition', savedTransition, transitionPriority);
+      else splitContainer.style.removeProperty('transition');
     };
     let frame = 0;
     let queuedPoint = null;
@@ -11100,12 +11122,13 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       const firstMove = !moved;
       if (firstMove) {
         const distance = mobileResize ? Math.abs(point.clientY - startY) : Math.abs(point.clientX - startX);
-        if (distance <= 7) return;
+        if (distance < 3) return;
         moved = true;
         VIEW.__PMM_THEME_SYSTEM__?.beginInteraction?.('split');
+        splitContainer.style.setProperty('transition', 'none', 'important');
       }
       queuedPoint = { x:point.clientX, y:point.clientY };
-      if (firstMove) { render(); DOC.body.appendChild(preview); }
+      if (firstMove) render();
       else if (!frame) frame = VIEW.requestAnimationFrame(render);
     };
     const end = endEvent => {
@@ -11113,7 +11136,6 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       if (pointerId != null && endEvent?.pointerId != null && pointerId !== endEvent.pointerId) return;
       if (touchId != null && endEvent?.changedTouches?.length && !Array.from(endEvent.changedTouches).some(point => point.identifier === touchId)) return;
       ended = true;
-      preview.remove();
       handle.removeEventListener?.('lostpointercapture', end);
       VIEW.removeEventListener?.('blur', end);
       dragDocument.removeEventListener('pointermove', move, true);
@@ -11146,6 +11168,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
           updateOutputs([control]);
         }
       }
+      if (moved) restoreGrid();
       queuedPoint = null;
       if (!cancelled && isPrimaryHandle && !moved && now - startAt < 360) {
         const previousTap = Number(handle.dataset.pmmLastTapAt || 0);

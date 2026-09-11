@@ -89,6 +89,29 @@ function between(start,end){
   state.glyph='☆';api.setFloatingVariables();assert.equal(events,2);
 }
 
+// Repeated syncs reuse the controller nodes and preserve unchanged labels / active editors.
+{
+  let writes=0,queries=0;
+  const controls=Array.from({length:40},(_,i)=>({key:'control'+i,label:'数值'+i,unit:'px'}));
+  const current={values:Object.fromEntries(controls.map(c=>[c.key,50])),customized:{}},locked=new Set();
+  const node=()=>{
+    const attrs=new Map(),classes=new Set();
+    return new Proxy({querySelector:()=>null,getAttribute:key=>attrs.get(key)??null,setAttribute(key,value){writes++;attrs.set(key,value);},classList:{toggle(key,value){if(classes.has(key)!==value){writes++;value?classes.add(key):classes.delete(key);}}}}, {set(target,key,value){writes++;target[key]=value;return true;}});
+  };
+  const card={__pmmControls:new Map(controls.map(c=>[c.key,{input:node(),output:node(),lock:node(),minus:node(),plus:node()}])),querySelector(){queries++;return null;},querySelectorAll(){queries++;return [];}};
+  const update=vm.runInNewContext(`(()=>{${between('  function updateOutputs(', '  function capturePresetViewportWidths()')};return updateOutputs;})()`,{
+    card,currentControls:()=>controls,currentState:()=>current,valueRange:()=>[0,100],isControlLocked:key=>locked.has(key),updateDragCompatButton(){},updateTopNotificationButton(){},
+  });
+  update();assert(writes>0);writes=0;
+  for(let i=0;i<100;i++)update();
+  assert.equal(queries,0,'Cached control syncs never search the whole card');
+  assert.equal(writes,0,'Unchanged controls never replace text or write attributes / input values');
+  current.values.control0=51;update();assert.equal(writes,2,'Only the changed slider and label need updating');
+  locked.add('control0');update();assert(card.__pmmControls.get('control0').input.disabled);
+  const output=card.__pmmControls.get('control1').output;output.querySelector=()=>({value:'draft'});writes=0;current.values.control1=52;update();
+  assert.equal(output.textContent,'50px','Background sync leaves the active numeric editor intact');assert.equal(writes,1);
+}
+
 // Keyboard and visualViewport scrolling must not cause full controller layout synchronization.
 {
   const view={innerWidth:360,innerHeight:780},doc={activeElement:null},card={},store={keyboardEditing:false};let work=0;
@@ -142,4 +165,4 @@ function between(start,end){
   vm.runInNewContext(`${batch.slice(a,b)};sync();`,{scheduled:0,documents:()=>[doc],ROOT_SELECTOR:'root',syncRoot(){},TOP:top,isMobile:()=>true,floatingEntryEnabled:()=>true});
   assert.equal(enabled,false);
 }
-console.log('性能回归通过：250 分组空闲停止扫描；重复布局零样式写入；条幅续载不扫描预设；键盘/滚动不触发全量布局；真实变更正常更新。');
+console.log('性能回归通过：250 分组空闲停止扫描；重复布局零样式写入、40 控件重复同步零查询/写入；条幅续载不扫描预设；键盘/滚动不触发全量布局；真实变更正常更新。');

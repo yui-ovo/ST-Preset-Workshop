@@ -13,7 +13,7 @@ function between(source, start, end) {
   return source.slice(a, b);
 }
 function element() {
-  const values = new Map(), priorities = new Map(), classes = new Set(), listeners = new Map();
+  const values = new Map(), priorities = new Map(), classes = new Set(), listeners = new Map(), attributes = new Map();
   let styleMutations=0;
   return {
     nodeType:1, dataset:{}, listeners, get styleMutations(){return styleMutations;},
@@ -23,7 +23,7 @@ function element() {
     removeEventListener(type, callback) { if (listeners.get(type) === callback) listeners.delete(type); },
     querySelector:() => null, querySelectorAll:() => [], matches:() => false,
     createElement:() => element(), body:{appendChild(){}}, getBoundingClientRect:()=>({left:0,top:0,width:1000,height:1000}),
-    appendChild:() => {}, remove:() => {}, setAttribute:() => {},
+    appendChild:() => {}, remove:() => {}, setAttribute:(key,value) => attributes.set(key,String(value)), getAttribute:key => attributes.get(key) ?? null,
   };
 }
 function frames() {
@@ -220,7 +220,7 @@ for(const skin of ['aqua','glass','violet','theme'])for(const follow of [false,t
   callback();assert.equal(mode.value,'dark');assert.equal(updates,1);
 }
 
-// The actual theme module commits before paint and uses background-only layers, including touch.
+// Desktop retains background motion; touch commits the identical material without extra layers.
 function motionTheme(){
   const env=bootTheme('aqua','light'),surface=element();surface.isConnected=true;env.roots.push(surface);
   env.doc.startViewTransition=()=>{throw Error('Input must not wait for a document screenshot');};
@@ -233,9 +233,9 @@ for(const device of ['desktop','phone','tablet']){
   env.top.navigator={maxTouchPoints:device==='tablet'?10:device==='phone'?5:0};
   env.api.setTone('dark',()=>native++);env.flush();
   assert.equal(native,1);assert.equal(env.api.getTokens(),env.api.themes.aqua.dark);assert.equal(env.events.length,2);
-  assert(env.surface.classList.contains('pmm-theme-surface-motion'));
-  assert.equal(env.surface.style.getPropertyValue('--pmm-theme-motion-from'),env.api.themes.aqua.light.surface);
-  assert.equal(env.surface.style.getPropertyValue('--pmm-theme-motion-to'),env.api.themes.aqua.dark.surface);
+  assert.equal(env.surface.classList.contains('pmm-theme-surface-motion'),device==='desktop');
+  assert.equal(env.surface.style.getPropertyValue('--pmm-theme-motion-from'),device==='desktop'?env.api.themes.aqua.light.surface:'');
+  assert.equal(env.surface.style.getPropertyValue('--pmm-theme-motion-to'),device==='desktop'?env.api.themes.aqua.dark.surface:'');
   env.timers.flush();assert(!env.surface.classList.contains('pmm-theme-surface-motion'));env.api.destroy();
 }
 // A pending request can be superseded or disposed before the native setter runs.
@@ -312,16 +312,21 @@ for (const vertical of [true,false]) {
   begin({type:'touchstart'});
   doc.listeners.get('pointerup')({...pointer('pointerup',500),pointerId:2});
   assert.equal(captured,1,'Companion touch and unrelated pointer releases must leave the drag active');
+  doc.listeners.get('pointermove')(pointer('pointermove',502));assert.equal(container.styleMutations,0,'A tap or 2px jitter leaves the ratio unchanged');
+  doc.listeners.get('pointermove')(pointer('pointermove',503));assert.equal(state.values.splitRatio,50.3,'A 3px gesture starts live resizing immediately');
+  const firstPaint=container.styleMutations;
   for (let value=510;value<=700;value++) doc.listeners.get('pointermove')(pointer('pointermove',value));
+  assert.equal(container.styleMutations,firstPaint,'High-rate events do not write between frames');
   assert(!themeEnv.surface.classList.contains('pmm-theme-surface-motion'),'Split movement stops theme animation');
   themeEnv.api.setTone('light');themeEnv.flush();assert.equal(themeEnv.doc.documentElement.dataset.pmmThemeTone,'dark');
   assert.equal(measurements, 1);
   assert.equal(previews.length, 0);
   assert.equal(raf.queue.size, 1);
   raf.flush();
+  assert.equal(container.styleMutations,firstPaint+1,'One frame updates only the split grid');
   assert.deepEqual(previews, [], 'Drag preview cannot invalidate inherited variables on the full main panel');
   const property=vertical?'grid-template-rows':'grid-template-columns';
-  assert.equal(container.style.getPropertyValue(property),'','Dragging must not reflow the preset lists');
+  assert.equal(container.style.getPropertyValue(property),`minmax(0,70fr) ${vertical?'var(--pmm-toolbar-h,40px)':'auto'} minmax(0,30fr)`,'Both panel sizes must follow the pointer before release');
   assert.equal(saves, 0);
   for(const value of [651,652]){
     doc.listeners.get('pointermove')(pointer('pointermove',value));raf.flush();
@@ -344,7 +349,7 @@ for (const vertical of [true,false]) {
 // Cancelling a ratio gesture restores both the saved ratio and pre-existing inline grid styles.
 for(const vertical of [true,false])for(const endType of ['pointercancel','lostpointercapture','blur']){
   const raf=frames(),doc=element(),root=element(),container=element();let saves=0,commits=0;
-  const property=vertical?'grid-template-rows':'grid-template-columns';container.style.setProperty(property,'previous-grid');container.style.setProperty('transition','previous-transition');
+  const property=vertical?'grid-template-rows':'grid-template-columns';container.style.setProperty(property,'previous-grid','important');container.style.setProperty('transition','previous-transition','important');
   const state={values:{splitRatio:50},customized:{splitRatio:false}},edge=vertical?'top':'left';
   const handle={...element(),closest:()=>container,classList:{contains:name=>name.endsWith('--'+edge)}};
   const view={...element(),requestAnimationFrame:raf.request,cancelAnimationFrame:raf.cancel};
@@ -355,10 +360,11 @@ for(const vertical of [true,false])for(const endType of ['pointercancel','lostpo
   });
   begin({type:'pointerdown',currentTarget:handle,clientX:500,clientY:500,preventDefault(){},stopPropagation(){}});
   doc.listeners.get('pointermove')({clientX:600,clientY:600,getCoalescedEvents:()=>[{clientX:680,clientY:680}]});raf.flush();
-  assert.equal(state.values.splitRatio,68);assert.equal(commits,0);assert.equal(container.style.getPropertyValue(property),'previous-grid','Only the lightweight divider is previewed');
+  assert.equal(state.values.splitRatio,68);assert.equal(commits,0);assert.equal(container.style.getPropertyValue(property),`minmax(0,68fr) ${vertical?'var(--pmm-toolbar-h,40px)':'auto'} minmax(0,32fr)`,'Live preview updates only the split grid');
   (endType==='blur'?view.listeners:endType==='lostpointercapture'?handle.listeners:doc.listeners).get(endType)({type:endType,clientX:0,clientY:0});
   assert.equal(state.values.splitRatio,50);assert.equal(state.customized.splitRatio,false);assert.equal(saves,0);assert.equal(commits,0,'Cancelled previews never rewrite main layout');
   assert.equal(container.style.getPropertyValue(property),'previous-grid');assert.equal(container.style.getPropertyValue('transition'),'previous-transition');
+  assert.equal(container.style.getPropertyPriority(property),'important');assert.equal(container.style.getPropertyPriority('transition'),'important');
   assert.equal(doc.listeners.size,0);assert.equal(handle.listeners.size,0);assert.equal(view.listeners.size,0);assert.equal(raf.queue.size,0);
 }
 
@@ -740,20 +746,20 @@ for(const vw of [320,390,768,1024])for(const bannerW of [vw/2,vw*.9,vw])for(cons
 // A newly mounted controller is never visible until its final coordinates and transform are ready.
 for(const [vw,vh] of [[360,780],[800,1100],[1280,800]])for(const saved of [false,true])for(const full of [false,true]){
   const card=element(),doc=element(),current={values:{controllerWidth:full?vw:Math.min(vw-24,620),controllerHeight:full?vh:Math.min(vh*.76,640),controllerFont:12}};
-  const state={cardPositions:saved?{profile:{left:5000,top:5000}}:{}};let measured=0,appended=0;
+  const state={cardPositions:saved?{profile:{left:5000,top:5000}}:{}};let measured=0,appended=0,boundsChecks=0;
   card.getBoundingClientRect=()=>{measured++;assert.equal(appended,1);assert.equal(card.style.getPropertyValue('visibility'),'hidden');assert.equal(card.style.getPropertyValue('transform'),'none');return{left:0,top:0,width:current.values.controllerWidth,height:current.values.controllerHeight};};
   doc.body.appendChild=node=>{appended++;assert.equal(node,card);assert(!node.classList.contains('pmm-layout-card--open'));assert.equal(node.style.getPropertyValue('visibility'),'hidden');card.isConnected=true;};
   const code=between(workshop,'  function cardViewportBounds(', '  function STORE_PROFILE()')+between(workshop,'  function openCard()', '  function onTriggerClick(');
   const open=vm.runInNewContext(`(()=>{let card=null,saveTimer=0,cardSnapshot=null;${code};return openCard;})()`,{
     DOC:doc,state,CONTROLS:[],VIEW:{innerWidth:vw,innerHeight:vh,requestAnimationFrame(){throw Error('First visible placement must not wait for another frame');}},
     TOP:{__PMM_FLOATING_STORE__:{getState:()=>({keyboardEditing:true})}},STORE_PROFILE:()=> 'profile',buildCard:()=>card,refreshDeviceValues(){},updateOutputs(){},clearTimeout(){},
-    currentState:()=>current,setLayoutVariable:(node,key,value)=>node.style.setProperty(key,value),trigger:null,
+    currentState:()=>current,setLayoutVariable:(node,key,value)=>node.style.setProperty(key,value),trigger:null,keepCardInBounds:()=>boundsChecks++,
   });
   open();assert.equal(measured,2);assert.equal(card.style.getPropertyValue('visibility'),'');assert(card.classList.contains('pmm-layout-card--positioned'));assert(card.classList.contains('pmm-layout-card--open'));
   const x=parseFloat(card.style.getPropertyValue('left')),y=parseFloat(card.style.getPropertyValue('top'));
   assert.equal(x,(vw-current.values.controllerWidth)/2,'Every new open centers, ignoring old saved coordinates');assert.equal(y,(vh-current.values.controllerHeight)/2);
   assert(x>=0&&x+current.values.controllerWidth<=vw);assert(y>=0&&y+current.values.controllerHeight<=vh);
-  open();assert.equal(measured,2,'An already-open controller keeps its position');
+  open();assert.equal(measured,2,'An already-open controller keeps its position');assert.equal(boundsChecks,1,'Reopening also recovers an existing offscreen card');
 }
 // Sliding vertically along an edge must not introduce a sideways jump at pointermove or release.
 for(const dock of ['left','right']){
@@ -785,11 +791,11 @@ for(const changed of [false,true]){
   api.closeCard(false);assert.equal(api.getCard(),null);assert.equal(api.getState(),baseline);
   assert(sequence.indexOf('search')<sequence.indexOf('detach'),'Release keyboard ownership before detaching the focused search field');
   assert(sequence.indexOf('detach')<sequence.indexOf('row'),'Input cleanup cannot relayout the visible dialog');
-  assert.deepEqual(calls,changed?['groupFont','floatingWidth','floatingFont']:[]);
+  assert.deepEqual(calls,changed?['groupFont','floatingWidth','floatingFont','controllerWidth']:[]);
   assert.deepEqual(events,changed?['pmm:floating-metrics-change']:[]);
 }
 
-console.log('统一 UI 交互回归通过：主题冻结、主界面例外范围、统一切换/快速反向/降级、比例预览、触摸/指针捕获、设备范围、唯一开关、搜索、半屏默认/全屏上限/比例缩放与横滑记忆。');
+console.log('统一 UI 交互回归通过：主题冻结、主界面例外范围、统一切换/快速反向/降级、比例逐帧同步与取消恢复、触摸/指针捕获、设备范围、唯一开关、搜索、半屏默认/全屏上限/比例缩放与横滑记忆。');
 
 // One CSS mutation per theme surface, no loss of drag geometry or inline priorities.
 {

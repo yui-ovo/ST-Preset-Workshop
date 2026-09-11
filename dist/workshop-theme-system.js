@@ -154,6 +154,7 @@ function surfaceBackground(snapshot,kind){
   return tokens.surface;
 }
 function startSurfaceMotion(before){
+  if(TOP.matchMedia?.('(pointer:coarse)')?.matches||Number(TOP.navigator?.maxTouchPoints||0)>0)return;
   if(interactions.size||DOC.visibilityState==='hidden'||TOP.matchMedia?.('(prefers-reduced-motion:reduce)')?.matches)return;
   const after={tokens:lastTokens,theme:current,tone:DOC.documentElement.dataset.pmmThemeTone,following:followTavern};
   const selectors=[['#preset-manager-main-panel .preset-panel','surface'],['#preset-manager-main-panel .pm-header','header'],['#preset-manager-floating-panel .panel-wrapper','surface'],['#pmm-mobile-layout-card','controller'],['#pmm-unified-floating-handle','handle']];

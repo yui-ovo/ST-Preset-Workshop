@@ -89,5 +89,8 @@ for(const scale of [.75,1,1.5,2])for(const offset of [0,140]){
  // Browser chrome / zoom can change the visual viewport without changing innerWidth.
  vv.offsetLeft+=35;vv.offsetTop+=20;vv.width=600;vv.height=360;api.keep();rect=card.getBoundingClientRect();
  assert(rect.left>=vv.offsetLeft-.01&&rect.left+rect.width<=vv.offsetLeft+vv.width+.01);assert(rect.top>=vv.offsetTop-.01&&rect.top+rect.height<=vv.offsetTop+vv.height+.01);
+ // Recover an existing offscreen card as well as a newly opened one.
+ card.style.setProperty('left','5000px');card.style.setProperty('top','-2000px');api.keep();rect=card.getBoundingClientRect();
+ assert(rect.left>=vv.offsetLeft-.01&&rect.left+rect.width<=vv.offsetLeft+vv.width+.01);assert(rect.top>=vv.offsetTop-.01&&rect.top+rect.height<=vv.offsetTop+vv.height+.01);
  api.place(true);rect=card.getBoundingClientRect();near(rect.left,vv.offsetLeft+(vv.width-rect.width)/2);near(rect.top,vv.offsetTop+(vv.height-rect.height)/2);
 }

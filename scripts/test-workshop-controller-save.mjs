@@ -9,6 +9,7 @@ class Node {
     this.classList={toggle:(k,v)=>v?classes.add(k):classes.delete(k),add:(...keys)=>keys.forEach(k=>classes.add(k)),remove:(...keys)=>keys.forEach(k=>classes.delete(k)),contains:k=>classes.has(k)};
   }
   setAttribute(k,v){this.attrs[k]=String(v);}
+  getAttribute(k){return this.attrs[k]??null;}
   appendChild(n){this.children.push(n);return n;}
   remove(){this.isConnected=false;}
   replaceChildren(...next){this.children=next;}
@@ -44,15 +45,19 @@ function boot(mobile,withMain,storage){
   };top.top=top;
   const code=between('  const DEFAULTS = Object.freeze({','  let state = loadState();')
     +between('  function clamp(key, value)','  function isMobile()')
-    +between('  function floatingDocuments()','  function updateOutputs(')
+    +between('  function floatingDocuments()','  function capturePresetViewportWidths()')
     +between('  function applyState(save = false)','  function cardViewportBounds(')
     +between('  function showCardStatus(','  function openCard()');
   const api=vm.runInNewContext(`(()=>{let card=panel,root=main,state,cardSnapshot,saveTimer=0,cardStatusTimer=0,lastFloatingGlyph=null,activeCardDragCleanup=null,trigger=null;${code}
     function currentState(){return state[isMobile()?'mobile':'desktop'];}
     function isControlLocked(key){return state.lockedControls?.[key]===true;}
-    function updateOutputs(){for(const c of CONTROLS){const input=card?.querySelector('[data-pmm-layout-input="'+c.key+'"]');if(input)input.value=String(currentState().values[c.key]);}}
+    function currentControls(){return CONTROLS;}
+    function updateDragCompatButton(){}
+    function updateTopNotificationButton(){}
     state=loadState();cardSnapshot=JSON.parse(JSON.stringify(state));
-    for(const key of ['floatingWidth','floatingHeight','floatingFont'])card.appendChild(makeControl(CONTROLS.find(c=>c.key===key)));
+    card.__pmmControls=new Map();
+    for(const control of CONTROLS){const row=makeControl(control);card.appendChild(row);card.__pmmControls.set(control.key,row.__pmmControlNodes);}
+    updateOutputs();
     return{save:saveCard,reset:resetCardDefaults,close:closeCard,state:()=>state,snapshot:()=>cardSnapshot,defaults:()=>makeLayoutState({}, {}, false, !isMobile()),isOpen:()=>card===panel};})()`,{
     panel,main,DOC:doc,TOP:top,VIEW:top,window:top,document:doc,IS_ANDROID:mobile,LEGACY_PRESET_WIDTH_BASE:108,STORAGE_KEY:'pmm_mobile_layout_shared_v2',Date,
     isMobile:()=>mobile,clearTimeout:top.clearTimeout,setTimeout:top.setTimeout,setDragCompatEnabled(){},setTopNotificationsEnabled(){},keepCardInBounds(){},refreshHeaderWrapping(){},
@@ -64,7 +69,7 @@ function boot(mobile,withMain,storage){
 for(const mobile of [false,true])for(const withMain of [false,true]){
   const key='pmm_mobile_layout_shared_v2',profile=mobile?'mobile':'desktop';
   const storage=new Map([[key,JSON.stringify({headerMode:'single',[profile]:{values:{floatingWidth:350,floatingHeight:650,floatingFont:8,controllerWidth:350},customized:{floatingWidth:true,floatingHeight:true,floatingFont:true,controllerWidth:true}},lockedControls:{floatingWidth:false,floatingHeight:false,floatingFont:false}})]]);
-  const e=boot(mobile,withMain,storage),row=e.panel.querySelector('[data-pmm-layout-input="floatingWidth"]'),rowHost=e.panel.children[0];
+  const e=boot(mobile,withMain,storage),row=e.panel.querySelector('[data-pmm-layout-input="floatingWidth"]'),rowHost=e.panel.children.find(host=>host.__pmmControlNodes?.input===row);
   const value=e.panel.querySelector('[data-pmm-layout-output="floatingWidth"]');
   // A queued slider value must not resurrect old dimensions after reset, even with the native touch guard active.
   row.dispatch('pointerdown',{pointerId:1,pointerType:'touch',clientX:10,clientY:10});row.value='300';row.dispatch('input');
@@ -91,6 +96,44 @@ for(const mobile of [false,true])for(const withMain of [false,true]){
   e.close(false);assert(!e.isOpen());assert.equal(e.state()[profile].values.floatingWidth,mobile?280:700,'Cancel only discards changes after the successful save');assert.equal(e.timers.size,0);
   const reopened=boot(mobile,withMain,storage);assert.equal(reopened.state()[profile].values.floatingWidth,mobile?280:700,'A new runtime loads the successfully saved value');reopened.close(false);
 }
+// Save is a display barrier, even before blur/input delivery or the pending slider frame.
+for(const mobile of [false,true])for(const withMain of [false,true])for(const inputMode of ['no-event','input','composing']){
+  const profile=mobile?'mobile':'desktop',storage=new Map(),e=boot(mobile,withMain,storage);
+  e.reset();
+  const input=key=>e.panel.querySelector('[data-pmm-layout-input="'+key+'"]');
+  const output=key=>e.panel.querySelector('[data-pmm-layout-output="'+key+'"]');
+  for(const key of ['controllerWidth','controllerFont','floatingWidth','floatingBall','itemFont','splitRatio']){
+    e.state().lockedControls[key]=false;
+    const before=e.state()[profile].values[key],wanted=before+1;
+    // A slider sample queued before entering a numeric value must not overwrite the newer edit.
+    input(key).value=String(before+.5);input(key).dispatch('input');
+    output(key).dispatch('click');const editor=output(key).children[0];
+    if(inputMode==='composing')editor.dispatch('compositionstart');
+    editor.value=String(wanted); // Save must read the visible editor, without relying on another event.
+    if(inputMode!=='no-event')editor.dispatch('input');
+    assert.equal(e.save(),true);
+    assert.equal(e.state()[profile].values[key],wanted,key+' saved latest visible number');
+    assert.equal(input(key).value,String(wanted));
+    assert.equal(output(key).textContent,wanted+(key==='splitRatio'?'%':'px'));
+    assert.equal(JSON.parse(storage.get('pmm_mobile_layout_shared_v2'))[profile].values[key],wanted);
+    e.flush();assert.equal(e.state()[profile].values[key],wanted,'No stale preview after Save');
+  }
+  // Restore the mounted surfaces as part of Save, not only after close/reopen or a later mutation.
+  e.doc.documentElement.style.setProperty('--pmm-controller-width','1px');
+  if(e.main)e.main.style.setProperty('--pmm-user-item-font','1px');
+  assert.equal(e.save(),true);
+  assert.equal(e.doc.documentElement.style.getPropertyValue('--pmm-controller-width'),e.state()[profile].values.controllerWidth+'px');
+  assert.equal(e.panel.style.getPropertyValue('--pmm-controller-width'),e.state()[profile].values.controllerWidth+'px');
+  if(e.main)assert.equal(e.main.style.getPropertyValue('--pmm-user-item-font'),e.state()[profile].values.itemFont+'px');
+  assert.equal(e.notices.at(-2)[1],e.state()[profile].values.floatingWidth);
+  assert.equal(e.notices.at(-1)[1],e.state()[profile].values.floatingFont);
+  // A failed save followed by Cancel also restores the inherited controller dimensions.
+  const committedWidth=e.state()[profile].values.controllerWidth;
+  input('controllerWidth').value=String(committedWidth+1);input('controllerWidth').dispatch('input');
+  e.fail(true);assert.equal(e.save(),false);e.close(false);
+  assert.equal(e.state()[profile].values.controllerWidth,committedWidth);
+  assert.equal(e.doc.documentElement.style.getPropertyValue('--pmm-controller-width'),committedWidth+'px');
+}
 assert(source.includes("querySelector('[data-pmm-layout-done]').addEventListener('click', saveCard)"));
 assert(source.includes("querySelector('[data-pmm-layout-reset]').addEventListener('click', resetCardDefaults)"));
-console.log('中控保存回归通过：独立/主界面下重置即时同步、保存不关闭、数字草稿提交、滑杆继续可用、保存提示、失败保护及保存后取消/重载。');
+console.log('中控保存回归通过：独立/主界面下重置即时同步、保存不关闭、数值/界面即时同步、输入法草稿提交、旧滑杆帧不能覆盖新数值、滑杆继续可用、保存提示、失败保护及保存后取消/重载。');

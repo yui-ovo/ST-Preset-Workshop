@@ -151,9 +151,6 @@ html body #preset-manager-main-panel#preset-manager-main-panel :is(.pm-panel-con
 html body #preset-manager-main-panel#preset-manager-main-panel :is(.pm-panel-container--merge-mode,.pm-panel-container--branch-mode,.pm-panel-container--favorite-mode)>.pm-main-wrapper>:is(.preset-panel,.side-panel-root){grid-column:1!important;min-width:0!important}
 }
 html body #preset-manager-main-panel#preset-manager-main-panel .pmm-split-handle{width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;z-index:100!important;touch-action:none!important}
-html body .pmm-split-preview{position:fixed!important;pointer-events:none!important;background:var(--SmartThemeQuoteColor,#6b8cff);contain:layout style;will-change:transform;box-shadow:none!important;transition:none!important}
-html body .pmm-split-preview::after{content:attr(data-ratio);position:absolute;right:8px;top:5px;padding:4px 8px;border-radius:6px;background:#243244;color:white;font:12px/1.4 sans-serif;white-space:nowrap}
-html body .pmm-split-preview[data-axis="x"]::after{right:auto;left:5px;top:8px}
 /* The reference is the original notification ON style. All footer actions use it. */
 html body #pmm-mobile-layout-card#pmm-mobile-layout-card .pmm-layout-card__footer>button{box-sizing:border-box!important;min-height:36px!important;padding:4px 12px!important;border:1px solid color-mix(in srgb,var(--pm-accent-color,#4a9eff) 64%,transparent)!important;border-radius:999px!important;background:color-mix(in srgb,var(--pm-accent-color,#4a9eff) 22%,transparent)!important;color:color-mix(in srgb,var(--pm-accent-color,#4a9eff) 68%,var(--pmm-layout-text))!important;-webkit-text-fill-color:color-mix(in srgb,var(--pm-accent-color,#4a9eff) 68%,var(--pmm-layout-text))!important;font-family:inherit!important;font-size:calc(var(--pmm-controller-font,12px)*.9)!important;font-weight:540!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 2px 8px rgba(42,48,58,.08)!important;touch-action:manipulation!important}
 html body #pmm-mobile-layout-card#pmm-mobile-layout-card .pmm-layout-card__footer>[data-pmm-layout-top-notifications][aria-pressed="false"]{border-color:rgba(255,255,255,.30)!important;background:rgba(116,122,132,.11)!important;color:var(--pmm-layout-text)!important;-webkit-text-fill-color:var(--pmm-layout-text)!important}
@@ -167,6 +164,8 @@ html body #pmm-mobile-layout-card#pmm-mobile-layout-card .pmm-layout-card__foote
 html body #pmm-mobile-layout-card#pmm-mobile-layout-card :is(.pmm-layout-step-btn,.pmm-layout-icon-btn){font-size:min(20px,calc(var(--pmm-controller-font,12px)*1.5))!important;line-height:1!important}
 html body #preset-manager-main-panel#preset-manager-main-panel .pm-header>.header-right :is(.card-icon i,.title-action-btn>i,.close-card>i,.title-edit-btn>i,.pmm-preset-search-btn>i,.theme-btn>i){font-size:min(var(--pmm-header-icon-size,12px),calc(var(--pmm-header-button-size,32px)*.48))!important;line-height:1!important}
 }
+/* Extend only the transparent hit region; the approved button surface stays 28 by 32. */
+@media(pointer:coarse){html body #preset-manager-main-panel .side-panel-root .panel-buttons>.pmm-layout-trigger.pmm-layout-trigger--divider::after{content:"";position:absolute;inset:-6px -8px;pointer-events:auto;background:transparent;border:0}}
 /* Long presses on the drag grip belong to the panel, not native text selection/callouts. */
 html body #pmm-mobile-layout-card#pmm-mobile-layout-card .pmm-layout-card__header{touch-action:none!important;user-select:none!important;-webkit-user-select:none!important;-webkit-touch-callout:none!important}
 html body #preset-manager-main-panel .pmm-split-handle{-webkit-touch-callout:none!important;user-select:none!important;-webkit-user-select:none!important}

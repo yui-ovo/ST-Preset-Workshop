@@ -102,6 +102,9 @@ for(const [width,height] of [[360,800],[800,1100]]){
   const env=browser(width,height),{top,doc,panel,header,icon,integration,event,flush,advance,metrics}=env;
   const theme=top.__PMM_THEME_SYSTEM__,store=top.__PMM_FLOATING_STORE__;
   let api=top.__PMM_FLOATING_CONTROLLER__,handle=doc.getElementById('pmm-unified-floating-handle');
+  flush();const settledMetrics={...metrics};
+  for(let i=0;i<100;i++)store.update({keyboardEditing:i%2===0},'number-focus',false);
+  assert.equal(env.frames.size,0,'Keyboard state alone cannot queue floating paints');assert.deepEqual(metrics,settledMetrics);
   const tap=(x=120,y=80)=>{event(handle,'pointerdown',x,y);event(top,'pointerup',x,y);};
   tap();advance(300);assert(api.getState().expanded,'A complete native pointer tap must open the banner');assert.equal(panel.style.display,'flex');
   assert.equal(integration.stack.at(-1),'floating');
@@ -114,7 +117,7 @@ for(const [width,height] of [[360,800],[800,1100]]){
   tap();advance(100);tap();advance(320);assert.equal(integration.main,1);assert(!api.getState().expanded,'A double tap only opens the main window');
   event(handle,'pointerdown');advance(360);assert.equal(integration.controller,1);const afterLong=JSON.stringify(store.getState().position);event(top,'pointermove',width-10,height-10);flush();assert.equal(handle.style.getPropertyValue('transform'),'','A long press belongs to the opened controller, not another floating drag');assert.equal(JSON.stringify(store.getState().position),afterLong);event(top,'pointerup');advance(400);assert(!api.getState().expanded,'A long press cannot also toggle the banner');
 
-  theme.setTone('dark');flush();assert(doc.querySelectorAll('.pmm-theme-surface-motion').length>0);
+  theme.setTone('dark');flush();assert.equal(doc.querySelectorAll('.pmm-theme-surface-motion').length,0,'Touch themes avoid extra compositing layers');
   event(handle,'pointerdown',width/2,100);event(top,'pointermove',width/2+20,110);assert.equal(handle.style.getPropertyValue('transform'),'translate3d(20px,10px,0)','First motion is visible immediately');
   assert.equal(doc.querySelectorAll('.pmm-theme-surface-motion').length,0,'Dragging cancels surface effects immediately');
   advance(150);const before={...metrics},position=JSON.stringify(store.getState().position);
