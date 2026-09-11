@@ -10472,44 +10472,27 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     return row;
   }
 
-  function cardViewportBounds(cardRect=null) {
-    const vv=VIEW.visualViewport, rect=cardRect||card?.getBoundingClientRect?.()||{};
-    const scaleX=card?.offsetWidth>0&&rect.width>0?rect.width/card.offsetWidth:1;
-    const scaleY=card?.offsetHeight>0&&rect.height>0?rect.height/card.offsetHeight:1;
-    return {left:Number(vv?.offsetLeft||0),top:Number(vv?.offsetTop||0),rootWidth:Number(vv?.width||VIEW.innerWidth),rootHeight:Number(vv?.height||VIEW.innerHeight),cardWidth:Number(rect.width||0),cardHeight:Number(rect.height||0),scaleX,scaleY,
-      originX:Number(rect.left||0)-(parseFloat(card?.style.left)||0)*scaleX,
-      originY:Number(rect.top||0)-(parseFloat(card?.style.top)||0)*scaleY};
-  }
+  function cardViewportBounds(cardRect=null) { const vv=VIEW.visualViewport;return {left:Number(vv?.offsetLeft||0),top:Number(vv?.offsetTop||0),rootWidth:Number(vv?.width||VIEW.innerWidth),rootHeight:Number(vv?.height||VIEW.innerHeight),cardWidth:Number(cardRect?.width||card?.getBoundingClientRect?.().width||0),cardHeight:Number(cardRect?.height||card?.getBoundingClientRect?.().height||0)}; }
   function clampCardPosition(left, top, bounds = null) {
     if (!card) return { left, top };
     const area=bounds||cardViewportBounds(),marginX=Math.min(7,Math.max(0,(area.rootWidth-area.cardWidth)/2)),marginY=Math.min(7,Math.max(0,(area.rootHeight-area.cardHeight)/2)),minLeft=area.left+marginX,minTop=area.top+marginY;
     return {left:Math.min(Math.max(minLeft,left),Math.max(minLeft,area.left+area.rootWidth-area.cardWidth-marginX)),top:Math.min(Math.max(minTop,top),Math.max(minTop,area.top+area.rootHeight-area.cardHeight-marginY))};
   }
-  function writeCardPosition(point, area) {
-    card.style.setProperty('left', `${(point.left-area.originX)/area.scaleX}px`, 'important');
-    card.style.setProperty('top', `${(point.top-area.originY)/area.scaleY}px`, 'important');
-  }
-  function fitCardToViewport() {
-    // Screen coordinates and CSS coordinates differ under host zoom / transformed body.
-    const area=cardViewportBounds();
-    setLayoutVariable(card, '--pmm-controller-visible-width', area.rootWidth/area.scaleX+'px');
-    setLayoutVariable(card, '--pmm-controller-visible-height', area.rootHeight/area.scaleY+'px');
-    return cardViewportBounds();
-  }
   function placeCardForViewport(force=false) {
     if (!card || !force && TOP.__PMM_FLOATING_STORE__?.getState?.().keyboardEditing) return;
-    const area = fitCardToViewport();
-    const next = clampCardPosition(area.left + (area.rootWidth-area.cardWidth)/2, area.top + (area.rootHeight-area.cardHeight)/2, area);
-    writeCardPosition(next, area);
+    const rect = card.getBoundingClientRect(), area = cardViewportBounds(rect);
+    const next = clampCardPosition(area.left + (area.rootWidth-rect.width)/2, area.top + (area.rootHeight-rect.height)/2, area);
+    card.style.setProperty('left', `${next.left}px`, 'important');
+    card.style.setProperty('top', `${next.top}px`, 'important');
     card.classList.add('pmm-layout-card--positioned');
   }
   function STORE_PROFILE(){return (isMobile()?"mobile":"desktop")+"-"+(VIEW.innerWidth>VIEW.innerHeight?"landscape":"portrait")}
 
   function keepCardInBounds() {
     if (activeCardDragCleanup || !card?.classList.contains('pmm-layout-card--positioned') || TOP.__PMM_FLOATING_STORE__?.getState?.().keyboardEditing) return;
-    const area=fitCardToViewport();
-    const left=area.originX+(parseFloat(card.style.left)||0)*area.scaleX,top=area.originY+(parseFloat(card.style.top)||0)*area.scaleY;
-    writeCardPosition(clampCardPosition(left,top,area),area);
+    const next = clampCardPosition(parseFloat(card.style.left) || 0, parseFloat(card.style.top) || 0);
+    card.style.setProperty('left', `${next.left}px`, 'important');
+    card.style.setProperty('top', `${next.top}px`, 'important');
   }
 
   function beginCardDrag(event) {
@@ -10536,7 +10519,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       const next = clampCardPosition(startLeft + point.clientX - startX, startTop + point.clientY - startY, dragBounds);
       finalLeft = next.left;
       finalTop = next.top;
-      const transform = `translate3d(${(finalLeft-startLeft)/(dragBounds.scaleX||1)}px,${(finalTop-startTop)/(dragBounds.scaleY||1)}px,0)`;
+      const transform = `translate3d(${finalLeft-startLeft}px,${finalTop-startTop}px,0)`;
       if (transform !== paintedTransform) panel.style.setProperty('transform', transform, 'important');
       paintedTransform = transform;
     };
@@ -10552,7 +10535,8 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
         if (Math.hypot(point.clientX-startX, point.clientY-startY) < 4) return;
         moved = true;
         VIEW.__PMM_THEME_SYSTEM__?.beginInteraction?.('controller');
-        writeCardPosition({left:startLeft,top:startTop},dragBounds);
+        panel.style.setProperty('left', `${startLeft}px`, 'important');
+        panel.style.setProperty('top', `${startTop}px`, 'important');
         panel.classList.add('pmm-layout-card--positioned', 'pmm-layout-card--dragging');
       }
       queuedPoint = { clientX:point.clientX, clientY:point.clientY };
@@ -10581,7 +10565,8 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       try { dragHandle?.releasePointerCapture?.(pointerId); } catch (_) {}
       if (moved) {
         if (completed && card === panel) {
-          writeCardPosition({left:finalLeft,top:finalTop},dragBounds);
+          panel.style.setProperty('left', `${finalLeft}px`, 'important');
+          panel.style.setProperty('top', `${finalTop}px`, 'important');
           state.cardPositions = { ...(state.cardPositions || {}), [profile]:{left:finalLeft,top:finalTop} };
           persistSoon();
         }
@@ -10691,7 +10676,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   }
 
   function syncLayoutCardTheme(panel = card) {
-    if (panel) { const tone=resolveLayoutCardTheme(); if(panel.dataset.pmmLayoutTheme!==tone)panel.dataset.pmmLayoutTheme=tone; }
+    if (panel) panel.dataset.pmmLayoutTheme = resolveLayoutCardTheme();
   }
 
   function buildCard() {
@@ -10909,8 +10894,6 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     card.style.setProperty('visibility','hidden','important');
     card.style.setProperty('transition','none','important');
     card.style.setProperty('transform','none','important');
-    card.style.setProperty('left','0px','important');
-    card.style.setProperty('top','0px','important');
     updateOutputs();
     for (const key of ['controllerFont','controllerWidth','controllerHeight']) setLayoutVariable(card, '--pmm-'+key.replace(/[A-Z]/g,letter=>'-'+letter.toLowerCase()),currentState().values[key]+'px');
     TOP.__PMM_THEME_SYSTEM__?.mountPicker?.(card);
@@ -11227,7 +11210,6 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   function sync() {
     scheduledFrame = 0;
     if (activeCardDragCleanup || activeResizeCleanup) { deferredSync = true; return; }
-    if (TOP.__PMM_THEME_SYSTEM__?.deferWork?.('layout-sync',scheduleSync)) return;
     const nextRoot = DOC.querySelector('#preset-manager-main-panel');
     if (root && root !== nextRoot) activeResizeCleanup?.();
     const mobileNow = isMobile();
@@ -12205,8 +12187,6 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
 
   function cleanup() {
     deferredViewportChange = false; deferredSync = false;
-    TOP.__PMM_THEME_SYSTEM__?.cancelWork?.('layout-sync');
-    TOP.__PMM_THEME_SYSTEM__?.cancelWork?.('layout-viewport');
     VIEW.clearTimeout(cardStatusTimer); cardStatusTimer = 0;
     for (const row of card?.querySelectorAll('.pmm-layout-row') || []) row.__pmmControlCleanup?.(false);
     card?.__pmmSearchCleanup?.();
@@ -12225,7 +12205,6 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     MEDIA?.removeEventListener?.('change', scheduleSync);
     TOP.removeEventListener('resize',onCardViewportChange);
     TOP.visualViewport?.removeEventListener?.('resize',onCardViewportChange);
-    TOP.visualViewport?.removeEventListener?.('scroll',onCardViewportChange);
     TOP.removeEventListener?.('pmm-mobile-dnd-compat-change', onDragCompatChange);
     DOC.getElementById(STYLE_ID)?.remove();
     DOC.querySelectorAll('.pmm-layout-trigger,.pmm-split-handle,#pmm-mobile-layout-card,.pmm-header-overflow-row').forEach(node => node.remove());
@@ -12261,22 +12240,14 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   }
   function onCardViewportChange() {
     if (activeCardDragCleanup || activeResizeCleanup) { deferredViewportChange = true; return; }
-    if (TOP.__PMM_THEME_SYSTEM__?.deferWork?.('layout-viewport',onCardViewportChange)) return;
     if(TOP.__PMM_FLOATING_STORE__?.getState?.().keyboardEditing||card?.__pmmScrolling||DOC.activeElement?.matches?.('input,textarea,select,[contenteditable="true"]'))return;
     const width=VIEW.innerWidth,height=VIEW.innerHeight;
-    if(width===lastViewportWidth&&height===lastViewportHeight){
-      if(card&&VIEW.visualViewport){
-        const vv=VIEW.visualViewport,stamp=[vv.offsetLeft,vv.offsetTop,vv.width,vv.height].join(':');
-        if(card.__pmmVisibleViewport!==stamp){card.__pmmVisibleViewport=stamp;keepCardInBounds();}
-      }
-      return;
-    }
+    if(width===lastViewportWidth&&height===lastViewportHeight)return;
     lastViewportWidth=width;lastViewportHeight=height;
     refreshDeviceValues();setFloatingVariables();scheduleSync();keepCardInBounds();
   }
   TOP.addEventListener('resize',onCardViewportChange,{passive:true});
   TOP.visualViewport?.addEventListener?.('resize',onCardViewportChange,{passive:true});
-  TOP.visualViewport?.addEventListener?.('scroll',onCardViewportChange,{passive:true});
   TOP.addEventListener?.('pmm-mobile-dnd-compat-change', onDragCompatChange);
   TOP[CLEANUP_KEY] = cleanup;
   scheduleSync();
@@ -13034,12 +13005,25 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     button.textContent = selected ? `删除所选（${selected}）` : '删除所选';
   }
 
+  function normalizeBatchSearchText(value) {
+    const source = String(value ?? '');
+    const normalized = typeof source.normalize === 'function' ? source.normalize('NFKC') : source;
+    return normalized.trim().toLocaleLowerCase();
+  }
+
   function filterBatchList(dialog) {
-    const query = String(dialog.querySelector('[data-pmm-preset-search]')?.value || '').trim().toLocaleLowerCase();
+    const query = normalizeBatchSearchText(dialog.querySelector('[data-pmm-preset-search]')?.value);
+    let visibleCount = 0;
     for (const row of dialog.querySelectorAll('.pmm-preset-batch-row')) {
-      const name = String(row.dataset.pmmPresetName || '').toLocaleLowerCase();
-      row.hidden = Boolean(query && !name.includes(query));
+      const name = normalizeBatchSearchText(row.dataset.pmmPresetName);
+      const filtered = Boolean(query && !name.includes(query));
+      row.hidden = filtered;
+      row.classList.toggle('pmm-preset-batch-row--filtered', filtered);
+      row.setAttribute('aria-hidden', filtered ? 'true' : 'false');
+      if (!filtered) visibleCount += 1;
     }
+    const empty = dialog.querySelector('[data-pmm-preset-empty]');
+    if (empty) empty.hidden = visibleCount !== 0;
   }
 
   async function deleteSelectedPresets(dialog, root) {
@@ -13123,6 +13107,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
         <input type="search" class="pmm-preset-batch-search" data-pmm-preset-search placeholder="搜索预设" autocomplete="off" enterkeyhint="search" />
         <label class="pmm-preset-batch-all"><input type="checkbox" data-pmm-preset-all />全选</label>
         <div class="pmm-preset-batch-list"></div>
+        <div class="pmm-preset-batch-empty" data-pmm-preset-empty hidden>没有找到相关预设</div>
         <footer class="pmm-preset-batch-footer">
           <button type="button" data-pmm-preset-cancel>取消</button>
           <button type="button" class="pmm-preset-batch-delete" data-pmm-preset-delete disabled>删除所选</button>
@@ -13153,7 +13138,9 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     });
     overlay.querySelector('[data-pmm-preset-close]').addEventListener('click', closeBatchDialog);
     overlay.querySelector('[data-pmm-preset-cancel]').addEventListener('click', closeBatchDialog);
-    overlay.querySelector('[data-pmm-preset-search]').addEventListener('input', () => filterBatchList(overlay));
+    const searchInput = overlay.querySelector('[data-pmm-preset-search]');
+    const updateFilter = () => filterBatchList(overlay);
+    for (const type of ['input', 'search', 'change', 'compositionend']) searchInput.addEventListener(type, updateFilter);
     overlay.querySelector('[data-pmm-preset-all]').addEventListener('change', event => {
       for (const checkbox of overlay.querySelectorAll('[data-pmm-preset-choice]')) {
         const row = checkbox.closest('.pmm-preset-batch-row');
@@ -13266,10 +13253,13 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
 .pmm-preset-batch-all{padding:0 5px;opacity:.78}
 .pmm-preset-batch-list{min-height:60px;overflow:auto;overscroll-behavior:contain;border-block:1px solid var(--SmartThemeBorderColor,rgba(148,163,184,.26));padding:5px 0}
 .pmm-preset-batch-row{padding:4px 7px;border-radius:8px}
+.pmm-preset-batch-row.pmm-preset-batch-row--filtered{display:none!important}
 .pmm-preset-batch-row:hover{background:rgba(127,127,127,.08)}
 .pmm-preset-batch-row span{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pmm-preset-batch-row small{flex:0 0 auto;padding:2px 7px;border-radius:999px;background:rgba(127,127,127,.1);font-size:10px;opacity:.72}
 .pmm-preset-batch-row input,.pmm-preset-batch-all input{width:17px;height:17px;margin:0;accent-color:var(--SmartThemeQuoteColor,#64748b)}
+.pmm-preset-batch-empty{padding:13px 8px;text-align:center;font-size:12px;opacity:.58}
+.pmm-preset-batch-empty[hidden]{display:none!important}
 .pmm-preset-batch-footer{display:flex;justify-content:flex-end;gap:9px}
 .pmm-preset-batch-footer button{min-height:36px;padding:0 15px;border:1px solid var(--SmartThemeBorderColor,rgba(148,163,184,.32));border-radius:999px;background:rgba(127,127,127,.08);color:inherit;font:inherit}
 .pmm-preset-batch-footer button:disabled{opacity:.42}
@@ -13417,8 +13407,17 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   const BATCH_API_KEY = '__PMM_FLOATING_SNAPSHOT_ENTRY_TEST69__';
   const SNAPSHOT_API_KEY = '__PMM_SWITCH_SNAPSHOTS_TEST52__';
   const BUTTON_CLASS = 'pmm-native-preset-entry';
+  const AUTO_CLOSE_EVENTS = ['mousedown', 'pointerdown', 'touchstart', 'click'];
+  const WORKSHOP_EVENT_SELECTORS = [
+    `.${BUTTON_CLASS}`,
+    '.pmm-switch-snapshot-overlay',
+    '.pmm-preset-batch-overlay',
+    '#preset-manager-floating-panel',
+    '#preset-manager-main-panel',
+  ];
   let discoveryObserver = null;
   let scheduled = 0;
+  let guardedBody = null;
 
   try { TOP[CLEANUP_KEY]?.(); } catch (_) {}
 
@@ -13468,8 +13467,29 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     DOC.removeEventListener('focusin', scheduleSync, true);
   }
 
+  function preventNativePresetAutoClose(event) {
+    // 酒馆在 body 之上的 mousedown/click 监听中判断“点击抽屉外部”。
+    // 仅允许明确的工坊根节点建立边界；禁止使用 pmm class 前缀模糊选择器，
+    // 因为 <html> 带 pmm-mobile-toolbar-ready 时会令全站点击都匹配。
+    const target = typeof event.target?.closest === 'function' ? event.target : event.target?.parentElement;
+    if (WORKSHOP_EVENT_SELECTORS.some(selector => target?.closest?.(selector))) event.stopPropagation();
+  }
+
+  function bindNativePresetAutoCloseGuard() {
+    const body = DOC.body;
+    if (!body || body === guardedBody) return;
+    if (guardedBody) {
+      for (const type of AUTO_CLOSE_EVENTS) guardedBody.removeEventListener(type, preventNativePresetAutoClose);
+    }
+    guardedBody = body;
+    for (const type of AUTO_CLOSE_EVENTS) {
+      guardedBody.addEventListener(type, preventNativePresetAutoClose, { capture: false, passive: true });
+    }
+  }
+
   function sync() {
     scheduled = 0;
+    bindNativePresetAutoCloseGuard();
     const anchor = DOC.getElementById('update_oai_preset');
     const host = anchor?.parentElement;
     if (!host) return false;
@@ -13515,6 +13535,10 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       scheduled = 0;
     }
     DOC.querySelectorAll?.(`.${BUTTON_CLASS}`).forEach(button => button.remove());
+    if (guardedBody) {
+      for (const type of AUTO_CLOSE_EVENTS) guardedBody.removeEventListener(type, preventNativePresetAutoClose);
+      guardedBody = null;
+    }
     try { delete TOP[CLEANUP_KEY]; } catch (_) {}
   };
 
@@ -13881,7 +13905,14 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     return false
   }
 
+  function isSnapshotCaptureActive(){
+    try{return!!sharedRoot.document?.querySelector?.('.pmm-switch-snapshot-capture-mode')}
+    catch(_){return false}
+  }
+
   async function syncEnabledStates({presetName='',prompts=[]}={}){
+    /* 条目开关与分组开关一样，只能停留在快照隔离画布中。 */
+    if(isSnapshotCaptureActive())return true;
     if(!presetName||!Array.isArray(prompts)||hasAppliedBranch(presetName))return false;
     const setter=sharedRoot.setPreset||localRoot.setPreset;
     if(typeof setter!=='function')return false;
@@ -13905,6 +13936,9 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   }
 
   async function syncGroupEnabledState({presetName='',sectionId='',enabled=true}={}){
+    /* 快照录制是一块隔离画布：分组开关只改工坊临时状态，供快照读取，
+       绝不能提前写进柏宝箱原生分组，否则退出时会与异步刷新竞争并污染默认。 */
+    if(isSnapshotCaptureActive())return true;
     if(compat.__suspendGroupPowerSync===true)return true;
     const resolvedPreset=resolveNativePresetName(presetName);
     const rawSectionId=text(sectionId);
@@ -13916,16 +13950,10 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     const group=(state.groups||[]).find(item=>text(item?.id)===groupId);
     if(!group)return false;
     group.enabled=enabled!==false;
-    /* 快照录制时频繁拨动分组不弹提示；普通模式仍保留一句简短反馈。 */
-    let snapshotCaptureActive=false;
-    try{snapshotCaptureActive=!!sharedRoot.document?.querySelector?.('.pmm-switch-snapshot-capture-mode')}
-    catch(_){ }
-    if(snapshotCaptureActive)compat.__suppressNextSuccessMessage=true;
-    else compat.__nextSuccessMessage='分组开关已同步';
+    compat.__nextSuccessMessage='分组开关已同步';
     try{return await writeNativeState(resolvedPreset,state,{onlyGroupId:groupId})}
     finally{
       delete compat.__nextSuccessMessage;
-      delete compat.__suppressNextSuccessMessage
     }
   }
 
@@ -15515,8 +15543,11 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     session.restoring = true;
     closeOverlay();
     try {
-      const current = getPrompts(session.presetName);
-      const { nextPrompts } = mergeSnapshotStates(current, session.entryStates || []);
+      // 退出时直接恢复进入快照模式那一刻冻结的完整基线。不能再次以当前草稿
+      // 为底合并开关，否则上一轮 Vue 延迟草稿可能在第二次录制时混回主预设。
+      const nextPrompts = Array.isArray(session.entryPrompts) && session.entryPrompts.length
+        ? clone(session.entryPrompts)
+        : mergeSnapshotStates(getPrompts(session.presetName), session.entryStates || []).nextPrompts;
       const restored = await restoreCapturedDraft(nextPrompts, !!session.entryWasDirty);
       const runtimeSynced = await syncRuntimeSwitches(session.presetName, nextPrompts);
       await applyGroupSnapshotStates(session.presetName, session.entryGroupStates);
@@ -15529,23 +15560,32 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     if (showNotice) notify('info', '已取消快照');
   }
 
-  function enterCaptureMode() {
-    const presetName = currentPresetName();
+  function enterCaptureMode(entryContext = null) {
+    const captureSource = entryContext?.source === 'native-preset' || overlayContext?.source === 'native-preset'
+      ? 'native-preset'
+      : 'workshop';
+    const presetName = text(entryContext?.presetName) || currentPresetName();
     if (blockWhileBranchActive('新建快照')) return;
     if (blockWhileSnapshotActive('新建快照')) return;
-    if (!presetName || !defaultSnapshotForCurrentPreset()) {
+    const hasDefault = readStore().snapshots.some(snapshot => (
+      text(snapshot.presetName) === presetName && isDefaultSnapshot(snapshot)
+    ));
+    if (!presetName || !hasDefault) {
       notify('warning', '请先保存预设默认');
       return;
     }
-    const prompts = getPrompts(presetName);
+    const prompts = captureSource === 'native-preset' ? storedPrompts(presetName) : getPrompts(presetName);
     if (!prompts.length) {
       notify('warning', '当前工坊没有可记录的预设条目');
       return;
     }
     captureMode = {
       presetName,
+      source: captureSource,
+      entryPrompts: clone(prompts),
       entryStates: makeStates(prompts),
-      entryWasDirty: !!currentPresetDraftStore()?.isDirty,
+      // 原生相机以酒馆当前预设为基线，不继承隐藏工坊上一轮残留的脏标记。
+      entryWasDirty: captureSource === 'native-preset' ? false : !!currentPresetDraftStore()?.isDirty,
       restoring: false,
     };
     captureMode.entryGroupStates = makeGroupStates(presetName);
@@ -15568,6 +15608,9 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       notify('warning', '请先打开预设工坊后新建快照');
       return;
     }
+    // 打开工坊首页会令酒馆关闭原生抽屉，先保留原生入口上下文；否则随后
+    // closeOverlay() 清空上下文后，基线可能被误读成隐藏工坊的上一轮草稿。
+    const entryContext = overlayContext ? { ...overlayContext } : null;
     if (!await entryApi.openWorkshopHome()) {
       notify('warning', '无法返回主预设首页，请先关闭分屏后重试');
       return;
@@ -15581,7 +15624,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       return;
     }
     closeOverlay();
-    enterCaptureMode();
+    enterCaptureMode(entryContext);
   }
 
   function renderCaptureSavePrompt() {
@@ -17022,7 +17065,6 @@ html.pmm-tauri-dnd-active #preset-manager-main-panel { user-select: none !import
 
   function scan() {
     scheduled = 0;
-    if (TOP.__PMM_THEME_SYSTEM__?.deferWork?.('group-layout',schedule)) return;
     const panel = DOC.querySelector(PANEL_SELECTOR);
     if (!panel) return;
     const allGroups = groups(panel);
@@ -17081,7 +17123,6 @@ ${PANEL_SELECTOR} .section-group.pmm-nested-section--hidden { display: none !imp
   }
 
   function cleanup() {
-    TOP.__PMM_THEME_SYSTEM__?.cancelWork?.('group-layout');
     observer?.disconnect();
     mountObserver?.disconnect();
     observer = null;
@@ -17336,7 +17377,6 @@ html.${ROOT_CLASS} ${PANEL_SELECTOR} .${COMPACT_CLASS} > .prompt-editor__expand-
 
   function scan() {
     scheduledFrame = 0;
-    if (TOP.__PMM_THEME_SYSTEM__?.deferWork?.('editor-layout',schedule)) return;
     const headers = Array.from(DOC.querySelectorAll(HEADER_SELECTOR));
     for (const header of headers) {
       if (!observedHeaders.has(header)) {
@@ -17363,7 +17403,6 @@ html.${ROOT_CLASS} ${PANEL_SELECTOR} .${COMPACT_CLASS} > .prompt-editor__expand-
   }
 
   function cleanup() {
-    TOP.__PMM_THEME_SYSTEM__?.cancelWork?.('editor-layout');
     if (scheduledFrame) win.cancelAnimationFrame(scheduledFrame);
     scheduledFrame = 0;
     mutationObserver?.disconnect?.();

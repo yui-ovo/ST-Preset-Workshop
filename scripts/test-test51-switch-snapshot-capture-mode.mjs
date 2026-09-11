@@ -13,7 +13,7 @@ function section(startMarker, endMarker) {
 for (const marker of [
   'PMM_SWITCH_SNAPSHOTS_TEST52',
   'let captureMode = null',
-  'function enterCaptureMode()',
+  'function enterCaptureMode(entryContext = null)',
   'async function exitCaptureMode(showNotice = false)',
   'function renderCaptureSavePrompt()',
   'function finishCaptureSnapshot()',
@@ -25,12 +25,13 @@ for (const marker of [
   assert.ok(source.includes(marker), `test.51 缺少快照模式：${marker}`);
 }
 
-const enter = section('function enterCaptureMode()', 'function renderCaptureSavePrompt()');
+const enter = section('function enterCaptureMode(entryContext = null)', 'function renderCaptureSavePrompt()');
 assert.ok(enter.includes('entryStates: makeStates(prompts)'), '进入快照模式没有冻结进入前开关');
-assert.ok(enter.includes('entryWasDirty: !!currentPresetDraftStore()?.isDirty'), '进入快照模式没有冻结进入前草稿状态');
+assert.ok(enter.includes('entryPrompts: clone(prompts)'), '进入快照模式没有冻结完整主预设基线');
+assert.ok(enter.includes("captureSource === 'native-preset' ? false : !!currentPresetDraftStore()?.isDirty"), '进入快照模式没有按入口冻结正确的草稿状态');
 assert.ok(enter.includes('closeOverlay();'), '新建快照没有返回预设页面');
 assert.ok(enter.includes('已进入快照模式'), '进入快照模式没有给出明确提示');
-assert.ok(enter.includes('defaultSnapshotForCurrentPreset()'), '没有默认状态时仍可能错误进入快照模式');
+assert.ok(enter.includes('text(snapshot.presetName) === presetName && isDefaultSnapshot(snapshot)'), '没有按冻结的入口预设校验默认状态');
 
 const savePrompt = section('function renderCaptureSavePrompt()', 'function openCaptureSavePrompt()');
 assert.ok(savePrompt.includes('保存为'), '高亮保存按钮没有弹出命名界面');
@@ -61,4 +62,4 @@ const captureFrame = source.match(/#preset-manager-main-panel \.pm-panel-contain
 assert.ok(captureFrame.includes('#10b981'), '快照模式外框没有使用保存与取消同系绿色');
 assert.ok(!captureFrame.includes('var(--pm-quote-color'), '快照模式外框仍错误使用主题色');
 
-console.log('test.51 回归通过：新建快照冻结进入前开关，保存或取消都会还原草稿并退出录制模式。');
+console.log('test.51 回归通过：新建快照冻结完整基线，保存或取消都会还原草稿并退出录制模式。');

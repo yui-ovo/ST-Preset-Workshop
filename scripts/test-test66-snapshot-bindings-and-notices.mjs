@@ -11,8 +11,8 @@ function section(startMarker, endMarker) {
 }
 
 const groupSync = section('async function syncGroupEnabledState', 'function readGroupEnabledStates');
-assert.ok(groupSync.includes("querySelector?.('.pmm-switch-snapshot-capture-mode')"), '快照模式没有识别柏宝箱分组同步');
-assert.ok(groupSync.includes('compat.__suppressNextSuccessMessage=true'), '快照模式仍会显示分组同步通知');
+assert.ok(source.includes("function isSnapshotCaptureActive(){"), '快照模式没有识别柏宝箱分组同步');
+assert.ok(groupSync.includes('if(isSnapshotCaptureActive())return true'), '快照模式仍会执行分组同步并显示通知');
 assert.ok(source.includes('suppressSuccessMessage = API.__suppressNextSuccessMessage === true'), '柏宝箱通知层没有处理静默标记');
 
 const saveDefault = section('function saveDefaultSnapshot()', 'function saveNewSnapshot');
@@ -20,7 +20,7 @@ assert.ok(saveDefault.includes("'已保存预设默认的开关'"), '保存默�
 assert.ok(saveDefault.includes("'已更新预设默认的开关'"), '更新默认通知没有改为简短文案');
 const onboarding = section('function ensureOverlay()', 'function openOverlay()');
 assert.ok(onboarding.includes('saveDefaultSnapshot({ silent: true })'), '首次保存默认并进入时仍会出现第二条通知');
-const capture = section('function enterCaptureMode()', 'function renderCaptureSavePrompt');
+const capture = section('function enterCaptureMode(entryContext = null)', 'function renderCaptureSavePrompt');
 assert.ok(capture.includes("notify('info', '已进入快照模式')"), '进入快照模式通知仍然过长');
 
 const creation = section('function saveNewSnapshot', 'function findSnapshot');

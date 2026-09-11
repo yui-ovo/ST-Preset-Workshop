@@ -31,7 +31,13 @@ const click = section('function handleDocumentClick(event)', 'function installSt
 assert.ok(click.indexOf('openCaptureSavePrompt();') < click.indexOf("closest?.('[data-pmm-snapshot-trigger]')"), '保存与取消按钮的行为位置写反');
 assert.ok(click.includes('if (isCaptureMode()) void exitCaptureMode(true);'), '相机位置的 X 没有取消并恢复进入前开关');
 
-const style = section('function installStyle()', 'function scheduleMount()');
+// 文件内有多个同名 installStyle；必须从快照模块自己的 STYLE_ID 之后定位，
+// 否则其他模块新增相同 CSS 选择器时会把截取终点提前。
+const snapshotModuleStart = source.indexOf("const STYLE_ID = 'pmm-switch-snapshots-test52-style'");
+const styleStart = source.indexOf('function installStyle()', snapshotModuleStart);
+const styleEnd = source.indexOf('function scheduleMount()', styleStart);
+assert.ok(snapshotModuleStart >= 0 && styleStart > snapshotModuleStart && styleEnd > styleStart, '无法定位快照模块样式');
+const style = source.slice(styleStart, styleEnd);
 const toolbarStyle = style.slice(0, style.indexOf('.pmm-switch-snapshot-overlay'));
 assert.ok(toolbarStyle.includes('title-edit-btn.pmm-switch-snapshot-capture-save'), '紧凑保存按钮缺少状态样式');
 assert.ok(!toolbarStyle.includes('width:32px!important'), '紧凑工具栏仍残留 32px 放大按钮');

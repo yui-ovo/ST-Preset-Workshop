@@ -14,9 +14,9 @@ function profile(){
 }
 function syncProfile(){
   const value=profile();
-  if(DOC.documentElement.dataset.pmmViewportProfile!==value)DOC.documentElement.dataset.pmmViewportProfile=value;
+  DOC.documentElement.dataset.pmmViewportProfile=value;
   const panel=DOC.querySelector('#preset-manager-main-panel');
-  if(panel&&panel.dataset.pmmViewportProfile!==value)panel.dataset.pmmViewportProfile=value;
+  if(panel)panel.dataset.pmmViewportProfile=value;
 }
 async function open(source="api"){
   if(opening)return opening;
@@ -175,11 +175,6 @@ html body #pmm-mobile-layout-card .pmm-layout-save-status{position:absolute;left
 html body #pmm-mobile-layout-card .pmm-layout-save-status[hidden]{display:none!important}
 /* Opening and dragging use final pixel coordinates; only opacity may transition. */
 html body #pmm-mobile-layout-card#pmm-mobile-layout-card{max-width:100vw!important;transition:opacity .18s ease!important}
-/* Bound to the visual viewport as well as the device, including host CSS zoom. */
-html body #pmm-mobile-layout-card#pmm-mobile-layout-card{max-width:var(--pmm-controller-visible-width,100vw)!important;max-height:var(--pmm-controller-visible-height,100dvh)!important;margin:0!important;right:auto!important;bottom:auto!important;translate:none!important;scale:none!important}
-/* Descendant filters also resample the moving backdrop; restore every original rule on release. */
-html body #pmm-mobile-layout-card#pmm-mobile-layout-card.pmm-layout-card--dragging *,
-html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root.is-dragging>.panel-wrapper *{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;transition:none!important;animation:none!important}
 /* Moving surfaces keep a compositor layer; expensive live blur returns after release. */
 html body #pmm-mobile-layout-card{contain:layout style;will-change:transform}
 html body #pmm-mobile-layout-card#pmm-mobile-layout-card.pmm-layout-card--dragging,

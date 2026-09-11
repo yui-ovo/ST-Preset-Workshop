@@ -284,7 +284,6 @@
 
   function scan() {
     scheduled = 0;
-    if (TOP.__PMM_THEME_SYSTEM__?.deferWork?.('group-layout',schedule)) return;
     const panel = DOC.querySelector(PANEL_SELECTOR);
     if (!panel) return;
     const allGroups = groups(panel);
@@ -343,7 +342,6 @@ ${PANEL_SELECTOR} .section-group.pmm-nested-section--hidden { display: none !imp
   }
 
   function cleanup() {
-    TOP.__PMM_THEME_SYSTEM__?.cancelWork?.('group-layout');
     observer?.disconnect();
     mountObserver?.disconnect();
     observer = null;

@@ -9,7 +9,7 @@ assert(from>0);
 
 // Simulate the DOM mutation contract, including same-value classList.remove writes.
 // https://dom.spec.whatwg.org/#dom-domtokenlist-remove
-function boot(count,theme=null){
+function boot(count){
   const frames=new Map(),observers=[],listeners=new Map();let next=0,writes=0,scans=0;
   const groups=[];
   const emit=(target,oldValue)=>{writes++;for(const observer of observers)if(observer.connected&&observer.options?.attributes)observer.records.push({type:'attributes',attributeName:'class',target,oldValue});};
@@ -26,7 +26,7 @@ function boot(count,theme=null){
   for(let i=0;i<count;i++){const group=element('section-group');group.dataset.sectionId=`group_${i}`;group.parentElement=host;groups.push(group);}
   const doc={body,documentElement:element(),head:{appendChild(){}},getElementById:()=>null,createElement:()=>style,querySelector:selector=>selector==='#preset-manager-main-panel'?panel:null,querySelectorAll:()=>[]};
   class Observer{constructor(callback){this.callback=callback;this.records=[];observers.push(this);}observe(_target,options){this.connected=true;this.options=options;}disconnect(){this.connected=false;this.records=[];}}
-  const top={document:doc,__PMM_THEME_SYSTEM__:theme,MutationObserver:Observer,requestAnimationFrame:fn=>{frames.set(++next,fn);return next;},cancelAnimationFrame:id=>frames.delete(id),clearTimeout(){},addEventListener:(type,fn)=>listeners.set(type,fn),removeEventListener:(type)=>listeners.delete(type),console};
+  const top={document:doc,MutationObserver:Observer,requestAnimationFrame:fn=>{frames.set(++next,fn);return next;},cancelAnimationFrame:id=>frames.delete(id),clearTimeout(){},addEventListener:(type,fn)=>listeners.set(type,fn),removeEventListener:(type)=>listeners.delete(type),console};
   top.top=top;doc.defaultView=top;
   vm.runInNewContext(source,{window:top,document:doc,console:{info(){}}});
   const deliver=()=>{for(const observer of observers){const records=observer.records.splice(0);if(observer.connected&&records.length)observer.callback(records);}};
@@ -47,17 +47,6 @@ for(const size of [1,250]){
   assert.equal(env.metrics().scans,3,'Count changes must still schedule a refresh');
   env.top.__PMM_GROUP_SELECT_NESTING_TEST24__.schedule();env.top.__PMM_GROUP_SELECT_NESTING_TEST24__.cleanup();
   assert.equal(env.frames.size,0);assert(env.observers.every(observer=>!observer.connected));
-}
-
-// Pending list discovery yields to a surface drag without polling, then refreshes once.
-{
-  let dragging=true;const pending=new Map();
-  const env=boot(250,{deferWork(key,callback){if(!dragging)return false;pending.set(key,callback);return true;},cancelWork:key=>pending.delete(key)});
-  env.settle();assert.equal(env.metrics().scans,0);assert.equal(env.frames.size,0);
-  for(let i=0;i<100;i++){env.top.__PMM_GROUP_SELECT_NESTING_TEST24__.schedule();env.settle();}
-  assert.equal(env.metrics().scans,0);assert.equal(pending.size,1);
-  dragging=false;for(const callback of pending.values())callback();pending.clear();env.settle();assert.equal(env.metrics().scans,1);
-  dragging=true;env.top.__PMM_GROUP_SELECT_NESTING_TEST24__.schedule();env.settle();env.top.__PMM_GROUP_SELECT_NESTING_TEST24__.cleanup();assert.equal(pending.size,0);
 }
 
 
@@ -101,9 +90,6 @@ function between(start,end){
   doc.activeElement=null;card.__pmmScrolling=true;change();assert.equal(work,0);
   card.__pmmScrolling=false;view.innerWidth=780;view.innerHeight=360;change();assert.equal(work,4,'An actual rotation must still update bounds and defaults');
   change();assert.equal(work,4,'Paired window/visualViewport events must coalesce');
-  view.visualViewport={width:600,height:300,offsetLeft:0,offsetTop:0};change();assert.equal(work,5,'Visual viewport changes only refit the controller');
-  for(let i=0;i<100;i++)change();assert.equal(work,5);
-  view.visualViewport.offsetTop=40;change();assert.equal(work,6,'Panning a zoomed viewport also keeps the controller reachable');
 }
 
 // The legacy batch module watches title controls, not every progressively loaded prompt.

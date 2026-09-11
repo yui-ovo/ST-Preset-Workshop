@@ -71,14 +71,14 @@ function frozenEnvironmentTone(){
   const bodyLum=frozenToneLuminance(bodyColor);if(bodyLum!=null)return bodyLum>.55?"dark":"light";
   return TOP.matchMedia?.("(prefers-color-scheme:dark)")?.matches?"dark":"light";
 }
-function environmentTone(palette=null){
-  if(followTavern)return luminance((palette||nativePalette()).background)<.3?'dark':'light';
+function environmentTone(){
+  if(followTavern)return luminance(nativePalette().background)<.3?'dark':'light';
   const mode=readStorage('preset-manager-theme-mode');if(mode==='light'||mode==='dark')return mode;
   if(current==='aqua'||current==='violet')return frozenEnvironmentTone();
   return TOP.matchMedia?.('(prefers-color-scheme:dark)')?.matches?'dark':'light';
 }
-function followedTokens(tone,palette=nativePalette()){
-  const light=tone==='light',white=parseColor('#ffffff'),black=parseColor('#101821');
+function followedTokens(tone){
+  const palette=nativePalette(),light=tone==='light',white=parseColor('#ffffff'),black=parseColor('#101821');
   const base=mix(palette.background,light?white:black,light?.18:.14);
   const control=mix(base,light?white:palette.accent,light?.28:.18);
   const text=readableText(rgba(base),palette.text&&rgba(palette.text));
@@ -86,8 +86,8 @@ function followedTokens(tone,palette=nativePalette()){
 }
 function loadTheme(){const saved=readStorage(STORAGE_KEY);if(saved in THEMES)return saved;try{if(readStorage(MIGRATION_KEY)!=='1'){const legacy=JSON.parse(readStorage('pmui_v5')||'null');writeStorage(MIGRATION_KEY,'1');if(legacy?.skin in THEMES)return legacy.skin}}catch(_){}return'aqua'}
 function composite(foreground,background){const alpha=foreground.a??1;return mix(background,foreground,alpha)}
-function countColor(tokens,palette=nativePalette()){
-  const background=palette.background;
+function countColor(tokens){
+  const background=nativePalette().background;
   const surface=parseColor(tokens.surface)||parseColor(tokens.surface.match(/rgba?\([^)]+\)/)?.[0])||background;
   const raised=parseColor(tokens.raised)||surface;
   const base=composite(raised,composite(surface,background));
@@ -97,23 +97,19 @@ function countColor(tokens,palette=nativePalette()){
   for(let weight=.1;weight<1;weight+=.1){const candidate=mix(accent||target,target,weight);if(contrast(base,parseColor(rgba(candidate)))>=4.5)return rgba(candidate)}
   return rgba(target);
 }
-function variables(t,palette){
-  return{'--pmm-theme-count':countColor(t,palette),'--pmm-theme-surface':t.surface,'--pmm-theme-raised':t.raised,'--pmm-theme-control':t.control,'--pmm-theme-controller':t.controller||t.surface,'--pmm-theme-border':t.border,'--pmm-theme-text':t.text,'--pmm-theme-muted':t.muted,'--pmm-theme-accent':t.accent,'--pmm-theme-active-text':t.activeText,'--pmm-theme-badge-text':readableText(t.accent,t.activeText),'--pmm-theme-blur':t.blur,'--pmm-theme-shadow':t.shadow+','+t.highlight,'--pmm-theme-highlight':t.highlight,'--pmm-theme-floating':t.floating,'--pmm-floating-bg':t.floating,'--pmm-floating-text':t.text,'--pmm-floating-border':t.border,'--pmm-floating-blur':t.blur,'--pmm-floating-shadow':t.shadow+','+t.highlight,'--pmm-banner-bg':t.surface,'--pmm-banner-blur':t.blur,'--pmm-banner-shadow':t.shadow+','+t.highlight,'--pmm-layout-accent':t.accent,'--pmm-layout-control':t.control,'--pm-panel-bg':t.surface,'--pm-bar-bg':t.raised,'--pm-card-bg':t.raised,'--pm-card-bg-translucent':t.control,'--pm-control-bg':t.control,'--pm-glass-bg':t.surface,'--pm-hover-bg':t.control,'--pm-border':t.border,'--pm-text-primary':t.text,'--pm-text-secondary':t.muted,'--pm-accent':t.accent,'--pm-accent-color':t.accent,'--pm-quote-color':t.accent,'--fp-glass-bg':t.floating,'--fp-glass-hover-bg':t.raised,'--fp-card-bg':t.raised,'--fp-card-bg-translucent':t.control,'--fp-border-color':t.border,'--fp-text-color':t.text,'--fp-accent-color':t.accent,'--qe-glass-bg':t.surface,'--qe-glass-hover-bg':t.control,'--qe-card-bg':t.raised,'--qe-border-color':t.border,'--qe-text-color':t.text,'--qe-text-secondary':t.muted,'--qe-accent-color':t.accent};
+function variables(t){
+  return{'--pmm-theme-count':countColor(t),'--pmm-theme-surface':t.surface,'--pmm-theme-raised':t.raised,'--pmm-theme-control':t.control,'--pmm-theme-controller':t.controller||t.surface,'--pmm-theme-border':t.border,'--pmm-theme-text':t.text,'--pmm-theme-muted':t.muted,'--pmm-theme-accent':t.accent,'--pmm-theme-active-text':t.activeText,'--pmm-theme-badge-text':readableText(t.accent,t.activeText),'--pmm-theme-blur':t.blur,'--pmm-theme-shadow':t.shadow+','+t.highlight,'--pmm-theme-highlight':t.highlight,'--pmm-theme-floating':t.floating,'--pmm-floating-bg':t.floating,'--pmm-floating-text':t.text,'--pmm-floating-border':t.border,'--pmm-floating-blur':t.blur,'--pmm-floating-shadow':t.shadow+','+t.highlight,'--pmm-banner-bg':t.surface,'--pmm-banner-blur':t.blur,'--pmm-banner-shadow':t.shadow+','+t.highlight,'--pmm-layout-accent':t.accent,'--pmm-layout-control':t.control,'--pm-panel-bg':t.surface,'--pm-bar-bg':t.raised,'--pm-card-bg':t.raised,'--pm-card-bg-translucent':t.control,'--pm-control-bg':t.control,'--pm-glass-bg':t.surface,'--pm-hover-bg':t.control,'--pm-border':t.border,'--pm-text-primary':t.text,'--pm-text-secondary':t.muted,'--pm-accent':t.accent,'--pm-accent-color':t.accent,'--pm-quote-color':t.accent,'--fp-glass-bg':t.floating,'--fp-glass-hover-bg':t.raised,'--fp-card-bg':t.raised,'--fp-card-bg-translucent':t.control,'--fp-border-color':t.border,'--fp-text-color':t.text,'--fp-accent-color':t.accent,'--qe-glass-bg':t.surface,'--qe-glass-hover-bg':t.control,'--qe-card-bg':t.raised,'--qe-border-color':t.border,'--qe-text-color':t.text,'--qe-text-secondary':t.muted,'--qe-accent-color':t.accent};
 }
 function hydrateRoot(root,tone=DOC.documentElement.dataset.pmmThemeTone,vars=lastVariables,attributes=null){
   if(!root||!vars)return;
   // Late surfaces inherit the committed palette, while another theme is pending or deferred by a gesture.
   attributes ||= {pmmFollowTavern:DOC.documentElement.dataset.pmmFollowTavern??String(followTavern),pmmVisualTheme:DOC.documentElement.dataset.pmmVisualTheme||current,pmmThemeTone:tone};
   for(const [key,value] of Object.entries(attributes))if(root.dataset[key]!==value)root.dataset[key]=value;
-  const changes=[];
-  for(const [key,value] of Object.entries(vars))if(root.style.getPropertyValue(key)!==value)changes.push(`${key}:${value}${root.style.getPropertyPriority(key)?' !important':''}`);
-  // A single style mutation per surface, preserving unrelated inline styles and priorities.
-  if(changes.length)root.style.cssText += ';'+changes.join(';');
+  for(const [key,value] of Object.entries(vars))if(root.style.getPropertyValue(key)!==value)root.style.setProperty(key,value);
 }
 function apply(forcedTone,animate=false){
-  const palette=nativePalette();
-  const tone=forcedTone==='light'||forcedTone==='dark'?forcedTone:environmentTone(palette);
-  const tokens=followTavern?followedTokens(tone,palette):THEMES[current][tone],vars=variables(tokens,palette);
+  const tone=forcedTone==='light'||forcedTone==='dark'?forcedTone:environmentTone();
+  const tokens=followTavern?followedTokens(tone):THEMES[current][tone],vars=variables(tokens);
   const roots=Array.from(DOC.querySelectorAll(THEME_TARGETS));
   const changed=DOC.documentElement.dataset.pmmFollowTavern!==String(followTavern)||DOC.documentElement.dataset.pmmVisualTheme!==current||DOC.documentElement.dataset.pmmThemeTone!==tone||JSON.stringify(lastTokens)!==JSON.stringify(tokens)||DOC.documentElement.style.getPropertyValue('--pmm-theme-count')!==vars['--pmm-theme-count'];
   if(!changed&&roots.every(root=>root.dataset.pmmVisualTheme===current&&root.dataset.pmmThemeTone===tone&&root.style.getPropertyValue('--pmm-theme-count')===vars['--pmm-theme-count']))return;
@@ -129,9 +125,7 @@ function apply(forcedTone,animate=false){
   TOP.dispatchEvent(new CustomEvent('pmm:theme-applied',{detail:{theme:current,tone}}));
 }
 let pendingAnimation=false,pendingNativeMode=null,themeRevision=0;
-const interactions=new Set(),deferredWork=new Map();
-function deferWork(key,callback){if(disposed||!interactions.size)return false;deferredWork.set(key,callback);return true;}
-function cancelWork(key){deferredWork.delete(key);}
+const interactions=new Set();
 let motionSurfaces=[],motionVariant=false;
 function stopTransition(){
   TOP.clearTimeout(themeTimer);themeTimer=0;
@@ -176,15 +170,13 @@ function commitThemeChange(tone,animate,nativeMode,revision){
   stopTransition();
   if(pendingNativeMode===nativeMode)pendingNativeMode=null;
   // Commit in this microtask. Animation never gates input on a document screenshot or next frame.
-  nativeMode?.();apply(tone);
+  nativeMode?.();apply(tone||environmentTone());
   if(animate&&before)startSurfaceMotion(before);
 }
 function beginInteraction(owner){interactions.add(owner);if(motionSurfaces.length)stopTransition()}
 function endInteraction(owner){
   if(!interactions.delete(owner)||interactions.size)return;
   if(pendingTone||pendingNativeMode||pendingAnimation)requestApply();
-  const pending=[...deferredWork.values()];deferredWork.clear();
-  for(const schedule of pending)try{schedule()}catch(error){console.error('[预设工坊] 延后布局更新失败',error)}
 }
 function requestApply(tone=null,animate=false){
   if(disposed)return;
@@ -364,5 +356,5 @@ function install(){
   media?.addEventListener?.('change',change);cleanup.push(()=>media?.removeEventListener?.('change',change));
   apply();
 }
-const API=Object.freeze({themes:THEMES,getTheme:()=>current,isFollowingTavern:()=>followTavern,getTone:environmentTone,getTokens:()=>lastTokens,setTheme,setTone,toggleFollow,apply,mountPicker,beginInteraction,endInteraction,deferWork,cancelWork,destroy(){disposed=true;themeRevision++;pendingNativeMode=null;interactions.clear();deferredWork.clear();stopTransition();TOP.clearTimeout(themeTimer);DOC.documentElement.classList.remove('pmm-theme-transition');while(cleanup.length)try{cleanup.pop()()}catch(_){}delete TOP[API_KEY]}});
+const API=Object.freeze({themes:THEMES,getTheme:()=>current,isFollowingTavern:()=>followTavern,getTone:environmentTone,getTokens:()=>lastTokens,setTheme,setTone,toggleFollow,apply,mountPicker,beginInteraction,endInteraction,destroy(){disposed=true;themeRevision++;pendingNativeMode=null;interactions.clear();stopTransition();TOP.clearTimeout(themeTimer);DOC.documentElement.classList.remove('pmm-theme-transition');while(cleanup.length)try{cleanup.pop()()}catch(_){}delete TOP[API_KEY]}});
 TOP[API_KEY]=API;globalThis[API_KEY]=API;install();export default API;
