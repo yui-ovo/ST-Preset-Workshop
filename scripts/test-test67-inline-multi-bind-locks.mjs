@@ -17,7 +17,7 @@ assert.ok(storage.includes("Object.prototype.hasOwnProperty.call(snapshot, 'char
 assert.ok(storage.includes("Object.prototype.hasOwnProperty.call(snapshot, 'chat')"), '迁移后没有清理旧聊天字段');
 assert.ok(storage.includes('`${presetName}\\u0000${binding.key}`'), '绑定唯一性没有按预设和对象共同隔离');
 
-const creation = section('function saveNewSnapshot', 'function findSnapshot');
+const creation = section('function saveSnapshotDraft', 'function findSnapshot');
 assert.ok(creation.includes('characters: []') && creation.includes('chats: []'), '新快照必须默认不绑定角色和聊天');
 
 const bindings = section('function bindSnapshotToCurrentCharacter', 'function deleteSnapshot');
@@ -45,7 +45,9 @@ const menu = overlay.slice(overlay.indexOf('const menu ='), overlay.indexOf('ret
 assert.ok(menu.includes('重命名') && menu.includes('覆盖为当前开关') && menu.includes('删除'), '更多菜单没有保留常规操作');
 assert.ok(!menu.includes('toggle-character-binding') && !menu.includes('toggle-chat-binding'), '锁按钮仍然藏在更多菜单中');
 
-const style = section('function installStyle()', 'function scheduleMount()');
+const snapshotModuleStart = source.indexOf('PMM_SWITCH_SNAPSHOTS_TEST52');
+const styleStart = source.indexOf('function installStyle()', snapshotModuleStart);
+const style = source.slice(styleStart, source.indexOf('function install()', styleStart));
 assert.ok(style.includes('color:var(--pm-text-primary,var(--SmartThemeBodyColor,#e5e7eb))'), '未绑定的开锁没有保持白色');
 assert.ok(style.includes('.pmm-switch-snapshot-lock.is-character.is-bound{border-color:#22c55e'), '绑定后的角色关锁没有使用绿色');
 assert.ok(style.includes('.pmm-switch-snapshot-lock.is-chat.is-bound{border-color:#eab308'), '绑定后的聊天关锁没有使用黄色');

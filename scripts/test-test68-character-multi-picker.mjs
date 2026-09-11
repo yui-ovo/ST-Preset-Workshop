@@ -42,7 +42,9 @@ assert.ok(events.includes("action === 'toggle-character-choice'"), '角色选项
 assert.ok(events.includes("matches?.('[data-pmm-character-search]')"), '角色搜索输入没有即时筛选');
 assert.ok(events.includes("event.key === 'Escape' && characterPicker"), '角色多选面板不能用 Esc 关闭');
 
-const style = section('function installStyle()', 'function scheduleMount()');
+const snapshotModuleStart = source.indexOf('PMM_SWITCH_SNAPSHOTS_TEST52');
+const styleStart = source.indexOf('function installStyle()', snapshotModuleStart);
+const style = source.slice(styleStart, source.indexOf('function install()', styleStart));
 assert.ok(style.includes('.pmm-switch-character-picker-search'), '角色搜索框缺少样式');
 assert.ok(style.includes('.pmm-switch-character-picker-list'), '角色多选列表缺少可滚动布局');
 assert.ok(style.includes('.pmm-switch-character-picker-option.is-selected'), '已选角色没有清晰状态');

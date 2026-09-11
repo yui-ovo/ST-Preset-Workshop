@@ -21,6 +21,6 @@ assert.ok(apply.includes('saveAppliedDraft(presetName, nextPrompts, draftUpdated
 
 const overlay = section('function openOverlay()', 'function normalPresetContainer()');
 assert.ok(overlay.includes("text(options.source) === 'native-preset'"), '原生相机传入的来源标记没有被接收');
-assert.ok(overlay.includes('presetName: source === \'native-preset\' ? nativeSelectedPresetName()'), '原生相机没有锁定酒馆当前预设');
+assert.ok(overlay.includes("presetName: source === 'native-preset' ? (text(options.presetName) || nativeSelectedPresetName())"), '原生相机没有锁定酒馆当前预设或保留返回来源');
 
 console.log('test.86 回归通过：原生相机首次应用绕过隐藏工坊旧草稿，零差异也会写回并刷新主预设。');

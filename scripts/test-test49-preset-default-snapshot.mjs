@@ -23,7 +23,7 @@ for (const marker of [
   assert.ok(source.includes(marker), `test.49 缺少预设默认功能：${marker}`);
 }
 
-const saveDefault = section('function saveDefaultSnapshot()', 'function saveNewSnapshot(inputName, afterSave = null, promptsOverride = null)');
+const saveDefault = section('function saveDefaultSnapshot()', 'function saveSnapshotDraft(draft)');
 assert.ok(saveDefault.includes("name: '预设默认'"), '预设默认没有使用固定名称');
 assert.ok(saveDefault.includes("kind: 'default'"), '预设默认没有与角色快照隔离');
 assert.ok(saveDefault.includes('isDefault: true'), '预设默认没有持久化默认标记');

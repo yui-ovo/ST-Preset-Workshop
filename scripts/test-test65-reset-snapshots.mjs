@@ -28,7 +28,9 @@ const events = section('function ensureOverlay()', 'function openOverlay()');
 assert.ok(events.includes("action === 'reset-all'"), '没有处理垃圾桶按钮点击');
 assert.ok(events.includes('void resetSnapshotsForCurrentPreset()'), '垃圾桶没有调用整套快照重置');
 
-const style = section('function installStyle()', 'function scheduleMount()');
+const snapshotModuleStart = source.indexOf('PMM_SWITCH_SNAPSHOTS_TEST52');
+const styleStart = source.indexOf('function installStyle()', snapshotModuleStart);
+const style = source.slice(styleStart, source.indexOf('function install()', styleStart));
 assert.ok(style.includes('.pmm-switch-snapshot-reset-all'), '垃圾桶按钮缺少独立的紧凑危险样式');
 
 console.log('test.65 回归通过：垃圾桶可安全重置当前预设整套快照，活动快照会先恢复默认。');

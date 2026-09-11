@@ -69,7 +69,7 @@ for (const marker of [
   assert.ok(viewport.includes(marker), `iOS 键盘视口修复缺少：${marker}`);
 }
 
-const stylesheet = section('function installStyle()', 'function scheduleMount()');
-assert.ok(stylesheet.includes('.pmm-switch-snapshot-overlay.pmm-switch-snapshot-ios .pmm-switch-snapshot-save-capture input{font-size:16px!important}'), 'iOS 仍会因小号快照名称输入框自动缩放页面');
+const stylesheet = section('function installStyle()', 'function install()');
+assert.ok((await readFile(new URL('../dist/snapshot-name-dialog.js', import.meta.url), 'utf8')).includes('font-size:16px'), 'iOS 仍会因小号命名弹窗输入框自动缩放页面');
 
-console.log('test.78 回归通过：主页快照可在角色/聊天临时覆盖后恢复，绑定立即生效，iOS 键盘不再把快照弹层推离可视区。');
+console.log('test.78 回归通过：主页快照可在角色/聊天临时覆盖后恢复，轻量编辑器输入框不会触发 iOS 自动缩放。');
