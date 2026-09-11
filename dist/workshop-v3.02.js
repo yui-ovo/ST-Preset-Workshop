@@ -15032,7 +15032,7 @@ import { requestSnapshotName } from './snapshot-name-dialog.js?v=2.98.0-test.32'
     const presetName = currentPresetName();
     existing.innerHTML = `<section class="pmm-switch-snapshot-dialog pmm-switch-snapshot-first-default-dialog" role="dialog" aria-modal="true" aria-label="保存预设默认">
       <header class="pmm-switch-snapshot-head">
-        <div><h2><i class="fa-solid fa-camera"></i>开关快照</h2><p>${escapeHtml(presetName || '未选择预设')}</p></div>
+        <div><h2><i class="fa-solid fa-camera"></i>预设快照</h2><p>${escapeHtml(presetName || '未选择预设')}</p></div>
         <button type="button" class="pmm-switch-snapshot-close" data-pmm-snapshot-action="close" title="关闭"><i class="fa-solid fa-xmark"></i></button>
       </header>
       <div class="pmm-switch-snapshot-first-default">
@@ -15169,7 +15169,7 @@ import { requestSnapshotName } from './snapshot-name-dialog.js?v=2.98.0-test.32'
 
     existing.innerHTML = `<section class="pmm-switch-snapshot-dialog" role="dialog" aria-modal="true" aria-label="开关快照">
       <header class="pmm-switch-snapshot-head">
-        <div><h2><i class="fa-solid fa-camera"></i>开关快照</h2><p>${escapeHtml(presetName || '未选择预设')}${character ? ` · 当前角色：${escapeHtml(character.name)}` : ''}</p></div>
+        <div><h2><i class="fa-solid fa-camera"></i>预设快照</h2><p>${escapeHtml(presetName || '未选择预设')}${character ? ` · 当前角色：${escapeHtml(character.name)}` : ''}</p></div>
         <button type="button" class="pmm-switch-snapshot-close" data-pmm-snapshot-action="close" title="关闭"><i class="fa-solid fa-xmark"></i></button>
       </header>
       ${defaultMarkup}

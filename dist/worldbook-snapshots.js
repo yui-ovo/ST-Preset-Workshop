@@ -859,10 +859,10 @@ function render() {
     ? `<label>快照名称<input type="text" data-rename value="${h(rename.name)}" maxlength="100"></label>`
     : picker ? sourceMarkup() : section === 'groups' ? groupMarkup() : snapshotMarkup();
   overlay.innerHTML = `<section class="pmm-wbs-dialog pmm-switch-snapshot-dialog${editing ? ' is-editing' : ''}" role="dialog" aria-modal="true" aria-label="世界书快照">
-    <header class="pmm-wbs-head pmm-switch-snapshot-head"><div><h2><i class="fa-solid fa-camera"></i>${draft ? '调整开关' : editGroup ? '世界书分组' : '开关快照'}</h2><p>${h(character()?.name || '酒馆主页')}</p></div>${button('close', '<i class="fa-solid fa-xmark"></i>', 'class="pmm-wbs-icon pmm-switch-snapshot-close" aria-label="关闭"')}</header>
+    <header class="pmm-wbs-head pmm-switch-snapshot-head"><div><h2><i class="fa-solid fa-camera"></i>${draft ? '调整开关' : editGroup ? '世界书分组' : '世界书快照'}</h2><p>${h(character()?.name || '酒馆主页')}</p></div>${button('close', '<i class="fa-solid fa-xmark"></i>', 'class="pmm-wbs-icon pmm-switch-snapshot-close" aria-label="关闭"')}</header>
     ${tabs(page, !!editing)}<div class="pmm-wbs-message" data-message role="status" ${message ? '' : 'hidden'}><span>${h(message)}</span>${button('dismiss-message','×','aria-label="关闭提示"')}</div>
     <div class="pmm-wbs-body${page==='character'&&!editing&&!picker?' is-character-snapshots':''}${draft?' is-draft':''}${page==='global'&&section==='groups'&&!editing&&!picker?' is-group-home':''}${editGroup?' is-group-editor':''}">${content}</div>
-    <footer class="pmm-wbs-foot"><small>${draft ? (page==='character'?'只保存开关；聊天锁或“应用”才会应用。':'保存方案不挂载世界书；请在分组中选用。') : page==='global' ? '分组开启时应用所选方案；关闭不卸载其他分组需要的书。' : '聊天锁自动应用 · 返回主页恢复进入前状态'}</small>${editing ? button('cancel-edit', '取消') + button(draft ? 'save-draft' : editGroup ? 'save-group' : 'save-rename', '保存', 'class="pmm-wbs-primary"') : ''}</footer>
+    <footer class="pmm-wbs-foot"><small>${draft ? (page==='character'?'只保存开关；聊天锁或“应用”才会应用。':'保存方案不挂载世界书；请在分组中选用。') : page==='global' ? '可一键全局挂载世界书分组；也可为分组世界书创建快照。' : '聊天锁自动应用 · 返回主页恢复进入前状态'}</small>${editing ? button('cancel-edit', '取消') + button(draft ? 'save-draft' : editGroup ? 'save-group' : 'save-rename', '保存', 'class="pmm-wbs-primary"') : ''}</footer>
     </section>`;
   filterDraft();
   filterGroupBooks();
