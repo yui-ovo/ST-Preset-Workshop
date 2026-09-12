@@ -10,12 +10,12 @@ assert.ok(
   'draftMarkup 必须检查世界书展开状态'
 );
 assert.ok(
-  source.includes("const entriesContent=isOpen?bookEntriesMarkup(name,data):''"),
-  '折叠世界书不应预渲染条目 DOM'
+  !source.slice(source.indexOf('function draftMarkup()'),source.indexOf('\nfunction groupEditorMarkup')).includes('bookEntriesMarkup('),
+  'draftMarkup 不应同步渲染任何世界书条目，包括恢复为展开状态的分组'
 );
 assert.ok(
-  source.includes('const rendered=isOpen'),
-  '已渲染的世界书必须标记 data-rendered'
+  source.includes("if(draft)for(const details of overlay.querySelectorAll('[data-draft-book][open]'))ensureBookEntries(details)"),
+  '重新渲染后，已展开分组也必须统一进入渐进渲染流程'
 );
 
 // --- 2. ensureBookEntries must exist and apply search filter on expand ---
@@ -25,30 +25,42 @@ assert.ok(
   '必须有 ensureBookEntries 辅助函数'
 );
 assert.ok(
-  source.includes('container.dataset.rendered'),
+  source.includes('container.dataset.rendered || container.dataset.rendering'),
   'ensureBookEntries 必须检查 data-rendered 避免重复渲染'
 );
 
-// ensureBookEntries must call filterDraft after rendering to apply search
+// ensureBookEntries must render bounded batches across animation frames.
 {
   const fnStart = source.indexOf('function ensureBookEntries(details)');
-  const fnBody = source.slice(fnStart, source.indexOf('\n}\n', fnStart) + 3);
+  const fnBody = source.slice(fnStart, source.indexOf('\nfunction draftMarkup', fnStart));
+  assert.ok(
+    fnBody.includes('offset+BOOK_ENTRY_RENDER_BATCH_SIZE'),
+    '每帧必须只创建固定批量的世界书条目'
+  );
+  assert.ok(
+    fnBody.includes('scheduleBookEntryRender(()=>scheduleBookEntryRender(renderBatch))'),
+    '首次条目生成前必须给 details 展开状态留出一次绘制机会'
+  );
+  assert.ok(
+    fnBody.includes('scheduleBookEntryRender(renderBatch)'),
+    '剩余条目必须分散到后续帧继续创建'
+  );
+  assert.ok(
+    fnBody.includes("if(!details.open){stop();return;}"),
+    '分组在生成途中折叠时必须暂停，避免后台继续占用帧时间'
+  );
   assert.ok(
     fnBody.includes("container.dataset.rendered='1'"),
-    'ensureBookEntries 渲染后必须设置 data-rendered 标记'
+    '全部批次完成后必须设置 data-rendered 标记'
   );
   assert.ok(
     fnBody.includes('filterDraft(name)'),
-    'ensureBookEntries 渲染后必须立即应用搜索过滤，不能短暂显示全部条目'
-  );
-  // filterDraft must come AFTER rendered='1' to ensure it runs on fresh DOM
-  const renderedIdx = fnBody.indexOf("container.dataset.rendered='1'");
-  const filterIdx = fnBody.indexOf('filterDraft(name)');
-  assert.ok(
-    filterIdx > renderedIdx,
-    'filterDraft 必须在设置 rendered 标记之后调用'
+    '每批生成后必须应用当前搜索词，不能短暂显示不匹配条目'
   );
 }
+
+assert.ok(source.includes('const BOOK_ENTRY_RENDER_BATCH_SIZE=12'), '世界书条目每帧批量上限应保持为 12');
+assert.ok(source.includes('container.dataset.renderedCount'), '折叠后重新展开必须从已生成数量继续，不能重复创建条目');
 
 // The toggle event handler must call ensureBookEntries on open
 const toggleHandler = source.match(/overlay\.addEventListener\('toggle'[\s\S]*?},true\)/)?.[0] || '';
@@ -70,8 +82,8 @@ assert.ok(
 
 // bookEntriesMarkup must produce empty preview containers (not pre-filled with content)
 {
-  const fnStart = source.indexOf('function bookEntriesMarkup(name, data)');
-  const fnEnd = source.indexOf('\nfunction ensureBookEntries', fnStart);
+  const fnStart = source.indexOf('function bookEntriesMarkup(name, entries)');
+  const fnEnd = source.indexOf('\nfunction scheduleBookEntryRender', fnStart);
   const fnBody = source.slice(fnStart, fnEnd);
   // Should have empty hidden preview div
   assert.ok(
@@ -172,4 +184,4 @@ assert.ok(
   '动画效果不应被删除'
 );
 
-console.log('test.v302 回归通过：懒加载折叠世界书条目、正文按需加载、批量单行更新、CSS 离屏渲染优化。搜索词展开场景已覆盖。');
+console.log('test.v302 回归通过：世界书条目分帧渐进生成、折叠续传、正文按需加载、批量单行更新与 CSS 离屏渲染优化均已覆盖。');

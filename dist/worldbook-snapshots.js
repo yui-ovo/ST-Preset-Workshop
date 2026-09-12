@@ -796,28 +796,53 @@ function groupMarkup() {
       +(menuId===group.id?'<div class="pmm-wbs-menu">'+button('edit-group','编辑分组',attrs)+button('manage-snapshots','管理分组快照',attrs)+button('delete-group','删除分组',attrs)+'</div>':'')+'</article>';
   }).join('');
 }
-function bookEntriesMarkup(name, data) {
-  return Object.values(data.entries).sort((a,b)=>Number(a.displayIndex??a.uid)-Number(b.displayIndex??b.uid)).map(entry=>{
+const BOOK_ENTRY_RENDER_BATCH_SIZE=12;
+let bookEntryRenderId=0;
+function orderedBookEntries(data) {
+  return Object.values(data?.entries||{}).sort((a,b)=>Number(a.displayIndex??a.uid)-Number(b.displayIndex??b.uid));
+}
+function bookEntriesMarkup(name, entries) {
+  return entries.map(entry=>{
     const title=entry.comment||entry.key?.[0]||'条目 '+entry.uid,shown=!!draft.previews?.[name]?.[String(entry.uid)];
     return '<div class="pmm-wbs-entry-block" data-entry-title="'+h(String(title).toLocaleLowerCase())+'"><div class="pmm-wbs-entry">'+button('preview-entry',icon('arrow')+'<span>'+h(title)+'</span>','class="pmm-wbs-entry-title" data-preview-entry data-preview-book="'+h(name)+'" data-preview-uid="'+h(entry.uid)+'" aria-expanded="'+shown+'"')+'<label class="pmm-wbs-entry-switch"><input class="pmm-wbs-entry-switch-input" type="checkbox" data-toggle="'+h(entry.uid)+'" data-toggle-book="'+h(name)+'" aria-label="'+h(title)+'" style="opacity:0!important" '+(entry.disable?'':'checked')+'><span class="pmm-wbs-entry-switch-track" aria-hidden="true"></span></label></div><div class="pmm-wbs-entry-preview" hidden></div></div>';
-  }).join('')+(!Object.keys(data.entries).length?'<small>这本世界书暂无条目</small>':'');
+  }).join('');
+}
+function scheduleBookEntryRender(callback) {
+  if(typeof TOP.requestAnimationFrame==='function')TOP.requestAnimationFrame(callback);
+  else TOP.setTimeout(callback,16);
 }
 function ensureBookEntries(details) {
   if(!draft || !details)return;
   const name=details.dataset.draftBook;
   const container=details.querySelector('.pmm-wbs-book-entries');
-  if(!container || container.dataset.rendered)return;
-  container.insertAdjacentHTML('beforeend',bookEntriesMarkup(name,draft.data[name]));
-  container.dataset.rendered='1';
-  filterDraft(name);
+  const data=draft.data[name];
+  if(!container || !data || container.dataset.rendered || container.dataset.rendering)return;
+  const entries=orderedBookEntries(data),renderId=String(++bookEntryRenderId);
+  let offset=Math.min(Number(container.dataset.renderedCount)||0,entries.length);
+  container.dataset.rendering=renderId;
+  const stop=()=>{if(container.dataset.rendering===renderId)delete container.dataset.rendering;};
+  const renderBatch=()=>{
+    if(!draft || draft.data[name]!==data || !overlay?.contains(container) || container.dataset.rendering!==renderId){stop();return;}
+    if(!details.open){stop();return;}
+    if(!entries.length)container.insertAdjacentHTML('beforeend','<small>这本世界书暂无条目</small>');
+    else {
+      const next=Math.min(offset+BOOK_ENTRY_RENDER_BATCH_SIZE,entries.length);
+      container.insertAdjacentHTML('beforeend',bookEntriesMarkup(name,entries.slice(offset,next)));
+      offset=next;container.dataset.renderedCount=String(offset);
+    }
+    if(offset>=entries.length) {
+      container.dataset.rendered='1';stop();filterDraft(name);return;
+    }
+    filterDraft(name);scheduleBookEntryRender(renderBatch);
+  };
+  // Let the native <details> opening paint before creating its first row batch.
+  scheduleBookEntryRender(()=>scheduleBookEntryRender(renderBatch));
 }
 function draftMarkup() {
   return '<small>共 '+Object.keys(draft.data).length+' 本世界书 · 点击书名展开或收起</small><div data-entries>'
     +Object.entries(draft.data).map(([name,data])=>{
       const isOpen=!!draft.expanded[name];
-      const entriesContent=isOpen?bookEntriesMarkup(name,data):'';
-      const rendered=isOpen?' data-rendered="1"':'';
-      return '<details class="pmm-wbs-book" data-draft-book="'+h(name)+'" '+(isOpen?'open':'')+'><summary>'+icon('arrow')+'<span class="pmm-wbs-book-title">'+h(name)+'</span><small>'+Object.keys(data.entries).length+' 条</small></summary><div class="pmm-wbs-book-entries"'+rendered+'><input class="pmm-wbs-book-search" type="search" data-filter-book="'+h(name)+'" value="'+h(draft.queries?.[name]||'')+'" placeholder="搜索条目名称" aria-label="搜索 '+h(name)+' 的条目">'+entriesContent+'</div></details>';
+      return '<details class="pmm-wbs-book" data-draft-book="'+h(name)+'" '+(isOpen?'open':'')+'><summary>'+icon('arrow')+'<span class="pmm-wbs-book-title">'+h(name)+'</span><small>'+Object.keys(data.entries).length+' 条</small></summary><div class="pmm-wbs-book-entries"><input class="pmm-wbs-book-search" type="search" data-filter-book="'+h(name)+'" value="'+h(draft.queries?.[name]||'')+'" placeholder="搜索条目名称" aria-label="搜索 '+h(name)+' 的条目"></div></details>';
     }).join('')+'</div>';
 }
 function groupEditorMarkup() {
@@ -869,6 +894,7 @@ function render() {
   syncGroupSave();
   sizeGroupPlanSelects();
   positionMenu();
+  if(draft)for(const details of overlay.querySelectorAll('[data-draft-book][open]'))ensureBookEntries(details);
 }
 function positionMenu() {
   const menu=overlay?.querySelector('.pmm-wbs-menu');
