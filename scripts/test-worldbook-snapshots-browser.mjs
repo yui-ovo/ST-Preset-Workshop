@@ -11,9 +11,9 @@ body{background:#151515;margin:0;color:#ddd;font:14px system-ui} #preset-manager
 </style><div id="preset-manager-main-panel"><div class="pm-panel-container"><div class="pm-main-wrapper"><div class="preset-panel"><div class="header-right"></div>预设工坊 · 界面测试</div></div></div></div><button id="camera">相机</button><script>
 const cp=x=>JSON.parse(JSON.stringify(x)); const listeners=new Set();
 const world=(prefix,n=16)=>({entries:Object.fromEntries(Array.from({length:n},(_,i)=>[i,{uid:i,comment:prefix+' · '+['角色设定','日常互动','剧情推进','场景细节'][i%4]+' '+i,content:'正文保留',disable:i%3===0}]))});
-window.fixture={selected:undefined,globals:['日常辅助','手动保留'],data:{'角色世界':world('角色'), '日常辅助':world('辅助'), '手动保留':world('手动'), '剧情补充':world('剧情')},events:()=>{listeners.forEach(fn=>fn())},select:id=>{fixture.selected=id;fixture.events()}};
+window.fixture={selected:undefined,bindingCalls:0,globals:['日常辅助','手动保留'],data:{'角色世界':world('角色'), '日常辅助':world('辅助'), '手动保留':world('手动'), '剧情补充':world('剧情')},events:()=>{listeners.forEach(fn=>fn())},select:id=>{fixture.selected=id;fixture.events()}};
 window.SillyTavern={getContext:()=>({characterId:fixture.selected,chatId:fixture.selected===undefined?'':fixture.chatId||'chat-one',characters:[{name:'小雨',avatar:'rain.png'},{name:'小夏',avatar:'summer.png'}],eventTypes:{CHAT_CHANGED:'chat'},eventSource:{on:(t,fn)=>listeners.add(fn),off:(t,fn)=>listeners.delete(fn)},getWorldInfoNames:()=>Object.keys(fixture.data),loadWorldInfo:async n=>cp(fixture.data[n]),saveWorldInfo:async(n,d)=>{fixture.data[n]=cp(d)}})};
-window.TavernHelper={getWorldbookNames:()=>Object.keys(fixture.data),getGlobalWorldbookNames:()=>[...fixture.globals],rebindGlobalWorldbooks:async ns=>{fixture.globals=[...ns]},getCharWorldbookNames:()=>({primary:'角色世界',additional:[]})};
+window.TavernHelper={getWorldbookNames:()=>Object.keys(fixture.data),getGlobalWorldbookNames:()=>[...fixture.globals],rebindGlobalWorldbooks:async ns=>{fixture.globals=[...ns]},getCharWorldbookNames:async()=>{fixture.bindingCalls++;return {primary:'角色世界',additional:[]}}};
 window.__PMM_WORLDBOOK_STITCH_TEST3__={state:{top:{dirty:false},bottom:{dirty:false}},refreshSnapshotBook:()=>{}};
 window.__PMM_SWITCH_SNAPSHOTS_TEST52__={close:()=>document.querySelector('#preset-fixture')?.remove(),isCapturing:()=>false,open:()=>{const root=document.createElement('div');root.id='preset-fixture';root.innerHTML='<section class="pmm-switch-snapshot-dialog"><header class="pmm-switch-snapshot-head">预设快照</header><section class="pmm-switch-snapshot-default">预设默认</section><div class="pmm-switch-snapshot-create"><button>新建开关快照</button></div><div class="pmm-switch-snapshot-list"><article class="pmm-switch-snapshot-row"><div class="pmm-switch-snapshot-bindings"><button class="pmm-switch-snapshot-lock">角色</button></div>第一份快照</article></div><footer class="pmm-switch-snapshot-footer">快照说明</footer></section>';document.body.append(root);__PMM_WORLDBOOK_SNAPSHOTS__.decoratePreset(root)}};
 document.querySelector('#camera').onclick=()=>window.__PMM_WORLDBOOK_SNAPSHOTS__.open();
@@ -43,6 +43,8 @@ try {
     assert.equal(await camera.count(),0,'Workshop camera removed');
     await page.click('#camera');
     await page.getByText('进入角色聊天后使用',{exact:true}).waitFor();
+    await page.waitForFunction(()=>!document.querySelector('.pmm-wbs-overlay')?.hasAttribute('aria-busy'));
+    assert.equal(await page.evaluate(()=>fixture.bindingCalls),0,'Homepage opens without scanning every character binding');
     assert.equal(await page.locator('.pmm-wbs-overlay.pmm-switch-snapshot-overlay').count(),1,'Worldbook reuses preset overlay component');
     assert.equal(await page.locator('.pmm-wbs-dialog.pmm-switch-snapshot-dialog').count(),1,'Worldbook reuses preset dialog component');
     assert.equal(await page.locator('.pmm-wbs-head.pmm-switch-snapshot-head').count(),1,'Worldbook reuses preset header component');
@@ -58,12 +60,18 @@ try {
     assert.ok(initial.height>0 && initial.height<=initialMaxHeight+1,'Worldbook snapshot sheet stays within sixty percent of the visible viewport');
     await page.click('[data-hub-tab="global"]');
     await page.click('[data-hub-tab="character"]');
+    assert.equal(await page.evaluate(()=>fixture.bindingCalls),0,'Character/global tab switches reuse the loaded catalog');
     assert.ok((await page.locator('.pmm-wbs-dialog').boundingBox()).height<=initialMaxHeight+1,'Changing snapshot tabs keeps the worldbook sheet within the same height cap');
     await page.evaluate(()=>fixture.select(0));
     await page.locator('[data-wbs="new"]:enabled').waitFor();
+    assert.equal(await page.evaluate(()=>fixture.bindingCalls),1,'Entering a character chat reads only the current character binding');
+    await page.click('[data-hub-tab="global"]');
+    await page.click('[data-hub-tab="character"]');
+    assert.equal(await page.evaluate(()=>fixture.bindingCalls),1,'Repeated character/global switches do not rescan bindings');
     assert.equal(await page.locator('[data-wbs="sources"]').count(),0,'No all-role picker');
     await page.screenshot({path:fileURLToPath(new URL('role-'+width+'.png',output))});
     await page.click('[data-wbs="new"]');
+    await page.locator('.pmm-wbs-body.is-draft').waitFor();
     assert.equal(await page.locator('[data-name]').count(),0,'Name is deferred until Save');
     const draftGap=await page.evaluate(()=>document.querySelector('.pmm-wbs-body.is-draft').getBoundingClientRect().top-document.querySelector('.pmm-snapshot-tabs').getBoundingClientRect().bottom);
     assert.ok(draftGap<=12,'Snapshot editor starts close to the tabs');
@@ -195,6 +203,7 @@ try {
     const toggle=await page.locator('.pmm-wbs-toggle span').boundingBox();
     assert.ok(toggle.width<=32 && toggle.height<=20,'Compact visual toggle');
     await page.selectOption('[data-group-plan]','__new_snapshot__');
+    await page.waitForFunction(()=>document.querySelectorAll('[data-draft-book]').length===2);
     assert.equal(await page.locator('[data-draft-book]').count(),2,'Inline create automatically uses the current group');
     assert.equal(await page.locator('[data-draft-book]').count(),2,'Both books loaded into draft');
     assert.equal(await page.locator('[data-draft-book][data-open="true"]').count(),0,'Multiple books begin collapsed');

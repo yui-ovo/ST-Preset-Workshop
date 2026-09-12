@@ -75,16 +75,32 @@ function chat() {
   const context=ctx();
   return String(context.chatId ?? context.chat_id ?? TOP.chat_id ?? SELF.chat_id ?? context.getCurrentChatId?.() ?? '');
 }
-async function catalog() {
-  const names = await helper('getWorldbookNames')();
-  const globals = await helper('getGlobalWorldbookNames')();
+const CATALOG_BINDING_CONCURRENCY=4;
+async function boundedMap(values,limit,mapper) {
+  const output=new Array(values.length);let cursor=0;
+  const worker=async()=>{
+    while(cursor<values.length) {
+      const index=cursor++;
+      output[index]=await mapper(values[index],index);
+    }
+  };
+  await Promise.all(Array.from({length:Math.min(limit,values.length)},worker));
+  return output;
+}
+async function catalog(scope = '', owner = '') {
+  const [rawNames,rawGlobals] = await Promise.all([
+    helper('getWorldbookNames')(),
+    helper('getGlobalWorldbookNames')(),
+  ]);
+  const names=(rawNames||[]).map(String),globals=(rawGlobals||[]).map(String);
   const linked = new Map(names.map(name => [name, []]));
   const normalize = name => String(name || '').normalize('NFC').trim().toLocaleLowerCase();
   const lookup = new Map(names.map(name => [normalize(name), name]));
   // The helper reads primary AND additional bindings. Fail closed on partial reads.
   const getBindings = helper('getCharWorldbookNames');
-  for (const c of characters()) {
-    const bindings = await getBindings(c.name);
+  const candidates=scope==='names' ? [] : scope==='character' ? characters().filter(c=>c.key===owner) : characters();
+  const bindingsByCharacter=await boundedMap(candidates,CATALOG_BINDING_CONCURRENCY,async c=>({c,bindings:await getBindings(c.name)}));
+  for (const {c,bindings} of bindingsByCharacter) {
     for (const raw of [bindings?.primary, ...(bindings?.additional || [])]) {
       const name = linked.has(raw) ? raw : lookup.get(normalize(raw));
       if (name && !linked.get(name).some(row => row.key === c.key)) linked.get(name).push(c);
@@ -284,7 +300,7 @@ style.textContent = `
 .pmm-wbs-plan option { color:var(--wbs-ink); background:var(--pm-panel-bg); }
 .pmm-wbs-book { display:block!important; margin:8px 0; border:1px solid var(--wbs-line); border-radius:12px; overflow:hidden; }
 .pmm-wbs-book>.pmm-wbs-book-head { display:flex!important; align-items:center; gap:8px; width:100%; min-height:0!important; padding:12px 9px!important; border:0!important; border-radius:0!important; background:var(--wbs-raised)!important; box-shadow:none!important; color:inherit; text-align:left; }
-.pmm-wbs-book>.pmm-wbs-book-head .pmm-wbs-svg { width:14px; height:14px; transition:transform .12s; }
+.pmm-wbs-book>.pmm-wbs-book-head .pmm-wbs-svg { width:14px; height:14px; transition:none; }
 .pmm-wbs-book>.pmm-wbs-book-head[aria-expanded="true"] .pmm-wbs-svg { transform:rotate(90deg); }
 .pmm-wbs-book-title { flex:1; min-width:0; overflow-wrap:anywhere; }
 .pmm-wbs-book>.pmm-wbs-book-head small { margin:0; white-space:nowrap; }
@@ -555,8 +571,9 @@ async function reconcileCatalogNames(names = null) {
   }
   return { names: current, result };
 }
-async function refresh() {
-  books = await catalog();
+async function refresh(full = false) {
+  const current=character();
+  books = await (full ? catalog() : current ? catalog('character',current.key) : catalog('names'));
   await engine.reconcileBooks(books.map(row => row.name));
 }
 function batchVisibleNames() {
@@ -798,7 +815,8 @@ function groupMarkup() {
       +(menuId===group.id?'<div class="pmm-wbs-menu">'+button('edit-group','编辑分组',attrs)+button('manage-snapshots','管理分组快照',attrs)+button('delete-group','删除分组',attrs)+'</div>':'')+'</article>';
   }).join('');
 }
-const BOOK_ENTRY_RENDER_BATCH_SIZE=10;
+const BOOK_ENTRY_INITIAL_BATCH_SIZE=2;
+const BOOK_ENTRY_RENDER_BATCH_SIZE=8;
 let bookEntryRenderId=0;
 function orderedBookEntries(data) {
   return Object.values(data?.entries||{}).sort((a,b)=>Number(a.displayIndex??a.uid)-Number(b.displayIndex??b.uid));
@@ -823,21 +841,21 @@ function ensureBookEntries(bookBlock) {
   let offset=Math.min(Number(container.dataset.renderedCount)||0,entries.length);
   container.dataset.rendering=renderId;
   const stop=()=>{if(container.dataset.rendering===renderId)delete container.dataset.rendering;};
-  const renderBatch=()=>{
+  const renderBatch=batchSize=>{
     if(!draft || draft.data[name]!==data || !overlay?.contains(container) || container.dataset.rendering!==renderId){stop();return;}
     if(!draft.expanded[name]){stop();return;}
     if(!entries.length)container.insertAdjacentHTML('beforeend','<small>这本世界书暂无条目</small>');
     else {
-      const next=Math.min(offset+BOOK_ENTRY_RENDER_BATCH_SIZE,entries.length);
+      const next=Math.min(offset+batchSize,entries.length);
       container.insertAdjacentHTML('beforeend',bookEntriesMarkup(name,entries.slice(offset,next)));
       offset=next;container.dataset.renderedCount=String(offset);
     }
     if(offset>=entries.length) {
       container.dataset.rendered='1';stop();filterDraft(name);return;
     }
-    filterDraft(name);scheduleBookEntryRender(renderBatch);
+    filterDraft(name);scheduleBookEntryRender(()=>renderBatch(BOOK_ENTRY_RENDER_BATCH_SIZE));
   };
-  scheduleBookEntryRender(renderBatch);
+  renderBatch(BOOK_ENTRY_INITIAL_BATCH_SIZE);
 }
 function draftMarkup() {
   return '<small>共 '+Object.keys(draft.data).length+' 本世界书 · 点击书名展开或收起</small><div data-entries>'
@@ -1067,14 +1085,13 @@ function onClick(event) {
       if (!['character','global'].includes(target.dataset.hubTab)) return;
       say('');
       page = target.dataset.hubTab; book = ''; pickerReturnBook=''; menuId = ''; section = page === 'global' ? 'groups' : 'snapshots'; picker = false; items = [];
-      await refresh();
     } else if (action === 'choose') {
       book = target.dataset.book; pickerReturnBook=''; section = 'snapshots'; picker = false;
-    } else if (action === 'sources') { await refresh(); pickerReturnBook=book; picker = true; }
+    } else if (action === 'sources') { pickerReturnBook=book; picker = true; }
     else if (action === 'back-sources') { book=pickerReturnBook; pickerReturnBook=''; picker = false; }
     else if (action === 'manage-snapshots') { book=id; section='snapshots'; picker=false; pickerReturnBook=''; menuId=''; }
     else if (action === 'back-groups') { section='groups'; book=''; picker=false; pickerReturnBook=''; menuId=''; }
-    else if (action === 'snapshots' || action === 'groups') { section = action; book=''; pickerReturnBook=''; picker = false; await refresh(); }
+    else if (action === 'snapshots' || action === 'groups') { section = action; book=''; pickerReturnBook=''; picker = false; }
     else if (action === 'new') await beginNewSnapshot();
     else if (action === 'edit-snapshot') {
       engine.setCapturing(true);say('正在读取世界书开关…',true);
@@ -1130,7 +1147,7 @@ function onClick(event) {
     else if (action === 'group-menu') menuId=menuId===id?'':id;
     else if (action === 'new-group' || action === 'edit-group') {
       if(action==='edit-group' && !await prepareGroupChange(id,'编辑'))return;
-      await refresh(); groupQuery=''; editGroup = action === 'new-group' ? { name: '', books: [] } : copy(engine.read().groups.find(group => group.id === id));
+      await refresh(true); groupQuery=''; editGroup = action === 'new-group' ? { name: '', books: [] } : copy(engine.read().groups.find(group => group.id === id));
     } else if (action === 'save-group') {
       const pending = editGroup;
       const name = await requestSnapshotName(overlay, pending.name, 100, 'group');

@@ -130,7 +130,7 @@ export function createWorldbookSnapshots(host) {
   }
   const contextKey = () => JSON.stringify([host.character()?.key || '', host.chat?.() || '']);
   async function target(scope, owner) {
-    const catalog = await host.catalog();
+    const catalog = await host.catalog(scope, owner);
     if (scope === 'character') {
       const c = host.character();
       if (!c || !host.chat?.() || c.key !== owner) throw new Error('请进入当前角色聊天后使用');

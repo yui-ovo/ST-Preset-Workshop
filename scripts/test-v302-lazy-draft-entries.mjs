@@ -34,7 +34,7 @@ assert.ok(
   const fnStart = source.indexOf('function ensureBookEntries(bookBlock)');
   const fnBody = source.slice(fnStart, source.indexOf('\nfunction draftMarkup', fnStart));
   assert.ok(
-    fnBody.includes('offset+BOOK_ENTRY_RENDER_BATCH_SIZE'),
+    fnBody.includes('offset+batchSize'),
     '每帧必须只创建固定批量的世界书条目'
   );
   assert.ok(
@@ -42,7 +42,7 @@ assert.ok(
     '首次条目批次不应额外等待两帧，避免点击后明显追手'
   );
   assert.ok(
-    fnBody.includes('scheduleBookEntryRender(renderBatch)'),
+    fnBody.includes('scheduleBookEntryRender(()=>renderBatch(BOOK_ENTRY_RENDER_BATCH_SIZE))'),
     '剩余条目必须分散到后续帧继续创建'
   );
   assert.ok(
@@ -59,7 +59,9 @@ assert.ok(
   );
 }
 
-assert.ok(source.includes('const BOOK_ENTRY_RENDER_BATCH_SIZE=10'), '世界书条目每帧批量上限应保持为 10');
+assert.ok(source.includes('const BOOK_ENTRY_INITIAL_BATCH_SIZE=2'), '首次点击必须只同步生成两个轻量条目');
+assert.ok(source.includes('const BOOK_ENTRY_RENDER_BATCH_SIZE=8'), '后续世界书条目每帧批量上限应保持为 8');
+assert.ok(source.includes('renderBatch(BOOK_ENTRY_INITIAL_BATCH_SIZE)'), '首批轻量条目必须在点击处理内立即生成');
 assert.ok(source.includes('container.dataset.renderedCount'), '折叠后重新展开必须从已生成数量继续，不能重复创建条目');
 assert.ok(
   source.includes("say('正在读取世界书开关…',true); engine.setCapturing(true);")
