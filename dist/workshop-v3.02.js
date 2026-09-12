@@ -16703,7 +16703,8 @@ console.info('[预设工坊] V2.97.21 已加载：快照模式仅保留条目与
 
 (() => {
   const API_KEY = '__PMM_DESKTOP_FOUR_CORNER_RESIZE__';
-  const STORAGE_KEY = 'pmm.desktop-panel-size.v1';
+  const STORAGE_KEY = 'pmm.desktop-panel-size.v2';
+  const LEGACY_STORAGE_KEY = 'pmm.desktop-panel-size.v1';
   const CONTAINER_SELECTOR = '#preset-manager-main-panel .pm-panel-container';
   const CUSTOM_SIZED_CLASS = 'pmm-desktop-custom-sized';
   const HANDLE_CLASS = 'pmm-desktop-resize-handle';
@@ -16744,30 +16745,80 @@ console.info('[预设工坊] V2.97.21 已加载：快照模式仅保留条目与
     catch (_) { return null; }
   }
 
-  function loadSavedSize() {
+  function normalizeSize(value) {
+    if (Number.isFinite(value?.width) && Number.isFinite(value?.height)) {
+      return { width: value.width, height: value.height };
+    }
+    return null;
+  }
+
+  function loadSavedSizes() {
     try {
       const raw = getStorage()?.getItem(STORAGE_KEY);
-      if (!raw) return null;
+      if (!raw) return {};
       const parsed = JSON.parse(raw);
-      if (Number.isFinite(parsed?.width) && Number.isFinite(parsed?.height)) {
-        return { width: parsed.width, height: parsed.height };
-      }
+      return {
+        single: normalizeSize(parsed?.single),
+        dual: normalizeSize(parsed?.dual),
+      };
+    } catch (_) {}
+    return {};
+  }
+
+  function loadLegacySize() {
+    try {
+      return normalizeSize(JSON.parse(getStorage()?.getItem(LEGACY_STORAGE_KEY) || 'null'));
     } catch (_) {}
     return null;
   }
 
-  function saveSavedSize(width, height) {
+  function saveSavedSizes(sizes) {
     try {
-      getStorage()?.setItem(STORAGE_KEY, JSON.stringify({
-        width: Math.round(width),
-        height: Math.round(height)
-      }));
+      getStorage()?.setItem(STORAGE_KEY, JSON.stringify(sizes));
     } catch (_) {}
   }
 
-  function clearSavedSize() {
+  function loadSavedSize(mode = 'single', container = null) {
+    const sizes = loadSavedSizes();
+    if (sizes[mode]) return sizes[mode];
+    // Preserve existing desktop sizing once during the upgrade. New sizes are
+    // always stored by layout mode so a split width can never become a single width.
+    if (!getStorage()?.getItem(STORAGE_KEY)) {
+      const legacy = loadLegacySize();
+      if (legacy) {
+        // The legacy format did not record its layout. A very wide value while
+        // opening one panel is the old split-width leak, so start from the
+        // native single-panel size instead of recreating the bug after update.
+        const naturalWidth = mode === 'single' && container
+          ? measureNaturalWidth(container, legacy.width)
+          : 0;
+        if (naturalWidth && legacy.width > Math.max(naturalWidth * 1.5, naturalWidth + 400)) {
+          saveSavedSizes({});
+          return null;
+        }
+        saveSavedSize(legacy.width, legacy.height, mode);
+        return legacy;
+      }
+    }
+    return null;
+  }
+
+  function saveSavedSize(width, height, mode = 'single') {
+    const sizes = loadSavedSizes();
+    sizes[mode] = { width: Math.round(width), height: Math.round(height) };
+    saveSavedSizes(sizes);
+  }
+
+  function clearSavedSize(mode = '') {
     try {
-      getStorage()?.removeItem(STORAGE_KEY);
+      if (!mode) {
+        getStorage()?.removeItem(STORAGE_KEY);
+        getStorage()?.removeItem(LEGACY_STORAGE_KEY);
+        return;
+      }
+      const sizes = loadSavedSizes();
+      delete sizes[mode];
+      saveSavedSizes(sizes);
     } catch (_) {}
   }
 
@@ -16775,6 +16826,10 @@ console.info('[预设工坊] V2.97.21 已加载：快照模式仅保留条目与
     return container.classList.contains('pm-panel-container--merge-mode') ||
            container.classList.contains('pm-panel-container--branch-mode') ||
            container.classList.contains('pm-panel-container--favorite-mode');
+  }
+
+  function sizeMode(container) {
+    return isDualMode(container) ? 'dual' : 'single';
   }
 
   function getBounds(container, view) {
@@ -16792,6 +16847,20 @@ console.info('[预设工坊] V2.97.21 已加载：快照模式仅保留条目与
     container.classList.add(CUSTOM_SIZED_CLASS);
     container.style.setProperty('--pmm-custom-panel-width', `${Math.round(width)}px`);
     container.style.setProperty('--pmm-custom-panel-height', `${Math.round(height)}px`);
+  }
+
+  function clearDimensions(container) {
+    container.classList.remove(CUSTOM_SIZED_CLASS);
+    container.style.removeProperty('--pmm-custom-panel-width');
+    container.style.removeProperty('--pmm-custom-panel-height');
+  }
+
+  function currentDimensions(container, fallback) {
+    const rect = container.getBoundingClientRect?.() || {};
+    return {
+      width: parseFloat(container.style.getPropertyValue('--pmm-custom-panel-width')) || Number(rect.width) || fallback.width,
+      height: parseFloat(container.style.getPropertyValue('--pmm-custom-panel-height')) || Number(rect.height) || fallback.height,
+    };
   }
 
   /* 双击只重置横向尺寸。先暂时撤去自定义宽度并读取页面本身的默认宽度，
@@ -16818,7 +16887,7 @@ console.info('[预设工坊] V2.97.21 已加载：快照模式仅保留条目与
     const width = Math.min(bounds.maxW, Math.max(bounds.minW, naturalWidth));
     const height = Math.min(bounds.maxH, Math.max(bounds.minH, currentHeight));
     applyDimensions(container, width, height);
-    saveSavedSize(width, height);
+    saveSavedSize(width, height, sizeMode(container));
     return { width, height };
   }
 
@@ -16969,7 +17038,7 @@ console.info('[预设工坊] V2.97.21 已加载：快照模式仅保留条目与
         const curH = parseFloat(container.style.getPropertyValue('--pmm-custom-panel-height')) || startH;
         const clampedW = Math.min(bounds.maxW, Math.max(bounds.minW, curW));
         const clampedH = Math.min(bounds.maxH, Math.max(bounds.minH, curH));
-        saveSavedSize(clampedW, clampedH);
+        saveSavedSize(clampedW, clampedH, sizeMode(container));
       }
     }
 
@@ -17005,25 +17074,41 @@ console.info('[预设工坊] V2.97.21 已加载：快照模式仅保留条目与
     }
     installStyle(doc);
 
-    // If not already sized, try to load saved size
-    if (!container.classList.contains(CUSTOM_SIZED_CLASS)) {
-      const saved = loadSavedSize();
+    const mode = sizeMode(container);
+    const previousMode = container.dataset.pmmDesktopSizeMode || '';
+    const view = doc.defaultView || TOP || window;
+    const bounds = getBounds(container, view);
+
+    // The same DOM node changes between a single panel and a split panel.
+    // Save the departing layout first, then restore only the destination layout.
+    if (previousMode && previousMode !== mode) {
+      if (container.classList.contains(CUSTOM_SIZED_CLASS)) {
+        const current = currentDimensions(container, bounds);
+        saveSavedSize(current.width, current.height, previousMode);
+      }
+      const saved = loadSavedSize(mode, container);
       if (saved) {
-        const view = doc.defaultView || TOP || window;
-        const bounds = getBounds(container, view);
+        const w = Math.min(bounds.maxW, Math.max(bounds.minW, saved.width));
+        const h = Math.min(bounds.maxH, Math.max(bounds.minH, saved.height));
+        applyDimensions(container, w, h);
+      } else {
+        clearDimensions(container);
+      }
+    } else if (!container.classList.contains(CUSTOM_SIZED_CLASS)) {
+      const saved = loadSavedSize(mode, container);
+      if (saved) {
         const w = Math.min(bounds.maxW, Math.max(bounds.minW, saved.width));
         const h = Math.min(bounds.maxH, Math.max(bounds.minH, saved.height));
         applyDimensions(container, w, h);
       }
     } else {
-      // If already custom-sized, check if dual mode requires expanding width
-      const view = doc.defaultView || TOP || window;
-      const bounds = getBounds(container, view);
+      // Keep the current layout within its own bounds.
       const curW = parseFloat(container.style.getPropertyValue('--pmm-custom-panel-width'));
       if (curW && curW < bounds.minW) {
         container.style.setProperty('--pmm-custom-panel-width', `${bounds.minW}px`);
       }
     }
+    container.dataset.pmmDesktopSizeMode = mode;
 
     for (const corner of CORNERS) {
       let cornerHandle = container.querySelector(`.${HANDLE_CLASS}[data-pmm-corner="${corner}"]`);
@@ -17051,10 +17136,11 @@ console.info('[预设工坊] V2.97.21 已加载：快照模式仅保留条目与
   function startObserver() {
     if (observer || typeof TOP.MutationObserver !== 'function') return;
     try {
-      observer = new TOP.MutationObserver(() => {
+      observer = new TOP.MutationObserver(records => {
+        if (!records?.some?.(record => record.type === 'childList' || record.target?.matches?.('.pm-panel-container'))) return;
         scanAndMount();
       });
-      observer.observe(DOC.body || DOC.documentElement, { childList: true, subtree: true });
+      observer.observe(DOC.body || DOC.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
     } catch (_) {}
   }
 
@@ -17084,6 +17170,7 @@ console.info('[预设工坊] V2.97.21 已加载：快照模式仅保留条目与
     saveSavedSize,
     clearSavedSize,
     isDualMode,
+    sizeMode,
     getBounds,
     applyDimensions,
     measureNaturalWidth,

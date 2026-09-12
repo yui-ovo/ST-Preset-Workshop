@@ -6,7 +6,12 @@ const source = await readFile(new URL('../dist/workshop-v3.02.js', import.meta.u
 // 1. Static Source Code Assertions
 for (const marker of [
   "const API_KEY = '__PMM_DESKTOP_FOUR_CORNER_RESIZE__'",
-  "const STORAGE_KEY = 'pmm.desktop-panel-size.v1'",
+  "const STORAGE_KEY = 'pmm.desktop-panel-size.v2'",
+  "const LEGACY_STORAGE_KEY = 'pmm.desktop-panel-size.v1'",
+  'legacy.width > Math.max(naturalWidth * 1.5, naturalWidth + 400)',
+  'function sizeMode(container)',
+  'pmmDesktopSizeMode',
+  "attributes: true, attributeFilter: ['class']",
   "const CORNERS = ['nw', 'ne', 'sw', 'se']",
   "cursor: nwse-resize",
   "cursor: nesw-resize",
@@ -335,8 +340,8 @@ assert.equal(container.style.getPropertyValue('--pmm-custom-panel-height'), '760
 assert.ok(container.classList.contains('pmm-desktop-custom-sized'), '容器应标记已自定义尺寸样式类');
 
 // Verify localStorage persistence
-const saved = api.loadSavedSize();
-assert.deepEqual(saved, { width: 720, height: 760 }, '缩放尺寸必须持久化到 localStorage');
+const saved = api.loadSavedSize('single');
+assert.deepEqual(saved, { width: 720, height: 760 }, '单栏缩放尺寸必须单独持久化');
 
 // Drag NW corner: dx = -50, dy = -30 -> pulling top-left outward should also expand by +100, +60
 container._rect = { left: 50, top: 70, width: 720, height: 760 };
@@ -355,6 +360,8 @@ assert.equal(singleHeight, 420, '最小高度受动态限制为 420px');
 // Test 3.5: Dynamic Min Bounds Clamping in Dual Mode (Merge / Branch / Favorite)
 container.classList.add('pm-panel-container--branch-mode');
 assert.equal(api.isDualMode(container), true, '应识别分支模式为双栏布局');
+api.ensureHandles(container);
+assert.equal(container.dataset.pmmDesktopSizeMode, 'dual', '进入分屏时必须切换到双栏尺寸槽');
 
 container._rect = { left: 100, top: 100, width: 1200, height: 700 };
 simulateDrag(seHandle, -500, -500);
@@ -383,10 +390,30 @@ assert.equal(defaultPrevented, true, '双击缩放角应阻止浏览器默认行
 assert.ok(container.classList.contains('pmm-desktop-custom-sized'), '双击后须保留自定义尺寸类以维持当前高度');
 assert.equal(container.style.getPropertyValue('--pmm-custom-panel-width'), '1312px', '双击后宽度必须回到该模式原生默认宽度');
 assert.equal(container.style.getPropertyValue('--pmm-custom-panel-height'), '640px', '双击恢复宽度不能改动当前高度');
-assert.deepEqual(api.loadSavedSize(), { width: 1312, height: 640 }, '双击后的默认宽度与保留高度必须同步保存');
+assert.deepEqual(api.loadSavedSize('dual'), { width: 1312, height: 640 }, '双击后的默认双栏宽度与保留高度必须只保存到双栏尺寸槽');
 
-// Test 3.7: Mobile cleans up handles if present
+// Test 3.7: Leaving a split must restore the independent single-panel size.
 container.classList.remove('pm-panel-container--branch-mode');
+api.ensureHandles(container);
+assert.equal(container.dataset.pmmDesktopSizeMode, 'single', '退出分屏时必须切回单栏尺寸槽');
+assert.equal(container.style.getPropertyValue('--pmm-custom-panel-width'), '560px', '退出分屏不得沿用双栏 1312px 宽度');
+assert.equal(container.style.getPropertyValue('--pmm-custom-panel-height'), '420px', '退出分屏必须恢复原单栏高度');
+assert.deepEqual(api.loadSavedSize('single'), { width: 560, height: 420 }, '单栏尺寸不得被双栏调整覆盖');
+
+// Test 3.8: A legacy v1 record had no split/single distinction. If its width is
+// clearly a former split-panel width, ignore it once so an upgrade does not
+// preserve the old oversized single-panel bug.
+api.clearSavedSize();
+mockWin.localStorage.setItem('pmm.desktop-panel-size.v1', JSON.stringify({ width: 1725, height: 820 }));
+const legacyContainer = mockWin.document.createElement('div');
+legacyContainer.classList.add('pm-panel-container');
+legacyContainer._rect = { left: 100, top: 100, width: 790, height: 700 };
+rootPanel.appendChild(legacyContainer);
+api.ensureHandles(legacyContainer);
+assert.equal(legacyContainer.classList.contains('pmm-desktop-custom-sized'), false, '旧版残留的分屏宽度不能恢复为单栏宽度');
+assert.equal(api.loadSavedSize('single'), null, '旧版残留的分屏宽度迁移时必须丢弃');
+
+// Test 3.9: Mobile cleans up handles if present and never applies desktop sizing.
 api.ensureHandles(container); // recreate handles
 assert.equal(container.querySelectorAll('.pmm-desktop-resize-handle').length, 4);
 
@@ -394,8 +421,9 @@ assert.equal(container.querySelectorAll('.pmm-desktop-resize-handle').length, 4)
 mockWin.innerWidth = 500;
 api.ensureHandles(container);
 assert.equal(container.querySelectorAll('.pmm-desktop-resize-handle').length, 0, '移动端环境下自动清理四角缩放 handle');
+assert.equal(container.style.getPropertyValue('--pmm-custom-panel-width'), '560px', '切到手机环境不得改写已保存的桌面尺寸');
 
-// Test 3.8: Desktop Header Natural Wrap Responsiveness (Narrow width adaptation)
+// Test 3.10: Desktop Header Natural Wrap Responsiveness (Narrow width adaptation)
 mockWin.innerWidth = 1920;
 api.ensureHandles(container);
 const styleEl = mockWin.document.getElementById('pmm-desktop-corner-resize-style');
@@ -424,4 +452,4 @@ assert.ok(realPanelRule.includes('flex: 1 1 auto !important'), '实际面板必�
 assert.ok(realPanelRule.includes('width: 100% !important'), '实际面板必须占满缩放后的主包装器');
 assert.ok(realPanelRule.includes('max-width: none !important'), '实际面板不能继续被默认固定宽度限制');
 
-console.log('test.94 回归通过：桌面端面板四角拖动居中缩放、实际面板与侧栏锚点同步、双栏防挤压边界、双击仅恢复原生宽度并保留高度、触屏隔离以及顶部工具组按实际宽度自然换行全部正常。');
+console.log('test.94 回归通过：单栏与双栏独立记忆尺寸，退出分屏恢复单栏，桌面缩放、触屏隔离与顶部自然换行均正常。');

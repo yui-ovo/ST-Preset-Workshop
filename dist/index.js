@@ -1,5 +1,5 @@
 const EXTENSION_NAME = '🧩预设工坊';
-const EXTENSION_VERSION = '2.98.5';
+const EXTENSION_VERSION = '2.98.6';
 const RUNTIME_ID = 'TH-script--🧩预设工坊（GitHub 扩展）--2f53f6af-3c9e-4c71-bc52-9f635be25300';
 const LEGACY_IFRAME_PREFIX = 'TH-script--🧩预设工坊';
 const EXTENSION_FOLDER_NAME = 'ST-Preset-Workshop';
