@@ -5,7 +5,7 @@
   "optional": [],
   "js": "dist/index.js",
   "author": "kookt",
-  "version": "2.98.6",
+  "version": "2.98.7",
   "homePage": "https://github.com/yui-ovo/ST-Preset-Workshop",
   "auto_update": true,
   "hooks": {

@@ -60,7 +60,7 @@ function optionalHelper(name) {
 }
 function characters() {
   return Object.entries(ctx().characters || {}).filter(([, c]) => c?.name).map(([id, c]) => ({
-    key: String(c.avatar || c.id || id), name: c.name, rawId: id,
+    key: String(c.avatar || c.id || id), avatar: String(c.avatar || ''), name: c.name, rawId: id,
   }));
 }
 function character() {
@@ -99,7 +99,15 @@ async function catalog(scope = '', owner = '') {
   // The helper reads primary AND additional bindings. Fail closed on partial reads.
   const getBindings = helper('getCharWorldbookNames');
   const candidates=scope==='names' ? [] : scope==='character' ? characters().filter(c=>c.key===owner) : characters();
-  const bindingsByCharacter=await boundedMap(candidates,CATALOG_BINDING_CONCURRENCY,async c=>({c,bindings:await getBindings(c.name)}));
+  const bindingsByCharacter=await boundedMap(candidates,CATALOG_BINDING_CONCURRENCY,async c=>{
+    // Names are not unique: current-page reads use the selected card, full scans use its avatar filename.
+    const isCurrent=scope==='character';
+    if(isCurrent && character()?.key!==c.key)throw new Error('角色已切换，请重试');
+    if(!isCurrent && !c.avatar && characters().filter(row=>row.name.toLocaleLowerCase()===c.name.toLocaleLowerCase()).length>1)throw new Error('同名角色缺少文件标识，无法安全读取世界书绑定');
+    const bindings=await getBindings(isCurrent?'current':c.avatar || c.name);
+    if(isCurrent && character()?.key!==c.key)throw new Error('角色已切换，请重试');
+    return {c,bindings};
+  });
   for (const {c,bindings} of bindingsByCharacter) {
     for (const raw of [bindings?.primary, ...(bindings?.additional || [])]) {
       const name = linked.has(raw) ? raw : lookup.get(normalize(raw));
