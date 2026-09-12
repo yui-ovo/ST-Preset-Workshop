@@ -1,5 +1,5 @@
 const EXTENSION_NAME = '🧩预设工坊';
-const EXTENSION_VERSION = '2.98.3';
+const EXTENSION_VERSION = '2.98.4';
 const RUNTIME_ID = 'TH-script--🧩预设工坊（GitHub 扩展）--2f53f6af-3c9e-4c71-bc52-9f635be25300';
 const LEGACY_IFRAME_PREFIX = 'TH-script--🧩预设工坊';
 const EXTENSION_FOLDER_NAME = 'ST-Preset-Workshop';
@@ -8,7 +8,8 @@ const LEGACY_GRACE_PERIOD = 3_000;
 const VERSION_CHECK_INTERVAL = 30_000;
 const RAPID_VERSION_CHECK_INTERVAL = 750;
 const RAPID_VERSION_CHECK_TIMEOUT = 65_000;
-const NATIVE_UPDATE_RELOAD_DELAY = 1_000;
+const UPDATE_MANAGER_SETTLE_DELAY = 1_500;
+const UPDATE_MANAGER_CLOSE_POLL_INTERVAL = 50;
 const TOP_NOTIFICATION_STORAGE_KEY = 'pmm_top_notifications_enabled_v1';
 
 let versionCheckTimer = null;
@@ -16,6 +17,7 @@ let versionCheckBusy = false;
 let rapidVersionCheckTimer = null;
 let rapidVersionCheckStopTimer = null;
 let nativeUpdateReloadTimer = null;
+let nativeUpdateReloadPending = false;
 let singleExtensionUpdatePending = false;
 let bulkExtensionUpdateInProgress = false;
 
@@ -61,12 +63,12 @@ async function checkForInstalledUpdate() {
     if (document.visibilityState === 'hidden') return;
     if (await readInstalledVersion() !== nextVersion) return;
 
-    const followsNativeSingleUpdate = singleExtensionUpdatePending;
-    stopVersionWatcher();
+    const followsNativeSingleUpdate = nativeUpdateReloadPending || singleExtensionUpdatePending;
     if (followsNativeSingleUpdate) {
-      /* 单独更新时酒馆会自己弹成功提示，留一秒给原生提示显示，不再重复弹第二条。 */
-      await sleep(NATIVE_UPDATE_RELOAD_DELAY);
+      deferNativeSingleUpdateReload();
+      return;
     } else {
+      stopVersionWatcher();
       notify('info', `扩展已更新至 v${nextVersion}，正在自动刷新酒馆`);
       await sleep(450);
     }
@@ -124,20 +126,68 @@ function startRapidVersionCheck() {
   );
 }
 
+function clearPendingExtensionUpdateReload() {
+  if (nativeUpdateReloadTimer !== null) {
+    globalThis.clearTimeout(nativeUpdateReloadTimer);
+    nativeUpdateReloadTimer = null;
+  }
+  nativeUpdateReloadPending = false;
+  document.removeEventListener('click', handlePendingExtensionManagerClose, true);
+}
+
 function markExtensionUpdateReload() {
+  clearPendingExtensionUpdateReload();
   globalThis.__PMM_PERFORMANCE_GUARD_V275__?.markReloadReason?.('extension-update');
   globalThis.location.reload();
 }
 
+function activeExtensionManagerDialog() {
+  return [...document.querySelectorAll('dialog')].find(dialog => (
+    dialog.open && Boolean(dialog.querySelector('.extensions_info'))
+  )) || null;
+}
+
+function waitForExtensionManagerClose(dialog) {
+  if (nativeUpdateReloadTimer !== null) globalThis.clearTimeout(nativeUpdateReloadTimer);
+  const deadline = Date.now() + 3_000;
+  const check = () => {
+    nativeUpdateReloadTimer = null;
+    if (dialog?.isConnected && dialog.open && Date.now() < deadline) {
+      nativeUpdateReloadTimer = globalThis.setTimeout(check, UPDATE_MANAGER_CLOSE_POLL_INTERVAL);
+      return;
+    }
+    markExtensionUpdateReload();
+  };
+  nativeUpdateReloadTimer = globalThis.setTimeout(check, 0);
+}
+
+function handlePendingExtensionManagerClose(event) {
+  if (!nativeUpdateReloadPending) return;
+  const target = event?.target;
+  if (!target || typeof target.closest !== 'function') return;
+  const closeButton = target.closest('.popup-button-ok');
+  const dialog = closeButton?.closest('dialog');
+  if (!dialog?.querySelector('.extensions_info')) return;
+  waitForExtensionManagerClose(dialog);
+}
+
+function deferNativeSingleUpdateReload() {
+  if (nativeUpdateReloadPending) return;
+  stopVersionWatcher();
+  nativeUpdateReloadPending = true;
+  document.addEventListener('click', handlePendingExtensionManagerClose, true);
+  /* 更新器会先关闭旧窗口并重建扩展列表；给新窗口留出挂载时间。 */
+  nativeUpdateReloadTimer = globalThis.setTimeout(() => {
+    nativeUpdateReloadTimer = null;
+    if (nativeUpdateReloadPending && !activeExtensionManagerDialog()) markExtensionUpdateReload();
+  }, UPDATE_MANAGER_SETTLE_DELAY);
+}
+
 function scheduleNativeSingleUpdateReload() {
-  if (bulkExtensionUpdateInProgress || nativeUpdateReloadTimer !== null) return false;
+  if (bulkExtensionUpdateInProgress || nativeUpdateReloadPending) return false;
   if (!singleExtensionUpdatePending && !isOwnSingleUpdateSpinning()) return false;
 
-  stopVersionWatcher();
-  nativeUpdateReloadTimer = globalThis.setTimeout(
-    markExtensionUpdateReload,
-    NATIVE_UPDATE_RELOAD_DELAY,
-  );
+  deferNativeSingleUpdateReload();
   return true;
 }
 
@@ -329,10 +379,7 @@ export async function startPresetWorkshop() {
 
 export function stopPresetWorkshop() {
   stopVersionWatcher();
-  if (nativeUpdateReloadTimer !== null) {
-    globalThis.clearTimeout(nativeUpdateReloadTimer);
-    nativeUpdateReloadTimer = null;
-  }
+  clearPendingExtensionUpdateReload();
   try { globalThis.__PMM_PRESET_CONTENT_EDITOR_V1__?.cleanup?.(); } catch (_) {}
   document.getElementById(RUNTIME_ID)?.remove();
 }

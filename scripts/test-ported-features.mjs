@@ -79,8 +79,11 @@ assert.equal(manifest.hooks?.update, 'onUpdate', 'manifest 必须注册酒馆官
 for (const marker of [
   'export function onUpdate()',
   'scheduleNativeSingleUpdateReload()',
+  'deferNativeSingleUpdateReload()',
   'bulkExtensionUpdateInProgress = true',
-  'NATIVE_UPDATE_RELOAD_DELAY = 1_000',
+  'UPDATE_MANAGER_SETTLE_DELAY = 1_500',
+  "target.closest('.popup-button-ok')",
+  "dialog?.querySelector('.extensions_info')",
   'RAPID_VERSION_CHECK_INTERVAL = 750',
   "document.addEventListener('click', handleNativeExtensionManagerClick, true)",
   "new URL('./preset-content-editor.js', import.meta.url)",

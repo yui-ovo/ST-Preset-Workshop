@@ -283,13 +283,12 @@ style.textContent = `
 .pmm-wbs-dialog select.pmm-wbs-plan { width:auto; min-width:65px; max-width:100%; margin:0; color:var(--wbs-ink); background:var(--wbs-raised); border:1px solid var(--wbs-line); border-radius:10px; font:inherit; padding:5px 7px; text-overflow:ellipsis; }
 .pmm-wbs-plan option { color:var(--wbs-ink); background:var(--pm-panel-bg); }
 .pmm-wbs-book { display:block!important; margin:8px 0; border:1px solid var(--wbs-line); border-radius:12px; overflow:hidden; }
-.pmm-wbs-book>summary { display:flex!important; align-items:center; gap:8px; padding:12px 9px; cursor:pointer; list-style:none; background:var(--wbs-raised); }
-.pmm-wbs-book>summary::-webkit-details-marker { display:none; }
-.pmm-wbs-book>summary .pmm-wbs-svg { width:14px; height:14px; transition:transform .12s; }
-.pmm-wbs-book[open]>summary .pmm-wbs-svg { transform:rotate(90deg); }
+.pmm-wbs-book>.pmm-wbs-book-head { display:flex!important; align-items:center; gap:8px; width:100%; min-height:0!important; padding:12px 9px!important; border:0!important; border-radius:0!important; background:var(--wbs-raised)!important; box-shadow:none!important; color:inherit; text-align:left; }
+.pmm-wbs-book>.pmm-wbs-book-head .pmm-wbs-svg { width:14px; height:14px; transition:transform .12s; }
+.pmm-wbs-book>.pmm-wbs-book-head[aria-expanded="true"] .pmm-wbs-svg { transform:rotate(90deg); }
 .pmm-wbs-book-title { flex:1; min-width:0; overflow-wrap:anywhere; }
-.pmm-wbs-book>summary small { margin:0; white-space:nowrap; }
-.pmm-wbs-book:not([open])>.pmm-wbs-book-entries { display:none!important; }
+.pmm-wbs-book>.pmm-wbs-book-head small { margin:0; white-space:nowrap; }
+.pmm-wbs-book>.pmm-wbs-book-entries[hidden] { display:none!important; }
 .pmm-wbs-entry-block { content-visibility:auto; contain-intrinsic-size:auto 50px; }
 .pmm-wbs-batch-row { content-visibility:auto; contain-intrinsic-size:auto 44px; }
 .pmm-wbs-row { content-visibility:auto; contain-intrinsic-size:auto 70px; }
@@ -728,13 +727,16 @@ function scopeOwner() { return page === 'character' ? character()?.key || '' : b
 function bundleScope() { return page === 'character' ? 'character' : 'group'; }
 async function beginNewSnapshot() {
   if (TOP[PRESET]?.isCapturing?.()) throw new Error('请先完成预设快照');
-  say(''); engine.setCapturing(true);
+  say('正在读取世界书开关…',true); engine.setCapturing(true);
   try {
+    render();
+    await new Promise(resolve=>scheduleBookEntryRender(resolve));
     const scope=bundleScope(),owner=scopeOwner();
     const captured=await engine.captureBundle(scope,owner);
     const label=page==='character'?character().name:engine.read().groups.find(g=>g.id===owner)?.name;
     if(!label)throw new Error('分组已不存在');
     draft={...captured,scope,owner,name:`${label} 开关`,expanded:Object.fromEntries(Object.keys(captured.data).map(name=>[name,Object.keys(captured.data).length===1])),queries:{},previews:{}};
+    say('');
   } catch(error) { engine.setCapturing(false); await engine.transition(); throw error; }
 }
 function sourceMarkup() {
@@ -796,7 +798,7 @@ function groupMarkup() {
       +(menuId===group.id?'<div class="pmm-wbs-menu">'+button('edit-group','编辑分组',attrs)+button('manage-snapshots','管理分组快照',attrs)+button('delete-group','删除分组',attrs)+'</div>':'')+'</article>';
   }).join('');
 }
-const BOOK_ENTRY_RENDER_BATCH_SIZE=12;
+const BOOK_ENTRY_RENDER_BATCH_SIZE=10;
 let bookEntryRenderId=0;
 function orderedBookEntries(data) {
   return Object.values(data?.entries||{}).sort((a,b)=>Number(a.displayIndex??a.uid)-Number(b.displayIndex??b.uid));
@@ -811,10 +813,10 @@ function scheduleBookEntryRender(callback) {
   if(typeof TOP.requestAnimationFrame==='function')TOP.requestAnimationFrame(callback);
   else TOP.setTimeout(callback,16);
 }
-function ensureBookEntries(details) {
-  if(!draft || !details)return;
-  const name=details.dataset.draftBook;
-  const container=details.querySelector('.pmm-wbs-book-entries');
+function ensureBookEntries(bookBlock) {
+  if(!draft || !bookBlock)return;
+  const name=bookBlock.dataset.draftBook;
+  const container=bookBlock.querySelector('.pmm-wbs-book-entries');
   const data=draft.data[name];
   if(!container || !data || container.dataset.rendered || container.dataset.rendering)return;
   const entries=orderedBookEntries(data),renderId=String(++bookEntryRenderId);
@@ -823,7 +825,7 @@ function ensureBookEntries(details) {
   const stop=()=>{if(container.dataset.rendering===renderId)delete container.dataset.rendering;};
   const renderBatch=()=>{
     if(!draft || draft.data[name]!==data || !overlay?.contains(container) || container.dataset.rendering!==renderId){stop();return;}
-    if(!details.open){stop();return;}
+    if(!draft.expanded[name]){stop();return;}
     if(!entries.length)container.insertAdjacentHTML('beforeend','<small>这本世界书暂无条目</small>');
     else {
       const next=Math.min(offset+BOOK_ENTRY_RENDER_BATCH_SIZE,entries.length);
@@ -835,14 +837,13 @@ function ensureBookEntries(details) {
     }
     filterDraft(name);scheduleBookEntryRender(renderBatch);
   };
-  // Let the native <details> opening paint before creating its first row batch.
-  scheduleBookEntryRender(()=>scheduleBookEntryRender(renderBatch));
+  scheduleBookEntryRender(renderBatch);
 }
 function draftMarkup() {
   return '<small>共 '+Object.keys(draft.data).length+' 本世界书 · 点击书名展开或收起</small><div data-entries>'
     +Object.entries(draft.data).map(([name,data])=>{
       const isOpen=!!draft.expanded[name];
-      return '<details class="pmm-wbs-book" data-draft-book="'+h(name)+'" '+(isOpen?'open':'')+'><summary>'+icon('arrow')+'<span class="pmm-wbs-book-title">'+h(name)+'</span><small>'+Object.keys(data.entries).length+' 条</small></summary><div class="pmm-wbs-book-entries"><input class="pmm-wbs-book-search" type="search" data-filter-book="'+h(name)+'" value="'+h(draft.queries?.[name]||'')+'" placeholder="搜索条目名称" aria-label="搜索 '+h(name)+' 的条目"></div></details>';
+      return '<section class="pmm-wbs-book" data-draft-book="'+h(name)+'" data-open="'+isOpen+'"><button type="button" class="pmm-wbs-book-head" data-wbs="toggle-draft-book" data-book="'+h(name)+'" aria-expanded="'+isOpen+'">'+icon('arrow')+'<span class="pmm-wbs-book-title">'+h(name)+'</span><small>'+Object.keys(data.entries).length+' 条</small></button><div class="pmm-wbs-book-entries" '+(isOpen?'':'hidden')+'><input class="pmm-wbs-book-search" type="search" data-filter-book="'+h(name)+'" value="'+h(draft.queries?.[name]||'')+'" placeholder="搜索条目名称" aria-label="搜索 '+h(name)+' 的条目"></div></section>';
     }).join('')+'</div>';
 }
 function groupEditorMarkup() {
@@ -894,7 +895,7 @@ function render() {
   syncGroupSave();
   sizeGroupPlanSelects();
   positionMenu();
-  if(draft)for(const details of overlay.querySelectorAll('[data-draft-book][open]'))ensureBookEntries(details);
+  if(draft)for(const bookBlock of overlay.querySelectorAll('[data-draft-book][data-open="true"]'))ensureBookEntries(bookBlock);
 }
 function positionMenu() {
   const menu=overlay?.querySelector('.pmm-wbs-menu');
@@ -935,12 +936,6 @@ async function open(scope = 'character', selected = '', restore = true) {
   overlay.addEventListener('scroll', event=>{
     if(menuId && event.target.classList?.contains('pmm-wbs-body')) {
       menuId='';overlay.querySelectorAll('.pmm-wbs-menu').forEach(node=>node.remove());
-    }
-  },true);
-  overlay.addEventListener('toggle', event=>{
-    if(draft && event.target.matches('[data-draft-book]')) {
-      draft.expanded[event.target.dataset.draftBook]=event.target.open;
-      if(event.target.open) ensureBookEntries(event.target);
     }
   },true);
   overlay.addEventListener('keydown', onKey);
@@ -1023,7 +1018,7 @@ function onKey(event) {
   if(event.key==='Escape' && event.target.matches('select'))return;
   if (event.key === 'Escape') { event.stopPropagation(); void close(); }
   if (event.key !== 'Tab') return;
-  const nodes = [...overlay.querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled),summary')].filter(node => node.getClientRects().length);
+  const nodes = [...overlay.querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled)')].filter(node => node.getClientRects().length);
   const first = nodes[0], last = nodes.at(-1);
   if (event.shiftKey && DOC.activeElement === first) { event.preventDefault(); last?.focus(); }
   else if (!event.shiftKey && DOC.activeElement === last) { event.preventDefault(); first?.focus(); }
@@ -1035,6 +1030,17 @@ function onClick(event) {
   const target = event.target.closest('button');
   if (!target || target.disabled || busy) return;
   const action = target.dataset.wbs, id = target.dataset.id;
+  if(action==='toggle-draft-book' && draft) {
+    event.preventDefault();
+    const name=target.dataset.book,bookBlock=target.closest('[data-draft-book]');
+    const expanded=!draft.expanded[name];draft.expanded[name]=expanded;
+    target.setAttribute('aria-expanded',String(expanded));
+    if(bookBlock)bookBlock.dataset.open=String(expanded);
+    const entries=bookBlock?.querySelector('.pmm-wbs-book-entries');
+    if(entries)entries.hidden=!expanded;
+    if(expanded)ensureBookEntries(bookBlock);
+    return;
+  }
   if(action==='preview-entry' && draft) {
     const name=target.dataset.previewBook,uid=target.dataset.previewUid;
     draft.previews ||= {}; draft.previews[name] ||= {};
@@ -1071,10 +1077,13 @@ function onClick(event) {
     else if (action === 'snapshots' || action === 'groups') { section = action; book=''; pickerReturnBook=''; picker = false; await refresh(); }
     else if (action === 'new') await beginNewSnapshot();
     else if (action === 'edit-snapshot') {
-      engine.setCapturing(true);say('');
+      engine.setCapturing(true);say('正在读取世界书开关…',true);
       try {
+        render();
+        await new Promise(resolve=>scheduleBookEntryRender(resolve));
         const captured=await engine.editBundle(id);
         draft={...captured,expanded:Object.fromEntries(Object.keys(captured.data).map(name=>[name,Object.keys(captured.data).length===1])),queries:{},previews:{}};
+        say('');
       } catch(error) { engine.setCapturing(false);throw error; }
     } else if (action === 'save-draft') {
       const editingDraft = draft;
