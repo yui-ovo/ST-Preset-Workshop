@@ -53,13 +53,15 @@ function readableText(background,preferred){
   if(wanted&&contrast(bg,wanted)>=4.5)return rgba(wanted);
   const light=parseColor('#f8fbff'),dark=parseColor('#14202b');const best=contrast(bg,light)>contrast(bg,dark)?light:dark;return rgba(contrast(bg,best)>=4.5?best:parseColor('#08121c'));
 }
+let nativePaletteCache=null;
 function nativePalette(){
+  if(nativePaletteCache)return nativePaletteCache;
   const nodes=[DOC.body,DOC.querySelector?.('#chat'),DOC.documentElement].filter(Boolean);
   const styles=nodes.map(node=>TOP.getComputedStyle?.(node)).filter(Boolean);
   const find=names=>{for(const name of names)for(const style of styles){const value=style.getPropertyValue?.(name)||style[name];const color=parseColor(value);if(color&&color.a>.08)return color}return null};
   const text=find(['--SmartThemeBodyColor','color']);
   const background=find(['--SmartThemeBlurTintColor','--SmartThemeChatTintColor','backgroundColor'])||parseColor(text&&luminance(text)>.5?'#223040':'#e5edf5');
-  return{background,text,accent:find(['--SmartThemeQuoteColor'])||mix(background,parseColor('#599ac9'),.65),border:find(['--SmartThemeBorderColor'])};
+  return nativePaletteCache={background,text,accent:find(['--SmartThemeQuoteColor'])||mix(background,parseColor('#599ac9'),.65),border:find(['--SmartThemeBorderColor'])};
 }
 function frozenToneLuminance(value){const text=String(value||"").trim();const hex=text.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);if(hex){let raw=hex[1];if(raw.length===3)raw=raw.split("").map(char=>char+char).join("");return(.2126*parseInt(raw.slice(0,2),16)+.7152*parseInt(raw.slice(2,4),16)+.0722*parseInt(raw.slice(4,6),16))/255}const m=text.match(/rgba?\(\s*([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)(?:[ ,/]+([\d.]+))?/i);if(!m||m[4]!=null&&Number(m[4])<.08)return null;return(.2126*Number(m[1])+.7152*Number(m[2])+.0722*Number(m[3]))/255}
 function frozenEnvironmentTone(){
@@ -105,12 +107,14 @@ function hydrateRoot(root,tone=DOC.documentElement.dataset.pmmThemeTone,vars=las
   // Late surfaces inherit the committed palette, while another theme is pending or deferred by a gesture.
   attributes ||= {pmmFollowTavern:DOC.documentElement.dataset.pmmFollowTavern??String(followTavern),pmmVisualTheme:DOC.documentElement.dataset.pmmVisualTheme||current,pmmThemeTone:tone};
   for(const [key,value] of Object.entries(attributes))if(root.dataset[key]!==value)root.dataset[key]=value;
+  if(root.id==='pmm-mobile-layout-card'&&root.dataset.pmmLayoutTheme!==tone)root.dataset.pmmLayoutTheme=tone;
   const changes=[];
   for(const [key,value] of Object.entries(vars))if(root.style.getPropertyValue(key)!==value)changes.push(`${key}:${value}${root.style.getPropertyPriority(key)?' !important':''}`);
   // A single style mutation per surface, preserving unrelated inline styles and priorities.
   if(changes.length)root.style.cssText += ';'+changes.join(';');
 }
-function apply(forcedTone,animate=false){
+function apply(forcedTone,animate=false,useCachedPalette=false){
+  if(!useCachedPalette)nativePaletteCache=null;
   const palette=nativePalette();
   const tone=forcedTone==='light'||forcedTone==='dark'?forcedTone:environmentTone(palette);
   const tokens=followTavern?followedTokens(tone,palette):THEMES[current][tone],vars=variables(tokens,palette);
@@ -125,6 +129,7 @@ function apply(forcedTone,animate=false){
   for(const root of roots)hydrateRoot(root,tone,vars,attributes);
   for(const button of DOC.querySelectorAll('[data-pmm-theme-choice]'))button.classList.toggle('is-active',button.dataset.pmmThemeChoice===current);
   lastTokens=tokens;lastVariables=vars;
+  syncEntryText();
   if(before){stopTransition();startSurfaceMotion(before)}
   TOP.dispatchEvent(new CustomEvent('pmm:theme-applied',{detail:{theme:current,tone}}));
 }
@@ -177,7 +182,7 @@ function commitThemeChange(tone,animate,nativeMode,revision){
   stopTransition();
   if(pendingNativeMode===nativeMode)pendingNativeMode=null;
   // Commit in this microtask. Animation never gates input on a document screenshot or next frame.
-  nativeMode?.();apply(tone);
+  nativeMode?.();apply(tone,false,true);
   if(animate&&before)startSurfaceMotion(before);
 }
 function beginInteraction(owner){interactions.add(owner);if(motionSurfaces.length)stopTransition()}
@@ -217,6 +222,60 @@ function mountPicker(card){
   for(const [key,definition] of Object.entries(THEMES)){const button=DOC.createElement('button');button.type='button';button.dataset.pmmThemeChoice=key;button.title=definition.identity;button.innerHTML=`<span class="pmm-theme-swatch" aria-hidden="true"></span><span>${definition.name}</span>`;button.addEventListener('click',()=>setTheme(key));choices.appendChild(button)}
   for(const button of choices.children)button.classList.toggle('is-active',button.dataset.pmmThemeChoice===current);
   body.prepend(picker);hydrateRoot(card);
+}
+// Expanded entry bodies keep their existing material, which can differ from the outer skin.
+const ENTRY_TEXT_SELECTOR='#preset-manager-main-panel :is(.prompt-editor__textarea,.full-editor__textarea,.inline-editor__textarea),#preset-manager-floating-panel :is(.prompt-editor__textarea,.full-editor__textarea,.inline-editor__textarea)';
+let entryTextQueued=false,allEntryText=false;
+const pendingEntryText=new Set(),ownedEntryText=new WeakMap();
+function syncEntryText(node){
+  if(disposed)return;
+  if(node?.nodeType===1)pendingEntryText.add(node);else{if(!pendingEntryText.size&&!DOC.querySelector?.(ENTRY_TEXT_SELECTOR))return;allEntryText=true;}
+  if(entryTextQueued||deferWork('entry-text',()=>syncEntryText()))return;
+  entryTextQueued=true;
+  TOP.queueMicrotask(()=>{
+    entryTextQueued=false;if(disposed)return;
+    if(deferWork('entry-text',()=>syncEntryText()))return;
+    const nodes=allEntryText?new Set([...DOC.querySelectorAll(ENTRY_TEXT_SELECTOR),...pendingEntryText]):new Set(pendingEntryText);
+    pendingEntryText.clear();allEntryText=false;
+    const styles=new Map(),styleFor=node=>{if(!styles.has(node))styles.set(node,TOP.getComputedStyle(node));return styles.get(node)};
+    for(const node of nodes){
+      if(!node.isConnected||!node.matches?.(ENTRY_TEXT_SELECTOR))continue;
+      const layers=[];
+      for(let parent=node;parent;parent=parent.parentElement){
+        const style=styleFor(parent);
+        // Desktop skin motion temporarily clears the real surface and paints two pseudo layers.
+        // Its committed target is already available; a transparent intermediate is not the body background.
+        const color=(parent.classList.contains('pmm-theme-surface-motion')?parseColor(style.getPropertyValue('--pmm-theme-motion-to')):null)||parseColor(style.backgroundColor);
+        if(color&&color.a>0){layers.push(color);if(color.a>=.99)break;}
+      }
+      let background=nativePalette().background;
+      for(const layer of layers.reverse())background=composite(layer,background);
+      let color=readableText(rgba(background),lastTokens?.text);
+      // Leave room for the existing inset shadow and translucent compositing near the contrast boundary.
+      if(contrast(background,parseColor(color))<5){
+        const dark=parseColor('#000'),light=parseColor('#fff');
+        color=rgba(contrast(background,dark)>=contrast(background,light)?dark:light);
+      }
+      if(!ownedEntryText.has(node))ownedEntryText.set(node,{value:node.style.getPropertyValue('--pmm-entry-text'),priority:node.style.getPropertyPriority('--pmm-entry-text')});
+      ownedEntryText.get(node).owned=color;
+      if(node.style.getPropertyValue('--pmm-entry-text')!==color)node.style.setProperty('--pmm-entry-text',color);
+      // Finish only foreground transitions; backgrounds, borders and all material motion keep their owner.
+      for(const animation of node.getAnimations?.()||[])if(['color','-webkit-text-fill-color'].includes(animation.transitionProperty))try{animation.finish()}catch(_){}
+    }
+  });
+}
+function onEntryBackgroundTransition(event){
+  if(event.propertyName!=='background-color')return;
+  const node=event.target;
+  if(node?.matches?.(ENTRY_TEXT_SELECTOR))syncEntryText(node);
+  else if(node?.matches?.('body,#preset-manager-main-panel .preset-panel,#preset-manager-floating-panel .panel-wrapper'))syncEntryText();
+}
+function clearEntryText(){
+  pendingEntryText.clear();allEntryText=false;
+  for(const node of DOC.querySelectorAll(ENTRY_TEXT_SELECTOR)){
+    const before=ownedEntryText.get(node);if(!before||node.style.getPropertyValue('--pmm-entry-text')!==before.owned)continue;
+    if(before.value)node.style.setProperty('--pmm-entry-text',before.value,before.priority);else node.style.removeProperty('--pmm-entry-text');
+  }
 }
 function installStyle(){
   DOC.getElementById(STYLE_ID)?.remove();const style=DOC.createElement('style');style.id=STYLE_ID;style.textContent=`
@@ -270,6 +329,16 @@ html[data-pmm-visual-theme] body #preset-manager-main-panel :where(.section-head
 .pmm-theme-picker{grid-column:1/-1;display:flex;align-items:center;gap:10px;padding:8px 2px 12px;border-bottom:1px solid var(--pmm-theme-border)}.pmm-theme-picker__label{flex:0 0 auto;font-size:12px;font-weight:650;color:var(--pmm-theme-muted)}.pmm-theme-picker__choices{min-width:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;flex:1}.pmm-theme-picker__choices button{min-width:0;min-height:34px;display:flex;align-items:center;justify-content:center;gap:5px;padding:4px 6px;border:1px solid var(--pmm-theme-border);border-radius:9px;font-size:11px}.pmm-theme-swatch{width:10px;height:10px;flex:0 0 10px;border:1px solid currentColor;border-radius:50%;background:var(--pmm-theme-accent);box-shadow:var(--pmm-theme-highlight)}
 @media(max-width:480px){.pmm-theme-picker{align-items:flex-start;flex-direction:column}.pmm-theme-picker__choices{width:100%;grid-template-columns:repeat(2,minmax(0,1fr))}}
 /* PMM_FROZEN_VISUAL_BASELINE_END */
+/* PMM_APPROVED_ENTRY_TEXT_BEGIN: user-authorized text colors only; preserve every material token. */
+html[data-pmm-visual-theme] body #preset-manager-main-panel :is(.prompt-editor__textarea,.full-editor__textarea,.inline-editor__textarea),
+html[data-pmm-visual-theme] body #preset-manager-floating-panel :is(.prompt-editor__textarea,.full-editor__textarea,.inline-editor__textarea){color:var(--pmm-entry-text,var(--pmm-theme-text))!important;-webkit-text-fill-color:var(--pmm-entry-text,var(--pmm-theme-text))!important}
+html[data-pmm-visual-theme] body #preset-manager-main-panel :is(.prompt-editor__textarea,.full-editor__textarea,.inline-editor__textarea)::placeholder,
+html[data-pmm-visual-theme] body #preset-manager-floating-panel :is(.prompt-editor__textarea,.full-editor__textarea,.inline-editor__textarea)::placeholder{color:var(--pmm-entry-text,var(--pmm-theme-muted))!important;-webkit-text-fill-color:var(--pmm-entry-text,var(--pmm-theme-muted))!important}
+html[data-pmm-visual-theme] body #preset-manager-main-panel .pmm-preset-editor-dialog textarea,
+html[data-pmm-visual-theme] body #preset-manager-main-panel .pmm-wb-editor-body:not(.is-search-active)>textarea,
+html[data-pmm-visual-theme] body #preset-manager-main-panel .pmm-wb-editor-search-preview,
+html[data-pmm-visual-theme] body #preset-manager-main-panel :is(.pmm-preset-editor-dialog,.pmm-wb-editor-dialog) header :is(strong,span){color:var(--pmm-theme-text)!important;-webkit-text-fill-color:var(--pmm-theme-text)!important}
+/* PMM_APPROVED_ENTRY_TEXT_END */
 /* PMM_APPROVED_AQUA_MAIN_BEGIN: main group layering only; no floating selectors or new palette. */
 html[data-pmm-visual-theme="aqua"]:not([data-pmm-follow-tavern="true"]) body #preset-manager-main-panel .section-group{box-shadow:var(--pmm-theme-highlight)!important}
 html[data-pmm-visual-theme="aqua"]:not([data-pmm-follow-tavern="true"]) body #preset-manager-main-panel .section-group>.section-header{background:transparent!important}
@@ -336,16 +405,27 @@ function onDocumentCapture(event){
   if(title.includes('白色'))setTone('light');else if(title.includes('黑色'))setTone('dark');
 }
 function install(){
+  for(const type of ['transitionend','transitioncancel']){DOC.addEventListener(type,onEntryBackgroundTransition);cleanup.push(()=>DOC.removeEventListener(type,onEntryBackgroundTransition));}
   current=loadTheme();followTavern=readStorage(FOLLOW_KEY)==='1';installStyle();DOC.addEventListener('click',onDocumentCapture,true);cleanup.push(()=>DOC.removeEventListener('click',onDocumentCapture,true));
   const stamps=new WeakMap();
   const nativeStamp=node=>String(node?.className||'').split(/\s+/).filter(name=>!name.startsWith('pmm-')).join(' ')+'|'+(node?.style?.cssText||'').split(';').filter(value=>/--SmartTheme|^\s*(background|color)\s*:/.test(value)).join(';');
-  for(const node of [DOC.body,DOC.documentElement].filter(Boolean))stamps.set(node,nativeStamp(node));
+  for(const node of [DOC.body,DOC.documentElement,DOC.querySelector?.('#chat')].filter(Boolean))stamps.set(node,nativeStamp(node));
   const observer=new MutationObserver(records=>{
     let changed=false;for(const target of new Set(records.map(record=>record.target))){const stamp=nativeStamp(target);if(stamps.get(target)!==stamp){stamps.set(target,stamp);changed=true}}
-    if(changed&&(followTavern||environmentTone()!==DOC.documentElement.dataset.pmmThemeTone))requestApply(null,true);
+    if(changed){nativePaletteCache=null;if(followTavern||environmentTone()!==DOC.documentElement.dataset.pmmThemeTone)requestApply(null,true);}
   });
-  for(const node of [DOC.documentElement,DOC.body].filter(Boolean))observer.observe(node,{attributes:true,attributeFilter:['class','style']});
+  for(const node of [DOC.documentElement,DOC.body,DOC.querySelector?.('#chat')].filter(Boolean))observer.observe(node,{attributes:true,attributeFilter:['class','style']});
   const mountObserver=new MutationObserver(records=>{
+    for(const record of records){
+      if([...record.addedNodes,...(record.removedNodes||[])].some(node=>node.id==='chat')){
+        nativePaletteCache=null;
+        observer.disconnect();
+        for(const target of [DOC.documentElement,DOC.body,DOC.querySelector?.('#chat')].filter(Boolean)){
+          stamps.set(target,nativeStamp(target));observer.observe(target,{attributes:true,attributeFilter:['class','style']});
+        }
+        requestApply(null,true);
+      }
+    }
     for(const record of records)for(const node of record.addedNodes){
       if(node.nodeType!==1)continue;
       if(node.matches?.(THEME_TARGETS))hydrateRoot(node);
@@ -355,15 +435,15 @@ function install(){
   mountObserver.observe(DOC.body||DOC.documentElement,{childList:true});
   const headObserver=new MutationObserver(records=>{
     const ownStyle=node=>String((node?.nodeType===1?node:node?.parentElement)?.id||'').startsWith('pmm-');
-    if(records.some(record=>!ownStyle(record.target)&&(!record.addedNodes?.length||Array.from(record.addedNodes).some(node=>!ownStyle(node)))))requestApply(null,true);
+    if(records.some(record=>!ownStyle(record.target)&&(!record.addedNodes?.length||Array.from(record.addedNodes).some(node=>!ownStyle(node))))){nativePaletteCache=null;requestApply(null,true);}
   });
   if(DOC.head)headObserver.observe(DOC.head,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['href','media','disabled']});
-  const onStylesheetLoad=event=>{if(event.target?.matches?.('link[rel="stylesheet"]'))requestApply(null,true)};
+  const onStylesheetLoad=event=>{if(event.target?.matches?.('link[rel="stylesheet"]')){nativePaletteCache=null;requestApply(null,true)}};
   DOC.addEventListener('load',onStylesheetLoad,true);
   cleanup.push(()=>{observer.disconnect();mountObserver.disconnect();headObserver.disconnect();DOC.removeEventListener('load',onStylesheetLoad,true)});
-  const media=TOP.matchMedia?.('(prefers-color-scheme:dark)'),change=()=>requestApply(null,true);
+  const media=TOP.matchMedia?.('(prefers-color-scheme:dark)'),change=()=>{nativePaletteCache=null;requestApply(null,true)};
   media?.addEventListener?.('change',change);cleanup.push(()=>media?.removeEventListener?.('change',change));
   apply();
 }
-const API=Object.freeze({themes:THEMES,getTheme:()=>current,isFollowingTavern:()=>followTavern,getTone:environmentTone,getTokens:()=>lastTokens,setTheme,setTone,toggleFollow,apply,mountPicker,beginInteraction,endInteraction,deferWork,cancelWork,destroy(){disposed=true;themeRevision++;pendingNativeMode=null;interactions.clear();deferredWork.clear();stopTransition();TOP.clearTimeout(themeTimer);DOC.documentElement.classList.remove('pmm-theme-transition');while(cleanup.length)try{cleanup.pop()()}catch(_){}delete TOP[API_KEY]}});
+const API=Object.freeze({themes:THEMES,getTheme:()=>current,isFollowingTavern:()=>followTavern,getTone:()=>pendingTone||DOC.documentElement.dataset.pmmThemeTone||environmentTone(),getTokens:()=>lastTokens,setTheme,setTone,toggleFollow,apply,mountPicker,beginInteraction,endInteraction,deferWork,cancelWork,syncEntryText,destroy(){disposed=true;clearEntryText();themeRevision++;pendingNativeMode=null;interactions.clear();deferredWork.clear();stopTransition();TOP.clearTimeout(themeTimer);DOC.documentElement.classList.remove('pmm-theme-transition');while(cleanup.length)try{cleanup.pop()()}catch(_){}delete TOP[API_KEY]}});
 TOP[API_KEY]=API;globalThis[API_KEY]=API;install();export default API;

@@ -10,7 +10,7 @@ function section(startMarker, endMarker) {
   return source.slice(start, end);
 }
 
-const draftWriter = section('async function writeSwitchesToDraft', 'async function persistPromptsDirectly');
+const draftWriter = section('async function writeSwitchesToDraft', 'async function refreshNativePromptManager');
 assert.ok(draftWriter.includes("recordUndo = true"), '普通工坊编辑仍应默认支持撤销');
 assert.ok(draftWriter.includes('if (recordUndo && label)'), '草稿写入器没有保留按调用场景控制撤销的能力');
 
@@ -21,7 +21,7 @@ assert.ok(
 );
 assert.ok(apply.includes('saveAppliedDraft(presetName, nextPrompts, draftUpdated)'), '关闭撤销后快照仍必须正常保存并应用');
 
-const captureExit = section('async function exitCaptureMode', 'function enterCaptureMode');
-assert.ok(captureExit.includes('restoreCapturedDraft(nextPrompts, !!session.entryWasDirty)'), '取消快照模式仍应静默回滚且不产生撤销记录');
+const editor = section('function createSnapshotEditorDraft', 'function renderFirstDefaultPrompt');
+assert.ok(!editor.includes('writeSwitchesToDraft('), '轻量编辑器 draft 不应写入普通编辑撤销栈');
 
-console.log('test.63 回归通过：应用角色快照、恢复预设默认与取消录制均不进入普通编辑撤销栈。');
+console.log('test.63 回归通过：应用已有快照不进入撤销栈，轻量编辑器 draft 也不写入真实工坊草稿。');

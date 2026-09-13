@@ -5,12 +5,13 @@ if(!STORE)throw new Error('[预设工坊] floating store 未加载');
 try{TOP[API_KEY]?.destroy?.()}catch(_){}
 
 const cleanup=[];const boundHeaders=new WeakSet(),boundCollapses=new WeakSet();
-let managedPanel=null,managedDisplay=null,expandFrame=0,bannerSizing={width:null,scale:null};
+let managedPanel=null,managedDisplay=null,expandFrame=0,bannerSizing={width:null,scale:null,automatic:true,profile:null,autoContent:null};
+let autoWidthFrame=0,textMeasure=null,autoWidthDirty=true,lastPresetName=null;
 let root=null,handle=null,gesture=null,renderFrame=0,dragFrame=0,resizeFrame=0,orientationTimer=0,tapTimer=0,longTimer=0,lastTapAt=0,lastTapPoint=null,suppressMouseUntil=0,panelResizeObserver=null;
 let geometry={vw:1,vh:1,coarse:false,bannerW:180,bannerH:240,ball:46,handleW:28,handleH:64};
 function listen(target,type,fn,options){target?.addEventListener?.(type,fn,options);cleanup.push(()=>target?.removeEventListener?.(type,fn,options?.capture??options))}
 function docs(){const result=[DOC];try{if(document&&!result.includes(document))result.push(document)}catch(_){}return result}
-function refreshViewport(){geometry.vw=Math.max(1,TOP.innerWidth||DOC.documentElement.clientWidth||1);geometry.vh=Math.max(1,TOP.innerHeight||DOC.documentElement.clientHeight||1);geometry.bannerW=Math.min(geometry.bannerW,geometry.vw);geometry.coarse=Boolean(TOP.matchMedia?.('(pointer: coarse)')?.matches)||Number(TOP.navigator?.maxTouchPoints||0)>0;const style=TOP.getComputedStyle(DOC.documentElement);geometry.ball=parseFloat(style.getPropertyValue("--pmm-floating-ball-size"))||(geometry.coarse?46:42);geometry.handleW=parseFloat(style.getPropertyValue("--pmm-floating-handle-width"))||(geometry.coarse?28:26);geometry.handleH=parseFloat(style.getPropertyValue("--pmm-floating-handle-height"))||(geometry.coarse?64:58)}
+function refreshViewport(){geometry.vw=Math.max(1,Math.min(TOP.innerWidth||DOC.documentElement.clientWidth||1,TOP.visualViewport?.width||Infinity));geometry.vh=Math.max(1,TOP.innerHeight||DOC.documentElement.clientHeight||1);geometry.bannerW=Math.min(geometry.bannerW,geometry.vw);geometry.coarse=Boolean(TOP.matchMedia?.('(pointer: coarse)')?.matches)||Number(TOP.navigator?.maxTouchPoints||0)>0;const style=TOP.getComputedStyle(DOC.documentElement);geometry.ball=parseFloat(style.getPropertyValue("--pmm-floating-ball-size"))||(geometry.coarse?46:42);geometry.handleW=parseFloat(style.getPropertyValue("--pmm-floating-handle-width"))||(geometry.coarse?28:26);geometry.handleH=parseFloat(style.getPropertyValue("--pmm-floating-handle-height"))||(geometry.coarse?64:58)}
 function controlSize(expanded,g=geometry,dock='free'){if(expanded)return{w:g.handleW,h:g.handleH};const size=dock==='free'?g.ball:Math.max(28,g.handleW);return{w:size,h:size}}
 function measurePanel(){const panel=root?.querySelector?.(':scope > .panel-wrapper');if(!panel)return;const rect=panel.getBoundingClientRect();if(rect.width>80)geometry.bannerW=rect.width;if(rect.height>20)geometry.bannerH=rect.height;const quick=panel.querySelector('.quick-edit-dropdown');if(quick&&quick.style.display!=='none'){const cap=parseFloat(TOP.getComputedStyle(DOC.documentElement).getPropertyValue('--pmm-floating-max-height'))||Math.floor(geometry.vh/2);geometry.bannerH=Math.min(cap,geometry.vh)}}
 function defaultPosition(){const s=controlSize(false);return{x:Math.round((geometry.vw-s.w)/2),y:Math.max(8,Math.round(geometry.vh*.035)),dock:'free'}}
@@ -26,25 +27,113 @@ function resolveSide(position,g=geometry){const s=controlSize(true,g),gap=8,righ
 function panelPoint(position,side,g=geometry){const s=controlSize(true,g),wanted=side==='right'?position.x+s.w+8:position.x-g.bannerW-8,margin=Math.min(4,Math.max(0,(g.vw-g.bannerW)/2));return{x:Math.round(Math.min(Math.max(margin,wanted),Math.max(margin,g.vw-g.bannerW-margin))),y:position.y}}
 function ensurePosition(){const state=STORE.getState(),next=clampPosition(state.position||defaultPosition(),state.expanded);if(!state.position||next.x!==state.position.x||next.y!==state.position.y)STORE.commit({position:next},'clamp');return next}
 function paintVariable(node,key,value){if(node?.style.getPropertyValue(key)!==value)node?.style.setProperty(key,value)}
+function widthProfile(){const w=TOP.innerWidth||360,h=TOP.innerHeight||640,coarse=Boolean(TOP.matchMedia?.('(pointer: coarse)')?.matches)||Number(TOP.navigator?.maxTouchPoints||0)>0;return w<=768||coarse&&Math.min(w,h)<=900?'mobile':'desktop'}
+function readWidthRequest(){
+  const request=TOP.__PMM_LAYOUT_CARD_API__?.getBannerWidth?.();
+  if(request)return request;
+  const profile=widthProfile();
+  try{
+    const saved=JSON.parse(TOP.localStorage?.getItem('pmm_mobile_layout_shared_v2')||'{}');
+    const settings=saved[profile]||(profile==='mobile'?saved:{});
+    const manual=settings?.customized?.floatingWidth===true&&Number.isFinite(Number(settings?.values?.floatingWidth))&&Number(settings.values.floatingWidth)>0;
+    const value=Number(manual?settings.values.floatingWidth:settings?.bannerAutoWidth);
+    return {width:Number.isFinite(value)&&value>0?value:0,automatic:!manual,profile,autoContent:settings?.bannerAutoContent||null};
+  }catch(_){return{width:0,automatic:true,profile}}
+}
 function applyBannerSizing(){
-  if(!root||!bannerSizing)return;
-  // The native tuner may have applied saved settings before this module was loaded.
-  if(bannerSizing.width==null){const width=parseFloat(root.style.getPropertyValue('--pmm-mobile-floating-width'));if(width>0)bannerSizing.width=width}
+  if(!root)return;
+  if(bannerSizing.width==null){const request=readWidthRequest();bannerSizing={...bannerSizing,...request};autoWidthDirty=request.automatic&&request.width===0}
   if(bannerSizing.scale==null){const scale=Number(root.style.getPropertyValue('--pmm-banner-content-scale'));bannerSizing.scale=scale>0?Math.min(2,scale):1}
-  if(bannerSizing.width!=null)paintVariable(root,'--pmm-mobile-floating-width',bannerSizing.width+'px');
+  root.dataset.pmmBannerWidthMode=bannerSizing.automatic?'auto':'manual';
+  root.dataset.pmmBannerWidthProfile=bannerSizing.profile;
+  if(bannerSizing.width>0)paintVariable(root,'--pmm-mobile-floating-width',bannerSizing.width+'px');
+  else if(root.style.getPropertyValue('--pmm-mobile-floating-width'))root.style.removeProperty('--pmm-mobile-floating-width');
   paintVariable(root,'--pmm-banner-content-scale',String(bannerSizing.scale));
 }
-function setBannerWidth(width){
-  if(!Number.isFinite(width)||width<=0)return;
-  bannerSizing.width=width;
-  // Geometry never changes typography, including late/replaced native mounts.
-  if(root)paintVariable(root,'--pmm-mobile-floating-width',width+'px');
+function setBannerWidth(width,automatic=false,profile=widthProfile(),autoContent=null){
+  if(!Number.isFinite(width)||width<0||!automatic&&width===0)return;
+  const changed=bannerSizing.width!==width||bannerSizing.automatic!==automatic||bannerSizing.profile!==profile;
+  bannerSizing={...bannerSizing,width,automatic,profile,autoContent};
+  if(changed)autoWidthDirty=automatic&&width===0;
+  applyBannerSizing();
+  if(!changed)return;
+  if(autoWidthFrame)TOP.cancelAnimationFrame(autoWidthFrame);autoWidthFrame=0;
+  // Preview paints the requested width now; viewport capping never writes back into the model.
+  if(root&&STORE.getState().expanded){measurePanel();if(renderFrame)TOP.cancelAnimationFrame(renderFrame);render()}
+  if(automatic&&width===0)queueAutoWidth();
 }
 function setBannerFont(font){
   if(!Number.isFinite(font)||font<=0)return;
-  bannerSizing.scale=Math.min(22,Math.max(6,font))/11;
-  if(root)paintVariable(root,'--pmm-banner-content-scale',String(bannerSizing.scale));
+  const scale=Math.min(22,Math.max(6,font))/11;
+  if(bannerSizing.scale===scale)return;
+  bannerSizing.scale=scale;
+  if(root)paintVariable(root,'--pmm-banner-content-scale',String(scale));
+  if(bannerSizing.autoContent?.scale!==scale)invalidateAutoWidth();refreshHeader(true);
 }
+function invalidateAutoWidth(){if(bannerSizing.automatic){autoWidthDirty=true;queueAutoWidth()}}
+function presetFont(style){return style.font||style.getPropertyValue('font')||`${style.fontStyle||'normal'} ${style.fontWeight||'400'} ${style.fontSize||'12px'} ${style.fontFamily||'sans-serif'}`}
+function syncPresetName(force=false){
+  const select=root?.querySelector?.('.panel-select--preset'),label=root?.querySelector?.('.pmm-preset-name-text');
+  if(!select||!label)return;
+  const name=String(select.selectedOptions?.[0]?.textContent||select.options?.[select.selectedIndex]?.textContent||select.value||'').replace(/\.{3,}|…+/g,'');
+  const previousName=bannerSizing.autoContent?.name??lastPresetName;
+  lastPresetName=name;
+  if(previousName!=null&&previousName!==name)invalidateAutoWidth();
+  const changed=label.textContent!==name;
+  if(changed)label.textContent=name;
+  if(!force&&!changed&&label.style.getPropertyValue('font'))return;
+  // Use the select's exact typography; its native picker still owns selection and keyboard access.
+  const style=TOP.getComputedStyle(select);
+  paintVariable(label,'font',presetFont(style));
+  for(const key of ['letter-spacing','word-spacing']){
+    const value=style.getPropertyValue(key);
+    if(value)paintVariable(label,key,value);
+  }
+}
+function updateAutoWidth(){
+  if(!bannerSizing.automatic||!autoWidthDirty||gesture||!STORE.getState().expanded)return;
+  if(TOP.__PMM_THEME_SYSTEM__?.deferWork?.('floating-auto-width',queueAutoWidth))return;
+  const panel=root?.querySelector?.(':scope > .panel-wrapper'),header=panel?.querySelector?.('.panel-header'),select=header?.querySelector?.('.panel-select--preset');
+  const field=header?.querySelector?.('.pmm-preset-name-field');
+  if(!select||!field||!panel.offsetWidth||!header.clientWidth)return;
+  const name=String(select.selectedOptions?.[0]?.textContent||select.options?.[select.selectedIndex]?.textContent||select.value||'').replace(/\.{3,}|…+/g,'');
+  if(!name)return;
+  const style=TOP.getComputedStyle(select),px=key=>parseFloat(style.getPropertyValue(key))||0;
+  if(!textMeasure){try{textMeasure=DOC.createElement('canvas').getContext('2d');}catch(_){}}
+  if(!textMeasure)return;
+  textMeasure.font=presetFont(style);
+  const spacing=px('letter-spacing')*Math.max(0,Array.from(name).length-1)+px('word-spacing')*(name.match(/ /g)?.length||0);
+  const nameWidth=textMeasure.measureText(name).width+spacing+px('padding-left')+px('padding-right')+px('border-left-width')+px('border-right-width')+2;
+  // Measure the ordinary header first: a previous full-width banner's handle gutter is not content.
+  root.dataset.handleOverlap='none';
+  const headerStyle=TOP.getComputedStyle(header);
+  // All measurements use rendered coordinates, including zoom. No hidden or removed button is counted.
+  const panelRect=panel.getBoundingClientRect(),headerRect=header.getBoundingClientRect(),fieldRect=field.getBoundingClientRect();
+  const headerScale=header.offsetWidth>0?headerRect.width/header.offsetWidth:bannerSizing.scale||1;
+  const panelScale=panelRect.width/panel.offsetWidth||1;
+  const otherWidth=Math.max(header.scrollWidth,header.clientWidth)*headerScale+(panelRect.width-headerRect.width)-fieldRect.width;
+  let needed=(otherWidth+nameWidth*headerScale)/panelScale;
+  if(needed<geometry.vw&&needed+geometry.handleW+16>geometry.vw){
+    const position=STORE.getState().position||defaultPosition(),side=position.x+geometry.handleW/2<=geometry.vw/2?'left':'right';
+    const padding=parseFloat(headerStyle.getPropertyValue('padding-'+side))||0;
+    needed+=Math.max(0,geometry.handleW+8-padding)*headerScale/panelScale;
+  }
+  const width=Math.min(geometry.vw,Math.max(1,Math.ceil(needed)));
+  const profile=bannerSizing.profile,previousWidth=bannerSizing.width;
+  const autoContent={name,scale:bannerSizing.scale};
+  autoWidthDirty=false;bannerSizing={...bannerSizing,width,autoContent};applyBannerSizing();
+  measurePanel();if(renderFrame)TOP.cancelAnimationFrame(renderFrame);render();
+  TOP.dispatchEvent(new CustomEvent('pmm:banner-default-width',{detail:{width,profile,previousWidth,autoContent}}));
+}
+function queueAutoWidth(){
+  if(!bannerSizing.automatic||!autoWidthDirty||!STORE.getState().expanded||autoWidthFrame)return;
+  autoWidthFrame=TOP.requestAnimationFrame(()=>{
+    autoWidthFrame=0;
+    if(TOP.__PMM_THEME_SYSTEM__?.deferWork?.('floating-auto-width',queueAutoWidth))return;
+    updateAutoWidth();
+  });
+}
+function refreshHeader(force=false){if(TOP.__PMM_THEME_SYSTEM__?.deferWork?.('floating-header',()=>refreshHeader(force)))return;syncPresetName(force);queueAutoWidth()}
 function paint(position,side){const point=panelPoint(position,side);paintVariable(handle,'--pmm-floating-x',position.x+'px');paintVariable(handle,'--pmm-floating-y',position.y+'px');if(handle.dataset.side!==side)handle.dataset.side=side;if(root){if(root.dataset.side!==side)root.dataset.side=side;paintVariable(root,'--pmm-banner-x',point.x+'px');paintVariable(root,'--pmm-banner-y',point.y+'px');paintVariable(root,'--pmm-banner-max-width',geometry.vw+'px');const overlap=STORE.getState().expanded&&geometry.bannerW+geometry.handleW+16>geometry.vw?(position.x+geometry.handleW/2<=geometry.vw/2?'left':'right'):'none';if(root.dataset.handleOverlap!==overlap)root.dataset.handleOverlap=overlap;paintVariable(root,'--pmm-banner-handle-gutter',geometry.handleW+8+'px')}}
 function restorePanelDisplay(){
   if(managedPanel&&managedDisplay&&managedPanel.style.getPropertyPriority('display')==='important'&&managedPanel.style.getPropertyValue('display')===managedDisplay.owned){
@@ -96,16 +185,22 @@ function setExpanded(value,reason='toggle'){
   STORE.commit({position:adjusted,expanded,side:resolveSide(adjusted)},reason);
   if(renderFrame)TOP.cancelAnimationFrame(renderFrame);render();
   if(expandFrame)TOP.cancelAnimationFrame(expandFrame);expandFrame=0;
-  if(expanded)expandFrame=TOP.requestAnimationFrame(()=>{expandFrame=0;measurePanel();schedule()});
+  if(expanded){updateAutoWidth();expandFrame=TOP.requestAnimationFrame(()=>{expandFrame=0;measurePanel();schedule()});}
 }
 function openController(source='floating'){const api=TOP.__PMM_LAYOUT_CONTROLLER__;if(typeof api?.open==='function')return api.open(source);TOP.dispatchEvent(new CustomEvent('pmm:open-layout-controller',{detail:{source}}));return false}
 async function openMain(source='floating'){for(const doc of docs()){try{const bridge=doc?.__pmmWorkshopOpenBridge;if(typeof bridge?.open==='function'&&(await bridge.open())!==false)return true}catch(_){}}const edit=DOC.querySelector('#preset-manager-floating-panel .panel-action[title="打开编辑面板"]');if(edit){edit.click();return true}return false}
 function clearLong(){TOP.clearTimeout(longTimer);longTimer=0}
 function blurActiveEditor(){for(const doc of docs()){const active=doc?.activeElement;if(active?.matches?.('input,textarea,select,[contenteditable="true"]'))try{active.blur()}catch(_){}}}
+function inEntryArea(event){
+  const edit=root?.querySelector?.('.panel-action[title="打开编辑面板"]');
+  if(!edit||!Number.isFinite(event?.clientX)||!Number.isFinite(event?.clientY))return true;
+  const rect=edit.getBoundingClientRect();
+  return event.clientX<=rect.left+rect.width/2&&event.clientY<=rect.top+rect.height/2;
+}
 function interactiveTarget(target){return target?.closest?.('button,select,input,textarea,a,[contenteditable="true"],.panel-action,.panel-section,.panel-collapse,.quick-edit-dropdown')}
 function onDown(event){
-  if(event.isPrimary===false||event.button!=null&&event.button!==0||gesture)return;const fromHandle=event.currentTarget===handle;if(!fromHandle&&interactiveTarget(event.target))return;
-  if(fromHandle)blurActiveEditor();const state=STORE.getState(),position=ensurePosition();gesture={id:event.pointerId,fromHandle,target:event.currentTarget,sx:event.clientX,sy:event.clientY,bx:position.x,by:position.y,expanded:state.expanded,panel:state.expanded?root?.querySelector?.(':scope > .panel-wrapper')||null:null,moved:false,longPressed:false,g:{...geometry},size:controlSize(state.expanded,geometry,position.dock),dock:position.dock};
+  if(event.isPrimary===false||event.button!=null&&event.button!==0||gesture)return;const fromHandle=event.currentTarget===handle;if(!fromHandle)event.currentTarget.__pmmSuppressClickUntil=0;if(!fromHandle&&interactiveTarget(event.target))return;
+  if(fromHandle)blurActiveEditor();const state=STORE.getState(),position=ensurePosition();gesture={id:event.pointerId,fromHandle,target:event.currentTarget,sx:event.clientX,sy:event.clientY,entry:!fromHandle&&inEntryArea(event),bx:position.x,by:position.y,expanded:state.expanded,panel:state.expanded?root?.querySelector?.(':scope > .panel-wrapper')||null:null,moved:false,longPressed:false,g:{...geometry},size:controlSize(state.expanded,geometry,position.dock),dock:position.dock};
   if(gesture.panel){const point=panelPoint(position,resolveSide(position),geometry);gesture.minDX=Math.max(-position.x,-point.x);gesture.maxDX=Math.min(geometry.vw-position.x-gesture.size.w,geometry.vw-point.x-geometry.bannerW)}
   if(fromHandle&&tapTimer){TOP.clearTimeout(tapTimer);tapTimer=0}
   event.preventDefault();
@@ -159,24 +254,25 @@ function cancelPendingTap(){TOP.clearTimeout(tapTimer);tapTimer=0;lastTapAt=0;la
 function singleTap(event){const now=Date.now(),near=lastTapPoint&&Math.hypot(event.clientX-lastTapPoint.x,event.clientY-lastTapPoint.y)<22;if(near&&now-lastTapAt<=280){cancelPendingTap();void openMain('doubleclick');return}cancelPendingTap();lastTapAt=now;lastTapPoint={x:event.clientX,y:event.clientY};tapTimer=TOP.setTimeout(()=>{tapTimer=0;lastTapAt=0;lastTapPoint=null;setExpanded(!STORE.getState().expanded,'tap')},300)}
 function onUp(event){
   if(!gesture||(gesture.id!=null&&event.pointerId!==gesture.id))return;if(gesture.moved)updateDragPoint(event);const done=gesture;gesture=null;clearLong();try{done.target.releasePointerCapture?.(done.id)}catch(_){}clearDragPaint();
-  if(done.moved){TOP.__PMM_THEME_SYSTEM__?.endInteraction?.('floating');if(!done.fromHandle){done.target.__pmmSuppressClick=true;suppressMouseUntil=Date.now()+420}const final={x:done.bx+(done.dx||0),y:done.by+(done.dy||0),dock:'free'};settle(final,done.g);if(renderFrame)TOP.cancelAnimationFrame(renderFrame);renderFrame=0;render();event.preventDefault();event.stopPropagation();return}
-  if(done.longPressed){if(!done.fromHandle){done.target.__pmmSuppressClick=true;suppressMouseUntil=Date.now()+420}event.preventDefault();event.stopPropagation();return}
+  if(done.moved){TOP.__PMM_THEME_SYSTEM__?.endInteraction?.('floating');if(!done.fromHandle){done.target.__pmmSuppressClickUntil=Date.now()+420;suppressMouseUntil=Date.now()+420}const final={x:done.bx+(done.dx||0),y:done.by+(done.dy||0),dock:'free'};settle(final,done.g);if(renderFrame)TOP.cancelAnimationFrame(renderFrame);renderFrame=0;render();event.preventDefault();event.stopPropagation();return}
+  if(done.longPressed){if(!done.fromHandle){done.target.__pmmSuppressClickUntil=Date.now()+420;suppressMouseUntil=Date.now()+420}event.preventDefault();event.stopPropagation();return}
   if(done.fromHandle){handle?.blur?.();if(done.dock&&done.dock!=='free'){cancelPendingTap();setExpanded(!STORE.getState().expanded,'dock-tap')}else singleTap(event);event.preventDefault();event.stopPropagation()}
-  else root?.__pmmQuickEntries?.toggle?.()
+  else if(done.entry){done.target.__pmmSuppressClickUntil=Date.now()+420;root?.__pmmQuickEntries?.toggle?.()}
 }
 function onCancel(event){if(!gesture)return;if(gesture?.id!=null&&event?.pointerId!=null&&gesture.id!==event.pointerId)return;const done=gesture;gesture=null;try{done.target?.releasePointerCapture?.(done.id)}catch(_){}TOP.__PMM_THEME_SYSTEM__?.endInteraction?.('floating');clearLong();cancelPendingTap();clearDragPaint();schedule()}
 function suppressNativeMouse(event){if(Date.now()>=suppressMouseUntil)return;event.preventDefault();event.stopImmediatePropagation()}
 function suppressSyntheticClick(event){
-  if(gesture?.suppressClick||event.currentTarget.__pmmSuppressClick){event.preventDefault();event.stopImmediatePropagation();event.currentTarget.__pmmSuppressClick=false;return}
-  if(event.target?.closest?.('.panel-section')&&!event.target?.closest?.('select,option,button,input')){event.preventDefault();event.stopImmediatePropagation();root?.__pmmQuickEntries?.open?.()}
+  if(gesture?.suppressClick||Date.now()<Number(event.currentTarget.__pmmSuppressClickUntil||0)){
+    event.preventDefault();event.stopImmediatePropagation();event.currentTarget.__pmmSuppressClickUntil=0;
+  }
 }
 function installStyle(doc){if(!doc?.head||doc.getElementById(STYLE_ID))return;const style=doc.createElement('style');style.id=STYLE_ID;style.textContent=`
 #${HANDLE_ID}{position:fixed;left:var(--pmm-floating-x);top:var(--pmm-floating-y);width:var(--pmm-floating-ball-size,46px);height:var(--pmm-floating-ball-size,46px);z-index:2147483640;display:flex!important;pointer-events:auto!important;align-items:center;justify-content:center;box-sizing:border-box;padding:0;border:1px solid var(--pmm-floating-border,rgba(255,255,255,.42));border-radius:999px;background:var(--pmm-floating-bg,rgba(35,45,58,.82));color:var(--pmm-floating-text,#fff);box-shadow:var(--pmm-floating-shadow,0 10px 30px rgba(0,0,0,.34));backdrop-filter:blur(var(--pmm-floating-blur,20px));-webkit-backdrop-filter:blur(var(--pmm-floating-blur,20px));touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;cursor:grab;transition:width .24s ease,height .24s ease,border-radius .24s ease,opacity .24s ease!important;will-change:transform;contain:layout style paint}#${HANDLE_ID}[hidden]{display:none!important}#${HANDLE_ID}.is-expanded{width:var(--pmm-floating-handle-width,28px);height:var(--pmm-floating-handle-height,64px);border-radius:13px}#${HANDLE_ID}.is-dragging{cursor:grabbing;transition:none!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}#${HANDLE_ID} span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;transition:opacity .18s ease,transform .24s ease}#${HANDLE_ID} .pmm-ball-glyph{font-size:calc(var(--pmm-floating-ball-size,46px)*.41)}#${HANDLE_ID} .pmm-handle-glyph{font-size:var(--pmm-floating-handle-font,14px);opacity:0;transform:rotate(-15deg)}#${HANDLE_ID}.is-expanded .pmm-ball-glyph{opacity:0;transform:rotate(15deg)}#${HANDLE_ID}.is-expanded .pmm-handle-glyph{opacity:1;transform:none}#${HANDLE_ID}[data-side="left"] .pmm-handle-glyph{transform:rotate(180deg)}
-#preset-manager-floating-panel{display:block!important;visibility:visible!important;pointer-events:none!important;position:fixed!important;inset:0!important;width:0!important;height:0!important;overflow:visible!important;z-index:2147483000!important}#preset-manager-floating-panel .pmm-unified-floating-root{position:fixed!important;left:0!important;top:0!important;right:auto!important;bottom:auto!important;width:0!important;height:0!important;display:block!important;overflow:visible!important;pointer-events:none!important}#preset-manager-floating-panel .pmm-unified-floating-root>.edge-tab{display:none!important}#preset-manager-floating-panel .pmm-unified-floating-root>.panel-wrapper{position:fixed!important;max-height:min(var(--pmm-floating-max-height,50dvh),calc(100dvh - var(--pmm-banner-y,0px)))!important;left:var(--pmm-banner-x)!important;top:var(--pmm-banner-y)!important;width:min(var(--pmm-mobile-floating-width,50vw),100vw,var(--pmm-banner-max-width,100vw))!important;max-width:100vw!important;box-sizing:border-box!important;display:none!important;pointer-events:auto!important;border:1px solid var(--pmm-floating-border,var(--fp-border-color))!important;border-radius:14px!important;background:var(--pmm-banner-bg,var(--fp-glass-bg))!important;color:var(--pmm-floating-text,var(--fp-text-color))!important;box-shadow:var(--pmm-banner-shadow,var(--pmm-floating-shadow,0 12px 38px rgba(0,0,0,.36)))!important;backdrop-filter:blur(var(--pmm-banner-blur,var(--pmm-floating-blur,20px)))!important;-webkit-backdrop-filter:blur(var(--pmm-banner-blur,var(--pmm-floating-blur,20px)))!important;overflow:hidden!important;will-change:transform}#preset-manager-floating-panel .pmm-unified-floating-root.is-expanded>.panel-wrapper{display:flex!important;animation:pmm-banner-in .24s ease-out both}#preset-manager-floating-panel .pmm-unified-floating-root.is-hidden{display:none!important}#preset-manager-floating-panel .pmm-unified-floating-root.is-dragging>.panel-wrapper{transition:none!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}.pmm-unified-floating-root .panel-header{box-sizing:border-box!important;display:flex!important;align-items:center!important;min-height:42px!important;height:auto!important;padding:8px!important;line-height:1.2!important;overflow:visible!important;touch-action:none}.pmm-unified-floating-root .panel-section{display:flex!important;align-items:center!important;min-width:0!important;min-height:26px!important;overflow:visible!important}.pmm-unified-floating-root .panel-section:has(.panel-select--preset){flex:1 1 130px!important}.pmm-unified-floating-root .panel-section:has(.panel-select--branch){flex:0 1 92px!important}.pmm-unified-floating-root .panel-action{flex:0 0 26px!important;margin:0!important}.pmm-unified-floating-root .panel-divider{flex:0 0 1px!important;margin-inline:1px!important}.pmm-unified-floating-root .panel-collapse{flex:0 0 16px!important}.pmm-unified-floating-root .panel-select{box-sizing:border-box!important;width:100%!important;min-width:0!important;max-width:none!important;height:26px!important;min-height:26px!important;line-height:24px!important;padding-block:0!important;vertical-align:middle!important}.pmm-unified-floating-root .panel-select--preset{min-width:0!important;max-width:none!important;text-overflow:clip!important}.pmm-unified-floating-root .quick-edit-dropdown{max-height:min(var(--pmm-floating-max-height,560px),calc(100dvh - 24px))!important;overflow:hidden!important}.pmm-unified-floating-root .dropdown-content{min-height:180px;max-height:min(calc(var(--pmm-floating-max-height,560px) - 86px),calc(100dvh - 110px));overflow-y:auto!important;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y}.pmm-unified-floating-root .category-content,.pmm-unified-floating-root .prompt-list{display:flex!important;flex-direction:column!important;gap:var(--pmm-floating-item-gap,2px)!important}.pmm-unified-floating-root .category-header__name,.pmm-unified-floating-root .section-header__name{font-size:var(--pmm-floating-group-font,11px)!important}.pmm-unified-floating-root .prompt-item__name{font-size:var(--pmm-floating-name-font,11px)!important;line-height:1.3!important}.pmm-unified-floating-root .prompt-item__content,.pmm-unified-floating-root textarea{font-size:var(--pmm-floating-body-font,11px)!important}.pmm-unified-floating-root .prompt-item:not(.prompt-item--expanded){min-height:var(--pmm-floating-item-height,34px)!important}.pmm-unified-floating-root .prompt-item button,.pmm-unified-floating-root .inline-editor__footer button{width:var(--pmm-floating-button-size,24px)!important;height:var(--pmm-floating-button-size,24px)!important;min-width:var(--pmm-floating-button-size,24px)!important}@keyframes pmm-banner-in{from{opacity:0}to{opacity:1}}@media(pointer:fine){#${HANDLE_ID}{width:var(--pmm-floating-ball-size,42px);height:var(--pmm-floating-ball-size,42px)}#${HANDLE_ID}.is-expanded{width:var(--pmm-floating-handle-width,26px);height:var(--pmm-floating-handle-height,58px)}}@media(prefers-reduced-motion:reduce){#${HANDLE_ID},#${HANDLE_ID} span{transition:none!important}.pmm-unified-floating-root>.panel-wrapper{animation:none!important}}
+#preset-manager-floating-panel{display:block!important;visibility:visible!important;pointer-events:none!important;position:fixed!important;inset:0!important;width:0!important;height:0!important;overflow:visible!important;z-index:2147483000!important}#preset-manager-floating-panel .pmm-unified-floating-root{position:fixed!important;left:0!important;top:0!important;right:auto!important;bottom:auto!important;width:0!important;height:0!important;display:block!important;overflow:visible!important;pointer-events:none!important}#preset-manager-floating-panel .pmm-unified-floating-root>.edge-tab{display:none!important}#preset-manager-floating-panel .pmm-unified-floating-root>.panel-wrapper{position:fixed!important;max-height:min(var(--pmm-floating-max-height,50dvh),calc(100dvh - var(--pmm-banner-y,0px)))!important;left:var(--pmm-banner-x)!important;top:var(--pmm-banner-y)!important;max-width:100vw!important;box-sizing:border-box!important;display:none!important;pointer-events:auto!important;border:1px solid var(--pmm-floating-border,var(--fp-border-color))!important;border-radius:14px!important;background:var(--pmm-banner-bg,var(--fp-glass-bg))!important;color:var(--pmm-floating-text,var(--fp-text-color))!important;box-shadow:var(--pmm-banner-shadow,var(--pmm-floating-shadow,0 12px 38px rgba(0,0,0,.36)))!important;backdrop-filter:blur(var(--pmm-banner-blur,var(--pmm-floating-blur,20px)))!important;-webkit-backdrop-filter:blur(var(--pmm-banner-blur,var(--pmm-floating-blur,20px)))!important;overflow:hidden!important;will-change:transform}#preset-manager-floating-panel .pmm-unified-floating-root.is-expanded>.panel-wrapper{display:flex!important;animation:pmm-banner-in .24s ease-out both}#preset-manager-floating-panel .pmm-unified-floating-root.is-hidden{display:none!important}#preset-manager-floating-panel .pmm-unified-floating-root.is-dragging>.panel-wrapper{transition:none!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}.pmm-unified-floating-root .panel-header{box-sizing:border-box!important;display:flex!important;align-items:center!important;min-height:42px!important;height:auto!important;padding:8px!important;line-height:1.2!important;overflow:visible!important;touch-action:none}.pmm-unified-floating-root .panel-section{display:flex!important;align-items:center!important;min-width:0!important;min-height:26px!important;overflow:visible!important}.pmm-unified-floating-root .panel-section:has(.panel-select--branch){flex:0 1 92px!important}.pmm-unified-floating-root .panel-action{flex:0 0 26px!important;margin:0!important}.pmm-unified-floating-root .panel-divider{flex:0 0 1px!important;margin-inline:1px!important}.pmm-unified-floating-root .panel-collapse{flex:0 0 16px!important}.pmm-unified-floating-root .panel-select{box-sizing:border-box!important;width:100%!important;min-width:0!important;max-width:none!important;height:26px!important;min-height:26px!important;line-height:24px!important;padding-block:0!important;vertical-align:middle!important}.pmm-unified-floating-root .quick-edit-dropdown{max-height:min(var(--pmm-floating-max-height,560px),calc(100dvh - 24px))!important;overflow:hidden!important}.pmm-unified-floating-root .dropdown-content{min-height:180px;max-height:min(calc(var(--pmm-floating-max-height,560px) - 86px),calc(100dvh - 110px));overflow-y:auto!important;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y}.pmm-unified-floating-root .category-content,.pmm-unified-floating-root .prompt-list{display:flex!important;flex-direction:column!important;gap:var(--pmm-floating-item-gap,2px)!important}.pmm-unified-floating-root .category-header__name,.pmm-unified-floating-root .section-header__name{font-size:var(--pmm-floating-group-font,11px)!important}.pmm-unified-floating-root .prompt-item__name{font-size:var(--pmm-floating-name-font,11px)!important;line-height:1.3!important}.pmm-unified-floating-root .prompt-item__content,.pmm-unified-floating-root textarea{font-size:var(--pmm-floating-body-font,11px)!important}.pmm-unified-floating-root .prompt-item:not(.prompt-item--expanded){min-height:var(--pmm-floating-item-height,34px)!important}.pmm-unified-floating-root .prompt-item button,.pmm-unified-floating-root .inline-editor__footer button{width:var(--pmm-floating-button-size,24px)!important;height:var(--pmm-floating-button-size,24px)!important;min-width:var(--pmm-floating-button-size,24px)!important}@keyframes pmm-banner-in{from{opacity:0}to{opacity:1}}@media(pointer:fine){#${HANDLE_ID}{width:var(--pmm-floating-ball-size,42px);height:var(--pmm-floating-ball-size,42px)}#${HANDLE_ID}.is-expanded{width:var(--pmm-floating-handle-width,26px);height:var(--pmm-floating-handle-height,58px)}}@media(prefers-reduced-motion:reduce){#${HANDLE_ID},#${HANDLE_ID} span{transition:none!important}.pmm-unified-floating-root>.panel-wrapper{animation:none!important}}
 .pmm-unified-floating-root .panel-header{gap:2px!important;padding-inline:5px!important}
-.pmm-unified-floating-root .panel-section:has(.panel-select--preset){flex:1 1 auto!important;min-width:0!important}
+
 .pmm-unified-floating-root .panel-section:has(.panel-select--branch){flex:0 0 64px!important;min-width:64px!important}
-.pmm-unified-floating-root .panel-select--preset{display:block!important;flex:1 1 auto!important;min-width:0!important;overflow:hidden!important;white-space:nowrap!important;text-overflow:clip!important}
+
 .pmm-unified-floating-root .panel-select--branch{width:49px!important;min-width:49px!important;max-width:49px!important;padding-inline:2px!important}
 .pmm-unified-floating-root .section-icon{flex:0 0 auto!important}
 #preset-manager-floating-panel .pmm-unified-floating-root .panel-header{padding-left:18px!important;padding-right:5px!important;align-items:center!important;min-height:44px!important}
@@ -205,7 +301,7 @@ html body #${HANDLE_ID}#${HANDLE_ID}.is-docked[data-dock="left"]{border-left:0;b
 html body #${HANDLE_ID}#${HANDLE_ID}.is-docked[data-dock="right"]{border-right:0;border-top-right-radius:3px!important;border-bottom-right-radius:3px!important}
 html body #${HANDLE_ID}#${HANDLE_ID}.is-docked .pmm-handle-glyph::before{content:"";position:static;width:6px;height:6px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(-45deg)}
 html body #${HANDLE_ID}#${HANDLE_ID}.is-docked[data-dock="right"] .pmm-handle-glyph::before{transform:rotate(135deg)}
-#preset-manager-floating-panel .pmm-unified-floating-root .pmm-entries-toggle{flex:0 0 auto;min-height:32px;padding:3px 6px;border:1px solid var(--pmm-theme-border);border-radius:6px;background:var(--pmm-theme-control);color:var(--pmm-theme-text);font-size:11px;touch-action:manipulation}
+
 
 /* Only the explicit overall font setting scales content. Width/height never change this value. */
 #preset-manager-floating-panel .pmm-unified-floating-root>.panel-wrapper>:is(.panel-header,.quick-edit-dropdown){zoom:var(--pmm-banner-content-scale,1);min-width:0!important}
@@ -213,20 +309,29 @@ html body #${HANDLE_ID}#${HANDLE_ID}.is-docked[data-dock="right"] .pmm-handle-gl
 #preset-manager-floating-panel .pmm-unified-floating-root[data-handle-overlap="left"]>.panel-wrapper>.panel-header{padding-left:var(--pmm-banner-handle-gutter,36px)!important;min-height:max(44px,var(--pmm-floating-handle-height,64px))!important}
 #preset-manager-floating-panel .pmm-unified-floating-root[data-handle-overlap="right"]>.panel-wrapper>.panel-header{padding-right:var(--pmm-banner-handle-gutter,36px)!important;min-height:max(44px,var(--pmm-floating-handle-height,64px))!important}
 
-/* One line at every width. The preset name receives all space left by fixed actions. */
+/* Banner name layout: a single owner for the field, native picker and visible text. */
+html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root .panel-section:has(.panel-select--preset){flex:1 1 0!important;width:auto!important;min-width:0!important;max-width:none!important;overflow:hidden!important;white-space:nowrap!important;text-overflow:clip!important}
+html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root .pmm-preset-name-field{display:grid!important;grid-template-columns:minmax(0,1fr)!important;flex:1 1 0!important;width:0!important;min-width:0!important;max-width:100%!important;overflow:hidden!important;white-space:nowrap!important;text-overflow:clip!important}
+html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root :is(.panel-select--preset,.pmm-preset-name-text){grid-area:1/1!important;box-sizing:border-box!important;display:block!important;width:100%!important;min-width:0!important;max-width:100%!important;overflow:hidden!important;white-space:nowrap!important;text-overflow:clip!important}
+html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root .panel-select--preset{color:transparent!important;-webkit-text-fill-color:transparent!important}
+html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root :is(.panel-select--preset option,.pmm-preset-name-text){color:var(--pmm-floating-text,var(--fp-text-color))!important;-webkit-text-fill-color:var(--pmm-floating-text,var(--fp-text-color))!important}
+html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root .pmm-preset-name-text{align-self:center!important;padding:0 5px!important;pointer-events:none!important;z-index:1;font-size:12px;line-height:normal}
+
 html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root>.panel-wrapper>.panel-header{flex-flow:row nowrap!important;white-space:nowrap!important}
 html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root .panel-section{flex-wrap:nowrap!important;white-space:nowrap!important}
-html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root .panel-section:has(.panel-select--preset){flex:1 1 0!important;width:auto!important;min-width:0!important;max-width:none!important}
-html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root .panel-select--preset{box-sizing:border-box!important;flex:1 1 0!important;width:0!important;min-width:0!important;max-width:none!important;white-space:nowrap!important;text-overflow:ellipsis!important}
-html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root :is(.panel-action,.panel-collapse,.pmm-floating-snapshot-trigger,.pmm-preset-batch-trigger,.pmm-entries-toggle){flex-shrink:0!important}
-html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root :is(.prompt-item__name,.section-header__name,.category-header__name){min-width:0!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+
+
+html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root :is(.panel-action,.panel-collapse,.pmm-floating-snapshot-trigger,.pmm-preset-batch-trigger){flex-shrink:0!important}
+html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root :is(.prompt-item__name,.section-header__name,.category-header__name){min-width:0!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:clip!important}
 html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root .panel-header :is(.panel-action i,.pmm-floating-snapshot-trigger i,.pmm-preset-batch-trigger){font-size:min(12px,calc(var(--pmm-floating-button-size,24px)*.5))!important;line-height:1!important}
-html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root .pmm-entries-toggle{font-size:min(11px,calc(var(--pmm-floating-button-size,24px)*.5))!important;line-height:1.2!important;white-space:nowrap!important}
+
 
 /* Override the upstream desktop 368px width without touching any material rule. */
-html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root>.panel-wrapper{width:min(var(--pmm-mobile-floating-width,50vw),100vw,var(--pmm-banner-max-width,100vw))!important;min-width:0!important;max-width:100vw!important}
+html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root>.panel-wrapper{width:var(--pmm-mobile-floating-width,max-content)!important;min-width:0!important;max-width:min(100vw,var(--pmm-banner-max-width,100vw))!important}
 
-/* Half-screen defaults; explicit dimensions may fill the whole device viewport. */
+
+
+/* List height remains bounded independently of the content-derived banner width. */
 #preset-manager-floating-panel .pmm-unified-floating-root>.panel-wrapper.dropdown-open{height:min(var(--pmm-floating-max-height,50dvh),calc(100dvh - var(--pmm-banner-y,0px)))!important}
 
 #preset-manager-floating-panel .pmm-unified-floating-root>.panel-wrapper{max-height:min(var(--pmm-floating-max-height,50dvh),calc(100dvh - var(--pmm-banner-y,0px)))!important}
@@ -234,8 +339,8 @@ html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unif
 html.pmm-floating-negative-gap #preset-manager-floating-panel .pmm-unified-floating-root :is(.category-content,.prompt-list)>*+*{margin-top:min(0px,var(--pmm-floating-item-gap,2px))!important}
 `;doc.head.appendChild(style);cleanup.push(()=>style.remove())}
 function findRoot(){for(const doc of docs()){const found=doc.querySelector?.('#preset-manager-floating-panel .floating-panel-root');if(found)return found}return null}
-function watchPanel(){panelResizeObserver?.disconnect();panelResizeObserver=null;const panel=root?.querySelector?.(':scope > .panel-wrapper');if(panel&&typeof TOP.ResizeObserver==='function'){panelResizeObserver=new TOP.ResizeObserver(()=>{if(!gesture){measurePanel();schedule()}});panelResizeObserver.observe(panel)}}
-function bindRoot(){const found=findRoot();if(found!==root){root=found;applyBannerSizing();root?.querySelectorAll('.pmm-preset-visible-label').forEach(label=>label.remove());watchPanel();measurePanel();schedule()}const header=root?.querySelector?.(':scope > .panel-wrapper > .panel-header');if(header&&!boundHeaders.has(header)){boundHeaders.add(header);listen(header,'pointerdown',onDown,{capture:true,passive:false});listen(header,'lostpointercapture',onCancel);listen(header,'contextmenu',event=>{if(!interactiveTarget(event.target)){event.preventDefault();event.stopPropagation()}});listen(header,'click',suppressSyntheticClick,{capture:true})}if(header&&!header.querySelector('.pmm-entries-toggle')){const button=header.ownerDocument.createElement('button');button.type='button';button.className='pmm-entries-toggle';button.textContent='条目';button.title='展开或收起当前预设条目';button.setAttribute('aria-label',button.title);listen(button,'click',event=>{event.stopPropagation();root?.__pmmQuickEntries?.toggle?.()});header.appendChild(button);cleanup.push(()=>button.remove())}const collapse=root?.querySelector?.(':scope > .panel-wrapper .panel-collapse');if(collapse&&!boundCollapses.has(collapse)){boundCollapses.add(collapse);listen(collapse,'click',()=>TOP.queueMicrotask(()=>setExpanded(false,'collapse')))}}
+function watchPanel(){panelResizeObserver?.disconnect();panelResizeObserver=null;const panel=root?.querySelector?.(':scope > .panel-wrapper');if(panel&&typeof TOP.ResizeObserver==='function'){panelResizeObserver=new TOP.ResizeObserver(()=>{if(!gesture){measurePanel();schedule();queueAutoWidth()}});panelResizeObserver.observe(panel)}}
+function bindRoot(){const found=findRoot();if(found!==root){root=found;applyBannerSizing();queueAutoWidth();watchPanel();refreshHeader();measurePanel();schedule()}const header=root?.querySelector?.(':scope > .panel-wrapper > .panel-header');if(header&&!boundHeaders.has(header)){watchPanel();refreshHeader();boundHeaders.add(header);listen(header,'change',refreshHeader);listen(header,'pointerdown',onDown,{capture:true,passive:false});listen(header,'lostpointercapture',onCancel);listen(header,'contextmenu',event=>{if(!interactiveTarget(event.target)){event.preventDefault();event.stopPropagation()}});listen(header,'click',suppressSyntheticClick,{capture:true})}const collapse=root?.querySelector?.(':scope > .panel-wrapper .panel-collapse');if(collapse&&!boundCollapses.has(collapse)){boundCollapses.add(collapse);listen(collapse,'click',()=>TOP.queueMicrotask(()=>setExpanded(false,'collapse')))}}
 function installObservers(){
   for(const doc of docs()){
     let mount=null,observedRoot=null,observedPanel=null;
@@ -262,8 +367,8 @@ function installObservers(){
     attach();cleanup.push(()=>{bodyObserver.disconnect();mountObserver.disconnect()});
   }
 }
-function onViewportChange(){if(gesture||STORE.getState().keyboardEditing)return;if(resizeFrame)TOP.cancelAnimationFrame(resizeFrame);resizeFrame=TOP.requestAnimationFrame(()=>{resizeFrame=0;if(gesture||STORE.getState().keyboardEditing)return;refreshViewport();measurePanel();STORE.syncProfile();const next=clampPosition(STORE.getState().position||defaultPosition());STORE.commit({position:next,side:resolveSide(next)},'viewport');schedule()})}
+function onViewportChange(){if(gesture||STORE.getState().keyboardEditing)return;if(resizeFrame)TOP.cancelAnimationFrame(resizeFrame);resizeFrame=TOP.requestAnimationFrame(()=>{resizeFrame=0;if(gesture||STORE.getState().keyboardEditing)return;const portrait=geometry.vh>=geometry.vw;refreshViewport();const request=readWidthRequest();if(request.profile!==bannerSizing.profile)setBannerWidth(request.width,request.automatic,request.profile,request.autoContent);if(portrait!==(geometry.vh>=geometry.vw))invalidateAutoWidth();refreshHeader();measurePanel();queueAutoWidth();STORE.syncProfile();const next=clampPosition(STORE.getState().position||defaultPosition());STORE.commit({position:next,side:resolveSide(next)},'viewport');schedule()})}
 function readGlyph(){try{const saved=JSON.parse(TOP.localStorage?.getItem("pmm_mobile_layout_shared_v2")||"{}");return String(saved?.glyph||"☰").slice(0,4)||"☰"}catch(_){return"☰"}}
-function install(){refreshViewport();for(const doc of docs()){installStyle(doc);doc.documentElement?.classList.remove('pmm-mobile-toolbar-ready');doc.getElementById('pm-mobile-fab-standalone')?.remove()}DOC.getElementById(HANDLE_ID)?.remove();handle=DOC.createElement('button');handle.id=HANDLE_ID;handle.type='button';handle.tabIndex=-1;handle.setAttribute('aria-label','预设悬浮入口：单击展开，双击打开主界面，长按打开中控');handle.innerHTML="<span class=\"pmm-ball-glyph\" aria-hidden=\"true\"></span><span class=\"pmm-handle-glyph\" aria-hidden=\"true\">‹</span>";handle.querySelector(".pmm-ball-glyph").textContent=readGlyph();DOC.body.appendChild(handle);cleanup.push(()=>handle?.remove());listen(handle,'pointerdown',onDown,{passive:false});listen(handle,'lostpointercapture',onCancel);listen(TOP,'blur',()=>onCancel());listen(handle,'click',event=>{event.preventDefault();event.stopImmediatePropagation();handle?.blur?.()},{capture:true,passive:false});listen(TOP,'pointermove',onMove,{capture:true,passive:false});listen(TOP,'pointerup',onUp,{capture:true,passive:false});listen(TOP,'pointercancel',onCancel,{capture:true,passive:true});listen(DOC,'mouseup',suppressNativeMouse,{capture:true,passive:false});listen(TOP,"pmm:floating-glyph-change",event=>{const glyph=handle?.querySelector(".pmm-ball-glyph");if(glyph){const value=String(event?.detail?.glyph||"☰").slice(0,4);if(glyph.textContent!==value)glyph.textContent=value}});listen(TOP,'pmm:floating-metrics-change',()=>{refreshViewport();const state=STORE.getState(),position=clampPosition(state.position||defaultPosition(),state.expanded);STORE.commit({position,side:resolveSide(position)},'metrics',false);schedule()});listen(TOP,'resize',onViewportChange,{passive:true});listen(TOP,'orientationchange',()=>{TOP.clearTimeout(orientationTimer);orientationTimer=TOP.setTimeout(()=>{orientationTimer=0;onViewportChange()},160)},{passive:true});renderedState=STORE.getState();cleanup.push(STORE.subscribe(onStoreChange));installObservers();bindRoot();render();if(STORE.getState().expanded)TOP.__PMM_WINDOW_STACK__?.open('floating',[DOC.getElementById('preset-manager-floating-panel'),handle])}
-const API=Object.freeze({getState:STORE.getState,setBannerWidth,setBannerFont,setVisible(value){const visible=Boolean(value);try{TOP.localStorage?.setItem('pmm_mobile_fab_visible_v1',visible?'1':'0')}catch(_){}STORE.update({visible},'visibility')},setExpanded,toggle(){setExpanded(!STORE.getState().expanded,'toggle')},openController,resetPosition(){const position=defaultPosition();STORE.commit({position,side:resolveSide(position)},'reset-position')},destroy(){onCancel();TOP.__PMM_WINDOW_STACK__?.close('floating');cancelPendingTap();clearLong();if(expandFrame)TOP.cancelAnimationFrame(expandFrame);expandFrame=0;restorePanelDisplay();if(renderFrame)TOP.cancelAnimationFrame(renderFrame);if(resizeFrame)TOP.cancelAnimationFrame(resizeFrame);TOP.clearTimeout(orientationTimer);orientationTimer=0;panelResizeObserver?.disconnect();while(cleanup.length)try{cleanup.pop()()}catch(_){}root?.classList.remove('pmm-unified-floating-root','is-expanded','is-hidden','is-dragging');if(root){delete root.dataset.handleOverlap;root.style.removeProperty('--pmm-banner-handle-gutter')}delete TOP[API_KEY]}});
+function install(){listen(TOP,'pmm:theme-applied',refreshHeader);listen(DOC.fonts,'loadingdone',refreshHeader);refreshViewport();for(const doc of docs()){installStyle(doc);doc.documentElement?.classList.remove('pmm-mobile-toolbar-ready');doc.getElementById('pm-mobile-fab-standalone')?.remove()}DOC.getElementById(HANDLE_ID)?.remove();handle=DOC.createElement('button');handle.id=HANDLE_ID;handle.type='button';handle.tabIndex=-1;handle.setAttribute('aria-label','预设悬浮入口：单击展开，双击打开主界面，长按打开中控');handle.innerHTML="<span class=\"pmm-ball-glyph\" aria-hidden=\"true\"></span><span class=\"pmm-handle-glyph\" aria-hidden=\"true\">‹</span>";handle.querySelector(".pmm-ball-glyph").textContent=readGlyph();DOC.body.appendChild(handle);cleanup.push(()=>handle?.remove());listen(handle,'pointerdown',onDown,{passive:false});listen(handle,'lostpointercapture',onCancel);listen(TOP,'blur',()=>onCancel());listen(handle,'click',event=>{event.preventDefault();event.stopImmediatePropagation();handle?.blur?.()},{capture:true,passive:false});listen(TOP,'pointermove',onMove,{capture:true,passive:false});listen(TOP,'pointerup',onUp,{capture:true,passive:false});listen(TOP,'pointercancel',onCancel,{capture:true,passive:true});listen(DOC,'mouseup',suppressNativeMouse,{capture:true,passive:false});listen(TOP,"pmm:floating-glyph-change",event=>{const glyph=handle?.querySelector(".pmm-ball-glyph");if(glyph){const value=String(event?.detail?.glyph||"☰").slice(0,4);if(glyph.textContent!==value)glyph.textContent=value}});listen(TOP,'pmm:floating-metrics-change',()=>{refreshViewport();const state=STORE.getState(),position=clampPosition(state.position||defaultPosition(),state.expanded);STORE.commit({position,side:resolveSide(position)},'metrics',false);schedule()});listen(TOP,'resize',onViewportChange,{passive:true});listen(TOP.visualViewport,'resize',onViewportChange,{passive:true});listen(TOP,'orientationchange',()=>{TOP.clearTimeout(orientationTimer);orientationTimer=TOP.setTimeout(()=>{orientationTimer=0;onViewportChange()},160)},{passive:true});renderedState=STORE.getState();cleanup.push(STORE.subscribe(onStoreChange));installObservers();bindRoot();render();if(STORE.getState().expanded)TOP.__PMM_WINDOW_STACK__?.open('floating',[DOC.getElementById('preset-manager-floating-panel'),handle])}
+const API=Object.freeze({getState:STORE.getState,setBannerWidth,setBannerFont,getBannerSizing:()=>({...bannerSizing}),refreshHeader,setVisible(value){const visible=Boolean(value);try{TOP.localStorage?.setItem('pmm_mobile_fab_visible_v1',visible?'1':'0')}catch(_){}STORE.update({visible},'visibility')},setExpanded,toggle(){setExpanded(!STORE.getState().expanded,'toggle')},openController,resetPosition(){const position=defaultPosition();STORE.commit({position,side:resolveSide(position)},'reset-position')},destroy(){if(autoWidthFrame)TOP.cancelAnimationFrame(autoWidthFrame);autoWidthFrame=0;textMeasure=null;TOP.__PMM_THEME_SYSTEM__?.cancelWork?.('floating-auto-width');TOP.__PMM_THEME_SYSTEM__?.cancelWork?.('floating-header');onCancel();TOP.__PMM_WINDOW_STACK__?.close('floating');cancelPendingTap();clearLong();if(expandFrame)TOP.cancelAnimationFrame(expandFrame);expandFrame=0;restorePanelDisplay();if(renderFrame)TOP.cancelAnimationFrame(renderFrame);if(resizeFrame)TOP.cancelAnimationFrame(resizeFrame);TOP.clearTimeout(orientationTimer);orientationTimer=0;panelResizeObserver?.disconnect();while(cleanup.length)try{cleanup.pop()()}catch(_){}root?.classList.remove('pmm-unified-floating-root','is-expanded','is-hidden','is-dragging');if(root){delete root.dataset.handleOverlap;root.style.removeProperty('--pmm-banner-handle-gutter')}delete TOP[API_KEY]}});
 TOP[API_KEY]=API;globalThis[API_KEY]=API;install();if(handle){handle.oncontextmenu=event=>{event.preventDefault();event.stopPropagation();return false};handle.onselectstart=()=>false}export default API;

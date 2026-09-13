@@ -1,5 +1,5 @@
 const EXTENSION_NAME = '🧩预设工坊';
-const EXTENSION_VERSION = '2.97.36';
+const EXTENSION_VERSION = '2.98.2-page0x00.3';
 const RUNTIME_ID = 'TH-script--🧩预设工坊（GitHub 扩展）--2f53f6af-3c9e-4c71-bc52-9f635be25300';
 const LEGACY_IFRAME_PREFIX = 'TH-script--🧩预设工坊';
 const EXTENSION_FOLDER_NAME = 'ST-Preset-Workshop';
@@ -258,6 +258,7 @@ function buildRuntimeDocument() {
   const layoutControllerUrl = appendRuntimeVersion(new URL('./workshop-layout-controller.js', import.meta.url).href);
   const presetContentEditorUrl = appendRuntimeVersion(new URL('./preset-content-editor.js', import.meta.url).href);
   const worldbookStitchUrl = appendRuntimeVersion(new URL('./worldbook-stitch-test3.js', import.meta.url).href);
+  const worldbookSnapshotsUrl = appendRuntimeVersion(new URL('./worldbook-snapshots.js', import.meta.url).href);
   const worldbookLoaderKey = '__PMM_LOAD_WORLDBOOK_STITCH__';
 
   return `<!DOCTYPE html>
@@ -315,6 +316,7 @@ function buildRuntimeDocument() {
 })();
 </script>
 <script type="module" src="${presetContentEditorUrl}"></script>
+<script type="module" src="${worldbookSnapshotsUrl}"></script>
 <script type="module" src="${windowStackUrl}"></script>
 <script type="module" src="${workshopUrl}"></script>
 <script type="module" src="${floatingStoreUrl}"></script>

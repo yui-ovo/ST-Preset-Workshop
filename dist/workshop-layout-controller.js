@@ -85,7 +85,7 @@ html body #preset-manager-main-panel.pmm-layout-custom-header-icon .pm-header .c
 html body #preset-manager-main-panel.pmm-layout-custom-row-button .prompt-card button,html body #preset-manager-main-panel.pmm-layout-custom-row-button .prompt-item button{width:var(--pmm-row-button-size)!important;height:var(--pmm-row-button-size)!important;min-width:var(--pmm-row-button-size)!important}
 html body #preset-manager-main-panel.pmm-layout-custom-outer-padding .pm-overlay{padding:var(--pmm-main-padding)!important}
 html body #preset-manager-main-panel.pmm-layout-custom-main-height .pm-panel-container{height:var(--pmm-main-height)!important;max-height:var(--pmm-main-height)!important}
-html body #preset-manager-main-panel.pmm-layout-custom-main-width .pm-panel-container{width:var(--pmm-main-width)!important;max-width:var(--pmm-main-width)!important}
+html body #preset-manager-main-panel.pmm-layout-custom-main-width .pm-panel-container:not(.pmm-desktop-custom-sized){width:var(--pmm-main-width)!important;max-width:var(--pmm-main-width)!important}
 html body .pmm-layout-glyph-row{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) 96px;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid var(--pmm-theme-border,var(--pm-border))}
 html body .pmm-layout-glyph-row input{box-sizing:border-box;width:96px;min-width:0;height:32px;padding:4px 8px;border:1px solid var(--pmm-theme-border,var(--pm-border));border-radius:8px;background:var(--pmm-theme-control,var(--pm-control-bg));color:var(--pmm-theme-text,var(--pm-text-primary));font-size:16px;text-align:center}
 @media(pointer:coarse){html body #preset-manager-main-panel .preset-panel,html body #preset-manager-main-panel .pm-header{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}}
@@ -185,8 +185,6 @@ html body #pmm-mobile-layout-card#pmm-mobile-layout-card.pmm-layout-card--draggi
 html body #pmm-unified-floating-handle#pmm-unified-floating-handle.is-dragging,
 html body #preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root.is-dragging>.panel-wrapper{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;box-shadow:none!important;transition:none!important;animation:none!important}
 
-/* Upstream snapshot actions keep their behavior after moving into the unified right half. */
-html[data-pmm-viewport-profile] body #preset-manager-main-panel .pm-panel-container.pmm-switch-snapshot-capture-mode .pm-header>.header-right .title-actions :is([title="导入"],[title="导出"],[title="保存开关"],[title^="同步开关"]){display:none!important}
 @media(min-width:769px){
 html[data-pmm-viewport-profile] body #preset-manager-main-panel .pm-panel-container.pmm-desktop-home-panel-expanded>.pm-main-wrapper{flex:1 1 auto!important;width:auto!important;min-width:0!important;max-width:none!important}
 html[data-pmm-viewport-profile] body #preset-manager-main-panel .pm-panel-container>.pm-main-wrapper .pm-header>.header-left.pmm-desktop-home-title-host{flex:1 1 auto!important;width:auto!important;min-width:0!important;max-width:none!important}

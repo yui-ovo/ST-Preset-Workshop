@@ -1,0 +1,601 @@
+{
+  "version": "2.98.2-page0x00.3",
+  "browser": "Chrome/149.0.7827.155",
+  "nativeIconFont": true,
+  "viewports": [
+    {
+      "name": "phone portrait",
+      "width": 390,
+      "height": 844,
+      "automatic": 236,
+      "manual": 280,
+      "reset": 236,
+      "clip": [
+        "clip",
+        "clip",
+        "clip",
+        "clip"
+      ]
+    },
+    {
+      "name": "phone landscape",
+      "width": 844,
+      "height": 390,
+      "automatic": 236,
+      "manual": 280,
+      "reset": 236,
+      "clip": [
+        "clip",
+        "clip",
+        "clip",
+        "clip"
+      ]
+    },
+    {
+      "name": "tablet portrait",
+      "width": 800,
+      "height": 1100,
+      "automatic": 236,
+      "manual": 280,
+      "reset": 236,
+      "clip": [
+        "clip",
+        "clip",
+        "clip",
+        "clip"
+      ]
+    },
+    {
+      "name": "tablet landscape",
+      "width": 1100,
+      "height": 800,
+      "automatic": 236,
+      "manual": 280,
+      "reset": 236,
+      "clip": [
+        "clip",
+        "clip",
+        "clip",
+        "clip"
+      ]
+    },
+    {
+      "name": "desktop",
+      "width": 1440,
+      "height": 1024,
+      "automatic": 236,
+      "manual": 600,
+      "reset": 236,
+      "clip": [
+        "clip",
+        "clip",
+        "clip",
+        "clip"
+      ]
+    }
+  ],
+  "colors": [
+    {
+      "touchMode": true,
+      "hostTone": "light",
+      "theme": "aqua",
+      "tone": "light",
+      "color": "rgb(16, 38, 58)",
+      "fill": "rgb(16, 38, 58)",
+      "background": "rgb(249, 250, 251)",
+      "paintedBackground": "rgb(249, 250, 251)",
+      "contrast": 14.77,
+      "withoutBodyRule": {
+        "color": "rgb(255, 255, 255)",
+        "fill": "rgb(255, 255, 255)"
+      }
+    },
+    {
+      "touchMode": true,
+      "hostTone": "light",
+      "theme": "aqua",
+      "tone": "dark",
+      "color": "rgb(255, 255, 255)",
+      "fill": "rgb(255, 255, 255)",
+      "background": "rgb(31, 41, 55)",
+      "paintedBackground": "rgb(29, 39, 53)",
+      "contrast": 15.07,
+      "withoutBodyRule": {
+        "color": "rgb(255, 255, 255)",
+        "fill": "rgb(255, 255, 255)"
+      }
+    },
+    {
+      "touchMode": true,
+      "hostTone": "light",
+      "theme": "glass",
+      "tone": "light",
+      "color": "rgb(32, 40, 49)",
+      "fill": "rgb(32, 40, 49)",
+      "background": "rgba(214, 216, 219, 0.2)",
+      "paintedBackground": "rgb(205, 205, 208)",
+      "contrast": 9.39,
+      "withoutBodyRule": {
+        "color": "rgb(32, 40, 49)",
+        "fill": "rgb(32, 40, 49)"
+      }
+    },
+    {
+      "touchMode": true,
+      "hostTone": "light",
+      "theme": "glass",
+      "tone": "dark",
+      "color": "rgb(0, 0, 0)",
+      "fill": "rgb(0, 0, 0)",
+      "background": "rgba(173, 179, 187, 0.12)",
+      "paintedBackground": "rgb(132, 135, 138)",
+      "contrast": 5.81,
+      "withoutBodyRule": {
+        "color": "rgb(237, 241, 247)",
+        "fill": "rgb(237, 241, 247)"
+      }
+    },
+    {
+      "touchMode": true,
+      "hostTone": "light",
+      "theme": "violet",
+      "tone": "light",
+      "color": "rgb(20, 32, 43)",
+      "fill": "rgb(20, 32, 43)",
+      "background": "rgb(249, 250, 251)",
+      "paintedBackground": "rgb(249, 250, 251)",
+      "contrast": 15.81,
+      "withoutBodyRule": {
+        "color": "rgb(255, 255, 255)",
+        "fill": "rgb(255, 255, 255)"
+      },
+      "matchedRules": [
+        {
+          "selector": ".prompt-editor__textarea[data-v-01bebc6e]",
+          "color": "var(--pm-text-primary)",
+          "fill": "",
+          "important": ""
+        }
+      ]
+    },
+    {
+      "touchMode": true,
+      "hostTone": "light",
+      "theme": "violet",
+      "tone": "dark",
+      "color": "rgb(250, 248, 252)",
+      "fill": "rgb(250, 248, 252)",
+      "background": "rgb(31, 41, 55)",
+      "paintedBackground": "rgb(31, 41, 55)",
+      "contrast": 13.91,
+      "withoutBodyRule": {
+        "color": "rgb(255, 255, 255)",
+        "fill": "rgb(255, 255, 255)"
+      }
+    },
+    {
+      "touchMode": true,
+      "hostTone": "light",
+      "theme": "theme",
+      "tone": "light",
+      "color": "rgb(23, 32, 43)",
+      "fill": "rgb(23, 32, 43)",
+      "background": "rgba(248, 249, 251, 0.98)",
+      "paintedBackground": "rgb(248, 249, 251)",
+      "contrast": 15.6,
+      "withoutBodyRule": {
+        "color": "rgb(23, 32, 43)",
+        "fill": "rgb(23, 32, 43)"
+      }
+    },
+    {
+      "touchMode": true,
+      "hostTone": "light",
+      "theme": "theme",
+      "tone": "dark",
+      "color": "rgb(247, 249, 252)",
+      "fill": "rgb(247, 249, 252)",
+      "background": "rgba(28, 31, 37, 0.95)",
+      "paintedBackground": "rgb(29, 31, 37)",
+      "contrast": 15.62,
+      "withoutBodyRule": {
+        "color": "rgb(247, 249, 252)",
+        "fill": "rgb(247, 249, 252)"
+      }
+    },
+    {
+      "touchMode": true,
+      "hostTone": "dark",
+      "theme": "aqua",
+      "tone": "light",
+      "color": "rgb(16, 38, 58)",
+      "fill": "rgb(16, 38, 58)",
+      "background": "rgb(249, 250, 251)",
+      "paintedBackground": "rgb(249, 250, 251)",
+      "contrast": 14.77,
+      "withoutBodyRule": {
+        "color": "rgb(255, 255, 255)",
+        "fill": "rgb(255, 255, 255)"
+      }
+    },
+    {
+      "touchMode": true,
+      "hostTone": "dark",
+      "theme": "aqua",
+      "tone": "dark",
+      "color": "rgb(255, 255, 255)",
+      "fill": "rgb(255, 255, 255)",
+      "background": "rgb(31, 41, 55)",
+      "paintedBackground": "rgb(29, 39, 53)",
+      "contrast": 15.07,
+      "withoutBodyRule": {
+        "color": "rgb(255, 255, 255)",
+        "fill": "rgb(255, 255, 255)"
+      }
+    },
+    {
+      "touchMode": true,
+      "hostTone": "dark",
+      "theme": "glass",
+      "tone": "light",
+      "color": "rgb(0, 0, 0)",
+      "fill": "rgb(0, 0, 0)",
+      "background": "rgba(214, 216, 219, 0.2)",
+      "paintedBackground": "rgb(125, 126, 131)",
+      "contrast": 5.18,
+      "withoutBodyRule": {
+        "color": "rgb(32, 40, 49)",
+        "fill": "rgb(32, 40, 49)"
+      }
+    },
+    {
+      "touchMode": true,
+      "hostTone": "dark",
+      "theme": "glass",
+      "tone": "dark",
+      "color": "rgb(237, 241, 247)",
+      "fill": "rgb(237, 241, 247)",
+      "background": "rgba(173, 179, 187, 0.12)",
+      "paintedBackground": "rgb(63, 67, 71)",
+      "contrast": 8.8,
+      "withoutBodyRule": {
+        "color": "rgb(237, 241, 247)",
+        "fill": "rgb(237, 241, 247)"
+      }
+    },
+    {
+      "touchMode": true,
+      "hostTone": "dark",
+      "theme": "violet",
+      "tone": "light",
+      "color": "rgb(20, 32, 43)",
+      "fill": "rgb(20, 32, 43)",
+      "background": "rgb(249, 250, 251)",
+      "paintedBackground": "rgb(249, 250, 251)",
+      "contrast": 15.81,
+      "withoutBodyRule": {
+        "color": "rgb(255, 255, 255)",
+        "fill": "rgb(255, 255, 255)"
+      },
+      "matchedRules": [
+        {
+          "selector": ".prompt-editor__textarea[data-v-01bebc6e]",
+          "color": "var(--pm-text-primary)",
+          "fill": "",
+          "important": ""
+        }
+      ]
+    },
+    {
+      "touchMode": true,
+      "hostTone": "dark",
+      "theme": "violet",
+      "tone": "dark",
+      "color": "rgb(250, 248, 252)",
+      "fill": "rgb(250, 248, 252)",
+      "background": "rgb(31, 41, 55)",
+      "paintedBackground": "rgb(31, 41, 55)",
+      "contrast": 13.91,
+      "withoutBodyRule": {
+        "color": "rgb(255, 255, 255)",
+        "fill": "rgb(255, 255, 255)"
+      }
+    },
+    {
+      "touchMode": true,
+      "hostTone": "dark",
+      "theme": "theme",
+      "tone": "light",
+      "color": "rgb(23, 32, 43)",
+      "fill": "rgb(23, 32, 43)",
+      "background": "rgba(248, 249, 251, 0.98)",
+      "paintedBackground": "rgb(248, 249, 251)",
+      "contrast": 15.6,
+      "withoutBodyRule": {
+        "color": "rgb(23, 32, 43)",
+        "fill": "rgb(23, 32, 43)"
+      }
+    },
+    {
+      "touchMode": true,
+      "hostTone": "dark",
+      "theme": "theme",
+      "tone": "dark",
+      "color": "rgb(247, 249, 252)",
+      "fill": "rgb(247, 249, 252)",
+      "background": "rgba(28, 31, 37, 0.95)",
+      "paintedBackground": "rgb(28, 30, 36)",
+      "contrast": 15.8,
+      "withoutBodyRule": {
+        "color": "rgb(247, 249, 252)",
+        "fill": "rgb(247, 249, 252)"
+      }
+    },
+    {
+      "touchMode": false,
+      "hostTone": "light",
+      "theme": "aqua",
+      "tone": "light",
+      "color": "rgb(16, 38, 58)",
+      "fill": "rgb(16, 38, 58)",
+      "background": "rgb(249, 250, 251)",
+      "paintedBackground": "rgb(247, 248, 250)",
+      "contrast": 14.53,
+      "withoutBodyRule": {
+        "color": "rgb(255, 255, 255)",
+        "fill": "rgb(255, 255, 255)"
+      }
+    },
+    {
+      "touchMode": false,
+      "hostTone": "light",
+      "theme": "aqua",
+      "tone": "dark",
+      "color": "rgb(255, 255, 255)",
+      "fill": "rgb(255, 255, 255)",
+      "background": "rgb(31, 41, 55)",
+      "paintedBackground": "rgb(29, 38, 52)",
+      "contrast": 15.23,
+      "withoutBodyRule": {
+        "color": "rgb(255, 255, 255)",
+        "fill": "rgb(255, 255, 255)"
+      }
+    },
+    {
+      "touchMode": false,
+      "hostTone": "light",
+      "theme": "glass",
+      "tone": "light",
+      "color": "rgb(32, 40, 49)",
+      "fill": "rgb(32, 40, 49)",
+      "background": "rgba(214, 216, 219, 0.2)",
+      "paintedBackground": "rgb(203, 203, 206)",
+      "contrast": 9.21,
+      "withoutBodyRule": {
+        "color": "rgb(32, 40, 49)",
+        "fill": "rgb(32, 40, 49)"
+      }
+    },
+    {
+      "touchMode": false,
+      "hostTone": "light",
+      "theme": "glass",
+      "tone": "dark",
+      "color": "rgb(0, 0, 0)",
+      "fill": "rgb(0, 0, 0)",
+      "background": "rgba(173, 179, 187, 0.12)",
+      "paintedBackground": "rgb(129, 132, 135)",
+      "contrast": 5.58,
+      "withoutBodyRule": {
+        "color": "rgb(237, 241, 247)",
+        "fill": "rgb(237, 241, 247)"
+      }
+    },
+    {
+      "touchMode": false,
+      "hostTone": "light",
+      "theme": "violet",
+      "tone": "light",
+      "color": "rgb(20, 32, 43)",
+      "fill": "rgb(20, 32, 43)",
+      "background": "rgb(249, 250, 251)",
+      "paintedBackground": "rgb(247, 248, 249)",
+      "contrast": 15.54,
+      "withoutBodyRule": {
+        "color": "rgb(255, 255, 255)",
+        "fill": "rgb(255, 255, 255)"
+      },
+      "matchedRules": [
+        {
+          "selector": ".prompt-editor__textarea[data-v-01bebc6e]",
+          "color": "var(--pm-text-primary)",
+          "fill": "",
+          "important": ""
+        }
+      ]
+    },
+    {
+      "touchMode": false,
+      "hostTone": "light",
+      "theme": "violet",
+      "tone": "dark",
+      "color": "rgb(250, 248, 252)",
+      "fill": "rgb(250, 248, 252)",
+      "background": "rgb(31, 41, 55)",
+      "paintedBackground": "rgb(30, 40, 54)",
+      "contrast": 14.09,
+      "withoutBodyRule": {
+        "color": "rgb(255, 255, 255)",
+        "fill": "rgb(255, 255, 255)"
+      }
+    },
+    {
+      "touchMode": false,
+      "hostTone": "light",
+      "theme": "theme",
+      "tone": "light",
+      "color": "rgb(23, 32, 43)",
+      "fill": "rgb(23, 32, 43)",
+      "background": "rgba(248, 249, 251, 0.98)",
+      "paintedBackground": "rgb(248, 249, 251)",
+      "contrast": 15.6,
+      "withoutBodyRule": {
+        "color": "rgb(23, 32, 43)",
+        "fill": "rgb(23, 32, 43)"
+      }
+    },
+    {
+      "touchMode": false,
+      "hostTone": "light",
+      "theme": "theme",
+      "tone": "dark",
+      "color": "rgb(247, 249, 252)",
+      "fill": "rgb(247, 249, 252)",
+      "background": "rgba(28, 31, 37, 0.95)",
+      "paintedBackground": "rgb(29, 31, 37)",
+      "contrast": 15.62,
+      "withoutBodyRule": {
+        "color": "rgb(247, 249, 252)",
+        "fill": "rgb(247, 249, 252)"
+      }
+    },
+    {
+      "touchMode": false,
+      "hostTone": "dark",
+      "theme": "aqua",
+      "tone": "light",
+      "color": "rgb(16, 38, 58)",
+      "fill": "rgb(16, 38, 58)",
+      "background": "rgb(249, 250, 251)",
+      "paintedBackground": "rgb(247, 248, 250)",
+      "contrast": 14.53,
+      "withoutBodyRule": {
+        "color": "rgb(255, 255, 255)",
+        "fill": "rgb(255, 255, 255)"
+      }
+    },
+    {
+      "touchMode": false,
+      "hostTone": "dark",
+      "theme": "aqua",
+      "tone": "dark",
+      "color": "rgb(255, 255, 255)",
+      "fill": "rgb(255, 255, 255)",
+      "background": "rgb(31, 41, 55)",
+      "paintedBackground": "rgb(29, 38, 52)",
+      "contrast": 15.23,
+      "withoutBodyRule": {
+        "color": "rgb(255, 255, 255)",
+        "fill": "rgb(255, 255, 255)"
+      }
+    },
+    {
+      "touchMode": false,
+      "hostTone": "dark",
+      "theme": "glass",
+      "tone": "light",
+      "color": "rgb(0, 0, 0)",
+      "fill": "rgb(0, 0, 0)",
+      "background": "rgba(214, 216, 219, 0.2)",
+      "paintedBackground": "rgb(124, 125, 130)",
+      "contrast": 5.11,
+      "withoutBodyRule": {
+        "color": "rgb(32, 40, 49)",
+        "fill": "rgb(32, 40, 49)"
+      }
+    },
+    {
+      "touchMode": false,
+      "hostTone": "dark",
+      "theme": "glass",
+      "tone": "dark",
+      "color": "rgb(237, 241, 247)",
+      "fill": "rgb(237, 241, 247)",
+      "background": "rgba(173, 179, 187, 0.12)",
+      "paintedBackground": "rgb(63, 67, 71)",
+      "contrast": 8.8,
+      "withoutBodyRule": {
+        "color": "rgb(237, 241, 247)",
+        "fill": "rgb(237, 241, 247)"
+      }
+    },
+    {
+      "touchMode": false,
+      "hostTone": "dark",
+      "theme": "violet",
+      "tone": "light",
+      "color": "rgb(20, 32, 43)",
+      "fill": "rgb(20, 32, 43)",
+      "background": "rgb(249, 250, 251)",
+      "paintedBackground": "rgb(247, 248, 249)",
+      "contrast": 15.54,
+      "withoutBodyRule": {
+        "color": "rgb(255, 255, 255)",
+        "fill": "rgb(255, 255, 255)"
+      },
+      "matchedRules": [
+        {
+          "selector": ".prompt-editor__textarea[data-v-01bebc6e]",
+          "color": "var(--pm-text-primary)",
+          "fill": "",
+          "important": ""
+        }
+      ]
+    },
+    {
+      "touchMode": false,
+      "hostTone": "dark",
+      "theme": "violet",
+      "tone": "dark",
+      "color": "rgb(250, 248, 252)",
+      "fill": "rgb(250, 248, 252)",
+      "background": "rgb(31, 41, 55)",
+      "paintedBackground": "rgb(30, 40, 54)",
+      "contrast": 14.09,
+      "withoutBodyRule": {
+        "color": "rgb(255, 255, 255)",
+        "fill": "rgb(255, 255, 255)"
+      }
+    },
+    {
+      "touchMode": false,
+      "hostTone": "dark",
+      "theme": "theme",
+      "tone": "light",
+      "color": "rgb(23, 32, 43)",
+      "fill": "rgb(23, 32, 43)",
+      "background": "rgba(248, 249, 251, 0.98)",
+      "paintedBackground": "rgb(248, 249, 251)",
+      "contrast": 15.6,
+      "withoutBodyRule": {
+        "color": "rgb(23, 32, 43)",
+        "fill": "rgb(23, 32, 43)"
+      }
+    },
+    {
+      "touchMode": false,
+      "hostTone": "dark",
+      "theme": "theme",
+      "tone": "dark",
+      "color": "rgb(247, 249, 252)",
+      "fill": "rgb(247, 249, 252)",
+      "background": "rgba(28, 31, 37, 0.95)",
+      "paintedBackground": "rgb(28, 30, 36)",
+      "contrast": 15.8,
+      "withoutBodyRule": {
+        "color": "rgb(247, 249, 252)",
+        "fill": "rgb(247, 249, 252)"
+      }
+    }
+  ],
+  "performance": {
+    "idleFrames": 30,
+    "dragFrames": 60,
+    "dragReads": {
+      "rect": 0,
+      "computed": 0,
+      "text": 0
+    },
+    "fontAutoWidth": 353
+  }
+}

@@ -9,6 +9,9 @@ const bridge = await readFile(new URL('../bridge/predefine.js', import.meta.url)
 const legacy = JSON.parse(await readFile(new URL('../legacy/🧩预设工坊｜双端适配v2.53.json', import.meta.url), 'utf8'));
 const expectedWorkshopHash = '35a0f76b35d8fea5bedcf5b266e1baad5bbec5aedadc00a6c8a1560bc12efa6d';
 
+const packageInfo = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+if (packageInfo.version !== manifest.version) throw new Error('扩展版本与 package.json 不一致');
+
 const required = ['display_name', 'loading_order', 'js', 'author', 'version'];
 for (const key of required) {
   if (manifest[key] === undefined || manifest[key] === '') {
@@ -28,7 +31,7 @@ if (workshop.length < 1_000_000 || !workshop.includes('V2.99 已加载')) {
   throw new Error(`v2.99 业务入口不完整：${workshop.length} 字符`);
 }
 
-if (!entry.includes('workshop-v3.02.js') || !entry.includes('preset-content-editor.js') || !entry.includes('worldbook-stitch-test3.js') || !entry.includes("const EXTENSION_VERSION = '2.97.36'")) {
+if (!entry.includes('workshop-v3.02.js') || !entry.includes('preset-content-editor.js') || !entry.includes('worldbook-stitch-test3.js') || !entry.includes(`const EXTENSION_VERSION = '${manifest.version}'`)) {
   throw new Error('扩展启动器没有指向 v2.99');
 }
 

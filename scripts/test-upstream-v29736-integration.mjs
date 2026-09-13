@@ -97,100 +97,69 @@ const section = (start, end) => {
   assert([...body.listeners.values(), ...doc.listeners.values()].every(list => list.length === 0));
 }
 
-// Opening the workshop may clear the native overlay; preserve its preset/source across that await.
-{
-  const open = vm.runInNewContext(`(() => {
-    let overlayContext = { source: 'native-preset', presetName: 'Native A' }, ready = false, received;
-    const TOP = { entry: { async openWorkshopHome() { overlayContext = null; ready = true; return true; } } };
-    const FLOATING_ENTRY_API_KEY = 'entry';
-    const normalPresetContainer = () => ready;
-    const blockWhileBranchActive = () => false;
-    const closeOverlay = () => { overlayContext = null; };
-    const enterCaptureMode = context => { received = context; };
-    const notify = () => { throw Error('Native entry unexpectedly failed'); };
-    ${section('  async function enterCaptureModeFromOverlay', '  function renderCaptureSavePrompt')}
-    return async () => { await enterCaptureModeFromOverlay(); return received; };
-  })()`);
-  assert.deepEqual(clone(await open()), { source: 'native-preset', presetName: 'Native A' });
-}
-
-// Actual preset store + session cache + upstream capture transaction: two consecutive recordings.
-for (const entry of ['clean', 'dirty', 'native-preset']) {
+// The author lightweight snapshot editor replaces the former main-window capture transaction.
+// Exercise real editor opening/saving against a live dirty store and the local restart cache.
+for (const dirty of [false, true]) {
   const baseline = [
-    { id: 'one', name: 'One', content: 'Saved', enabled: true, role: 'system', position: { type: 'relative' } },
+    { id: 'one', name: 'One', content: 'Saved', enabled: true, role: 'system' },
     { id: 'two', name: 'Two', content: 'Second', enabled: false, role: 'user' },
   ];
-  const stored = new Map(), storage = { getItem: key => stored.get(key), setItem: (key, value) => stored.set(key, value) };
-  const timers = { setTimeout: () => 1, clearTimeout() {} };
-  const session = createDraftSession(storage, timers), namedWrites = [], groupWrites = [], runtimeWrites = [];
-  let captureActive = false, draftGroups = [{ id: 'g1', enabled: true }];
-  const nativeGroups = { groups: clone(draftGroups) };
-  const compatContext = {
-    sharedRoot: {
-      document: { querySelector: () => captureActive ? {} : null },
-      setPreset: async (name, value) => namedWrites.push({ name, value: clone(value) }),
-      getLoadedPresetName: () => 'A',
-    },
-    localRoot: {}, clone, text: value => String(value || ''), compat: {}, hasAppliedBranch: () => false,
-    getPresetManager: () => ({}), readNativeState: () => clone(nativeGroups), refreshRuntime: async () => {},
-    writeNativeState: async (_name, state) => { groupWrites.push(clone(state)); return true; },
-  };
-  const compat = vm.runInNewContext(`${section('  function isSnapshotCaptureActive()', '  function readGroupEnabledStates')}\n({syncEnabledStates,syncGroupEnabledState});`, compatContext);
+  const storageValues = new Map();
+  const storage = { getItem: key => storageValues.get(key), setItem: (key, value) => storageValues.set(key, value) };
+  const session = createDraftSession(storage, { setTimeout: () => 1, clearTimeout() {} });
   const store = vm.runInNewContext(`(() => {${section("const Je=n('preset',()=>{", ",je=n('branch'")};return Je();})()`, {
     n: (_name, setup) => setup, t: clone, _pmmDrafts: session,
     i: { ref: value => ({ value }), computed: read => ({ get value() { return read(); } }), toRaw: value => value, onScopeDispose() {}, watch() {} },
     s: () => 'A', d: () => clone(baseline), Pe: () => null, getLoadedPresetName: () => 'A', l: () => ['A'], Ue: () => [],
-    ze: () => ({}), __PMM_BAIBAI_COMPAT__: compat,
   });
   await store.initialize();
-  if (entry !== 'clean') await store.updatePrompt('one', { content: 'Unsaved draft' });
-  const expected = entry === 'dirty' ? clone(store.prompts.value) : clone(baseline);
-  const bridge = { restoreClean: prompts => store.refreshDisplayedPrompts(prompts), update: (id, patch) => store.updatePrompt(id, patch) };
+  if (dirty) await store.updatePrompt('one', { content: 'Unsaved text' });
+  const expected = clone(store.prompts.value), opened = [];
+  let snapshots = { snapshots: [{ presetName: 'A', default: true }] };
   const api = vm.runInNewContext(`(() => {
-    let captureMode = null, overlayContext = null, composer = null, openMenuId = '';
-    ${section('  async function writeSwitchesToDraft', '  async function refreshNativePromptManager')}
-    ${section('  async function exitCaptureMode', '  async function enterCaptureModeFromOverlay')}
-    return { enterCaptureMode, exitCaptureMode, current: () => captureMode };
+    let snapshotEditorSession = null, overlayContext = { source: 'native-preset', presetName: 'A' }, openMenuId = '';
+    const closeOverlay = () => { overlayContext = null; };
+    const destroySnapshotEditor = () => { snapshotEditorSession = null; };
+    ${section('  function makeStates(', '  function baiBaiCompat(')}
+    ${section('  function createSnapshotEditorDraft', '  function snapshotEditorGroupCount')}
+    ${section('  function openSnapshotEditorFromOverlay()', '  function renderFirstDefaultPrompt')}
+    ${section('  function saveSnapshotDraft', '  function findSnapshot')}
+    ${section('  function returnFromSnapshotEditor()', '  function mountSnapshotEditor')}
+    return { open: openSnapshotEditorFromOverlay, save: saveSnapshotEditor, cancel: returnFromSnapshotEditor, current: () => snapshotEditorSession };
   })()`, {
-    clone, text: value => String(value || ''),
-    closeOverlay() {}, notify() {}, scheduleMount() {}, syncCaptureModeUI: () => { captureActive = Boolean(api.current()); },
-    currentPresetName: () => 'A', currentDraftBridge: () => bridge, currentPresetDraftStore: () => ({ isDirty: store.isDirty.value }),
-    draftPrompts: () => clone(store.prompts.value), settleDraft: async () => {}, getPrompts: () => clone(store.prompts.value), storedPrompts: () => clone(baseline),
-    readStore: () => ({ snapshots: [{ presetName: 'A', default: true }] }), isDefaultSnapshot: item => item.default,
-    blockWhileBranchActive: () => false, blockWhileSnapshotActive: () => false,
-    makeStates: prompts => prompts.map(({ id, enabled }) => ({ id, enabled })), makeGroupStates: () => clone(draftGroups),
-    applyGroupSnapshotStates: async (_name, groups) => { draftGroups = clone(groups); },
-    syncRuntimeSwitches: async (_name, prompts) => { runtimeWrites.push(clone(prompts)); return true; },
+    text: value => String(value || ''), clone, DOC: { getElementById: () => ({}) }, EDITOR_OVERLAY_ID: 'snapshot',
+    currentPresetName: () => 'A', activeBranchName: () => '', activeSnapshotForPreset: () => null,
+    readStore: () => clone(snapshots), writeStore: value => { snapshots = clone(value); return true; },
+    isDefaultSnapshot: item => item.default, storedPrompts: () => clone(baseline), defaultSnapshotName: () => 'Snapshot',
+    editorGroupState: () => [{ id: 'g1', name: 'Group', enabled: true, promptIds: new Set(['one']) }],
+    mountSnapshotEditor: () => true, openOverlay: value => opened.push(clone(value)), notify() {}, makeId: () => 'snapshot-id',
+    requestSnapshotName: async () => 'Snapshot',
+    setPreset: () => { throw Error('Snapshot editing must not write named or in-use presets'); },
   });
-  for (let round = 0; round < 2; round++) {
-    api.enterCaptureMode(entry === 'native-preset' ? { source: 'native-preset', presetName: 'A' } : null);
-    assert(captureActive);
-    assert.deepEqual(clone(api.current().entryPrompts), expected);
-    assert.equal(api.current().entryWasDirty, entry === 'dirty');
-    await store.toggleEnabled('one');
-    await store.toggleEnabled('two');
-    draftGroups[0].enabled = false;
-    await compat.syncGroupEnabledState({ presetName: 'A', sectionId: 'baibai_g1', enabled: false });
-    session.flush(); // A pending cache flush during capture must be corrected on normal exit.
-    assert.equal(namedWrites.length, 0, 'Capture toggles must not write named presets or live runtime');
-    assert.equal(groupWrites.length, 0, 'Capture group toggles must not write native group storage');
-    await api.exitCaptureMode(round === 1);
+  for (const save of [false, true]) {
+    api.open();
+    const draft = api.current();
+    assert(draft);
+    assert.equal(draft.promptContents[0], 'Saved', 'Native snapshot source stays independent of an open workshop draft');
+    draft.promptStates[0].enabled = false;
+    draft.groups[0].enabled = false;
     session.flush();
-    assert.equal(captureActive, false);
+    if (save) assert.equal(await api.save(), true); else api.cancel();
     assert.equal(api.current(), null);
+    assert.deepEqual(opened.at(-1), { source: 'native-preset', presetName: 'A' });
     assert.deepEqual(clone(store.prompts.value), expected);
-    assert.deepEqual(runtimeWrites.at(-1), expected);
-    assert.equal(store.isDirty.value, entry === 'dirty');
-    assert.equal(draftGroups[0].enabled, true);
-    const restarted = createDraftSession(storage, timers);
-    assert.deepEqual(restarted.read('A', baseline), entry === 'dirty' ? expected : null);
+    assert.equal(store.isDirty.value, dirty);
+    assert.deepEqual(baseline.map(item => item.enabled), [true, false]);
+    session.flush();
+    const restarted = createDraftSession(storage, { setTimeout: () => 1, clearTimeout() {} });
+    assert.deepEqual(restarted.read('A', baseline), dirty ? expected : null);
     restarted.dispose();
   }
-  await compat.syncEnabledStates({ presetName: 'A', prompts: baseline });
-  await compat.syncGroupEnabledState({ presetName: 'A', sectionId: 'baibai_g1', enabled: false });
-  assert.deepEqual(namedWrites.map(write => write.name), ['A', 'in_use'], 'Normal toggles still sync after capture ends');
-  assert.equal(groupWrites.length, 1);
+  assert.equal(snapshots.snapshots.length, 2, 'Cancel creates no snapshot; save creates exactly one');
+  assert.equal(snapshots.snapshots[0].states[0].enabled, false);
+  assert.equal(snapshots.snapshots[0].groupStates[0].enabled, false);
+  assert(!('content' in snapshots.snapshots[0].states[0]), 'Snapshot storage contains switches, not duplicated prompt text');
   session.dispose();
 }
 
-console.log('2.97.36 融合运行回归通过：搜索、精确事件边界与重载清理、连续录制隔离及干净/未保存/原生来源草稿恢复。');
+console.log('作者整合运行回归通过：搜索、原生入口与清理，以及轻量快照保存/取消时的正文草稿与重启缓存隔离。');

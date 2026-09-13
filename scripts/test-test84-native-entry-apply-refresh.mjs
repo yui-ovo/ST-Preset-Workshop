@@ -10,7 +10,7 @@ function section(startMarker, endMarker) {
   return source.slice(start, end);
 }
 
-const refresh = section('async function refreshNativePromptManager', 'async function syncRuntimeSwitches');
+const refresh = section('async function refreshNativePromptManager', 'async function persistPromptsDirectly');
 assert.ok(refresh.includes('let refreshed = false'), '原生列表刷新没有合并事件与直接重建结果');
 assert.ok(refresh.includes('await context.eventSource.emit(eventType)'), '没有保留旧版酒馆事件刷新兼容');
 assert.ok(refresh.includes("new URL('/scripts/openai.js'"), '没有加载当前酒馆的 OpenAI 单例模块');

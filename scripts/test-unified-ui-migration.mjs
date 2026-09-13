@@ -62,7 +62,7 @@ assert(workshop.includes('normalizeHeaderActions()'), '标题名称区的功能�
 assert(workshop.includes('DOC.createDocumentFragment()'), '顶栏必须移动作者真实按钮 DOM');
 assert(!workshop.includes('pmm-header-mirror-button'), '顶栏禁止复制伪造按钮');
 assert(!layout.includes('row-reverse') && !layout.includes('column-reverse'), '右对齐禁止改变按钮业务顺序');
-assert(workshop.includes("else if (key === 'floatingWidth') value = Math.floor(viewport.width / 2)"), '条幅默认宽度必须随设备取半屏');
+assert(workshop.includes("bannerAutoWidth") && floating.includes("textMeasure.measureText(name).width"), '条幅默认宽度必须按当前预设名称实际字体测量');
 assert(!themes.includes('#preset-manager-main-panel button{'), '主题禁止宽泛污染中控全部按钮');
 assert(!themes.includes('.pm-panel-container,html'), '主题禁止为双面板容器增加重复底板');
 for (const variable of ['--pm-panel-bg','--fp-glass-bg','--qe-glass-bg']) assert(themes.includes(variable), '主题未接入真实组件变量：' + variable);

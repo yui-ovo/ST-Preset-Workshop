@@ -57,7 +57,7 @@ function controlHarness(android = false) {
   top.top = top;
   const view = { requestAnimationFrame(fn) { frames.set(++id, fn); return id; }, cancelAnimationFrame:key => frames.delete(key), setTimeout() {} };
   const make = vm.runInNewContext(`(() => {${between(source, '  function _pmmBindAndroidRangeGestureGuard', '  function cardViewportBounds(')};return makeControl;})()`, {
-    state, TOP:top, window:top, VIEW:view, DOC:{ createElement:tag => tag === 'div' ? row : node() },
+    state, card:node(), TOP:top, window:top, VIEW:view, DOC:{ createElement:tag => tag === 'div' ? row : node() },
     IS_ANDROID:android, isMobile:() => true, Date,
     currentState:() => state, isControlLocked:key => state.lockedControls[key], valueRange:() => [28,72], clamp:(_key,value) => Math.min(72, Math.max(28, Number(value))),
     applyControlValue:(_control,save) => writes.push({value:state.values.splitRatio, save}), updateOutputs:controls => updates.push(controls.map(control => control.key)), keepCardInBounds() {},
@@ -102,14 +102,14 @@ function controlHarness(android = false) {
   assert.equal(e.state.values.splitRatio, 50, 'Cancelling a horizontal drag restores its initial value');
 }
 assert(layout.includes('min-width:44px!important;height:44px!important;min-height:44px!important'));
-assert(floating.includes('width:min(var(--pmm-mobile-floating-width,50vw),100vw,var(--pmm-banner-max-width,100vw))'));
+assert(floating.includes('width:var(--pmm-mobile-floating-width,max-content)'));
 // Main and floating feature integrations keep upstream's own transactional APIs and controls.
-assert(source.includes("actionsHost?.closest?.('.pm-header')?.querySelector('.header-left .title-content')"));
+assert(source.includes("function openSnapshotEditorFromOverlay()"), "Native snapshots use the author lightweight editor");
 const syncFloating = between(source, '  function syncRoot(root)', '  function sync()');
 for (const name of ['bindSnapshotBranchGuard(root)', 'syncFloatingSnapshotState(root)', 'syncFloatingBranchVisibility(root)']) {
   assert(syncFloating.indexOf(name) < syncFloating.indexOf('if (TOP.__PMM_FLOATING_CONTROLLER__)'));
 }
-assert(source.includes("discoveryObserver.observe(root, { childList: true })"));
+assert(!source.includes("function startWorkshopDiscovery()"), "The lightweight editor needs no legacy main-window discovery observer");
 assert(!source.includes('discoveryObserver.observe(root, { childList: true, subtree: true })'));
 const teardown = source.slice(source.indexOf('/* ===== PMM_RUNTIME_TEARDOWN:'));
 for (const key of ['__PMM_SWITCH_SNAPSHOTS_TEST52__','__PMM_NATIVE_PRESET_ENTRY_TEST80_CLEANUP__','__PMM_MOBILE_QUICK_TOGGLE_TEST72__']) assert(teardown.includes(key));
@@ -138,17 +138,11 @@ assert(source.indexOf('/* ===== PMM_MOBILE_QUICK_TOGGLE_TEST72') < source.indexO
   header.closest = () => ({parentElement:{matches:() => false}});
   const normalize = vm.runInNewContext(`(() => {${between(source, '  function normalizeHeaderActions()', '  function ensureTrigger(')};return normalizeHeaderActions;})()`, {
     root:{querySelectorAll:() => [header]}, MODE_SELECTOR:'split', bindHeaderMemory(){},
-    DOC:{createDocumentFragment(){throw Error('Capture save and header normalization are moving the same DOM repeatedly');}},
+    DOC:{createDocumentFragment(){throw Error('Header normalization is moving unchanged DOM repeatedly');}},
   });
   for (let i = 0; i < 100; i++) normalize();
   assert.equal(edit.parentElement, actions);
-  // The same header lookup must find the moved pencil before it is turned into Save.
-  const lookup = between(source, '    const currentEditButton =', '    const swappedEdits =');
-  const found = vm.runInNewContext(`${lookup};currentEditButton;`, {
-    titleContent:{querySelector:() => null}, actionsHost:{closest:() => ({querySelector:() => edit})},
-  });
-  assert.equal(found, edit);
-  assert(layout.includes('.pmm-switch-snapshot-capture-mode .pm-header>.header-right .title-actions :is([title="导入"],[title="导出"]'));
+  assert(!layout.includes('pmm-switch-snapshot-capture-mode'), 'Removed capture UI must not retain local CSS patches');
 }
 
 // Native entry discovery is idle when ready and bounded while a lazy toolbar is mounting.
@@ -186,4 +180,60 @@ for (const initiallyReady of [true, false]) {
   assert.equal(host.children.length, 0); assert.equal(frames.size, 0);
 }
 
-console.log('upstream 融合回归通过：打开顺序、半屏默认与设备宽度上限、锁定提交、输入草稿、触摸取消、快照标题及新模块回收。');
+console.log('upstream 融合回归通过：打开顺序、设备宽度上限、锁定提交、输入草稿、触摸取消、原生快照入口及新模块回收。');
+
+// New author desktop resize must ignore chat/handle churn and release all local scheduling.
+for (const desktop of [true, false]) {
+  const observers = [], frames = new Map(), events = new Map();
+  let id = 0, scans = 0, present = true;
+  const root = {}, styles = new Map();
+  const doc = {
+    body: {}, documentElement: {},
+    head: { appendChild(style) { styles.set(style.id, style); } },
+    createElement: () => ({ remove() { styles.delete(this.id); } }),
+    getElementById: key => key === 'preset-manager-main-panel' ? (present ? root : null) : styles.get(key),
+    querySelectorAll: selector => { if (selector.includes('.pm-panel-container')) scans++; return []; },
+  };
+  const top = { document: doc, innerWidth: 1440, innerHeight: 900,
+    matchMedia: () => ({ matches: desktop }),
+    requestAnimationFrame: fn => { frames.set(++id, fn); return id; }, cancelAnimationFrame: key => frames.delete(key),
+    addEventListener: (name, fn) => events.set(name, fn), removeEventListener: name => events.delete(name),
+    MutationObserver: class {
+      constructor(fn) { this.fn = fn; this.targets = []; observers.push(this); }
+      observe(target, options) { this.targets.push({ target, options }); }
+      disconnect() { this.disconnected = true; }
+    },
+  };
+  doc.defaultView = top;
+  const api = vm.runInNewContext(`(() => {${between(source, "  const API_KEY = '__PMM_DESKTOP_FOUR_CORNER_RESIZE__';", "  console.info('[预设工坊] test.94 已加载")};return TOP[API_KEY];})()`, { window: top, document: doc });
+  const flush = () => { const queue = [...frames.values()]; frames.clear(); queue.forEach(fn => fn()); };
+  flush();
+  const discovery = observers.find(observer => observer.targets.some(({ target }) => target === doc.body));
+  assert(discovery);
+  assert(observers.every(observer => observer.targets.every(({ target, options }) => target !== doc.body || !options.subtree)));
+  const initialScans = scans;
+  for (let i = 0; i < 240; i++) discovery.fn([{ addedNodes: [{}], removedNodes: [] }]);
+  assert.equal(frames.size, 0, 'Chat/body changes do not queue desktop panel scans');
+  assert.equal(scans, initialScans);
+  const panel = observers.find(observer => observer.targets.some(({ target }) => target === root));
+  if (desktop) {
+    assert(panel);
+    const handle = { nodeType: 1, matches: () => false, querySelector: () => null };
+    const handleRecord = { type: 'childList', addedNodes: [handle], removedNodes: [] };
+    for (let i = 0; i < 240; i++) panel.fn([handleRecord]);
+    assert.equal(frames.size, 0, 'Creating resize handles cannot start a scan loop');
+    const container = { nodeType: 1, matches: () => true, className: 'pm-panel-container pm-panel-container--merge-mode' };
+    const modeRecord = { type: 'attributes', attributeName: 'class', target: container, oldValue: 'pm-panel-container' };
+    for (let i = 0; i < 240; i++) panel.fn([modeRecord]);
+    assert.equal(frames.size, 1, 'Panel mode changes coalesce to one frame');
+    flush();
+    assert.equal(scans, initialScans + 1);
+    panel.fn([modeRecord]);
+    assert.equal(frames.size, 1);
+  } else assert.equal(panel, undefined, 'Touch-only devices do not watch panel descendants for desktop resizing');
+  api.cleanup();
+  assert.equal(frames.size, 0);
+  assert.equal(events.size, 0);
+  assert(observers.every(observer => observer.disconnected));
+}
+console.log('新增桌面缩放兼容通过：聊天和缩放手柄不触发扫描；240 次结构变化合并一帧；触屏与卸载清理正常。');

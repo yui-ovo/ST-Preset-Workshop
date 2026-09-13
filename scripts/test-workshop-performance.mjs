@@ -70,7 +70,7 @@ function between(start,end){
 // Reopening/synchronizing controls must not invalidate every descendant's inherited styles.
 {
   let writes=0,events=0;
-  const node=()=>{const values=new Map();return{style:{getPropertyValue:key=>values.get(key)||'',setProperty(key,value){writes++;values.set(key,value);}},classList:{toggle(){}}};};
+  const node=()=>{const values=new Map();return{dataset:{},style:{getPropertyValue:key=>values.get(key)||'',setProperty(key,value){writes++;values.set(key,value);}},classList:{toggle(){}}};};
   const html=node(),root=node(),floating=node(),doc={documentElement:html,querySelectorAll:()=>[floating]};
   const state={glyph:'☰'},current={values:{},customized:{}};
   const constants=between('  const DEFAULTS = Object.freeze({','  const CUSTOM_CLASSES = Object.freeze({');
@@ -78,7 +78,7 @@ function between(start,end){
   const floatingWrites=between('  function setLayoutVariable(','  function setVariables(');
   const layoutWrites=between('  function setVariables(','  function ');
   const api=vm.runInNewContext(`(()=>{let lastFloatingGlyph=null;${constants};Object.assign(current.values,DEFAULTS);${viewport}${floatingWrites}${layoutWrites};return{setFloatingVariables,setVariables};})()`,{
-    current,state,card:null,currentState:()=>current,VIEW:{innerWidth:360,innerHeight:780},DOC:doc,floatingDocuments:()=>[doc],CUSTOM_CLASSES:{},TOP:{dispatchEvent(){events++;}},CustomEvent:class{},
+    current,state,card:null,isMobile:()=>true,currentState:()=>current,VIEW:{innerWidth:360,innerHeight:780},DOC:doc,floatingDocuments:()=>[doc],CUSTOM_CLASSES:{},TOP:{dispatchEvent(){events++;}},CustomEvent:class{},
   });
   api.setFloatingVariables();api.setVariables(root);
   const initial=writes;assert(initial>20);assert.equal(events,1);
@@ -91,7 +91,7 @@ function between(start,end){
 
 // Repeated syncs reuse the controller nodes and preserve unchanged labels / active editors.
 {
-  let writes=0,queries=0;
+  let writes=0,queries=0,footerRefreshes=0;
   const controls=Array.from({length:40},(_,i)=>({key:'control'+i,label:'数值'+i,unit:'px'}));
   const current={values:Object.fromEntries(controls.map(c=>[c.key,50])),customized:{}},locked=new Set();
   const node=()=>{
@@ -100,13 +100,16 @@ function between(start,end){
   };
   const card={__pmmControls:new Map(controls.map(c=>[c.key,{input:node(),output:node(),lock:node(),minus:node(),plus:node()}])),querySelector(){queries++;return null;},querySelectorAll(){queries++;return [];}};
   const update=vm.runInNewContext(`(()=>{${between('  function updateOutputs(', '  function capturePresetViewportWidths()')};return updateOutputs;})()`,{
-    card,currentControls:()=>controls,currentState:()=>current,valueRange:()=>[0,100],isControlLocked:key=>locked.has(key),updateDragCompatButton(){},updateTopNotificationButton(){},
+    card,currentControls:()=>controls,currentState:()=>current,valueRange:()=>[0,100],isControlLocked:key=>locked.has(key),updateDragCompatButton(){footerRefreshes++;},updateTopNotificationButton(){footerRefreshes++;},
   });
   update();assert(writes>0);writes=0;
   for(let i=0;i<100;i++)update();
   assert.equal(queries,0,'Cached control syncs never search the whole card');
   assert.equal(writes,0,'Unchanged controls never replace text or write attributes / input values');
-  current.values.control0=51;update();assert.equal(writes,2,'Only the changed slider and label need updating');
+  const beforeFooterRefreshes=footerRefreshes;
+  current.values.control0=51;update([controls[0]]);assert.equal(writes,2,'Only the changed slider and label need updating');
+  assert.equal(footerRefreshes,beforeFooterRefreshes,'One adjusted value cannot re-read preferences or repaint unrelated footer controls');
+  update();assert.equal(footerRefreshes,beforeFooterRefreshes+2,'Full synchronization still refreshes footer preferences');
   locked.add('control0');update();assert(card.__pmmControls.get('control0').input.disabled);
   const output=card.__pmmControls.get('control1').output;output.querySelector=()=>({value:'draft'});writes=0;current.values.control1=52;update();
   assert.equal(output.textContent,'50px','Background sync leaves the active numeric editor intact');assert.equal(writes,1);

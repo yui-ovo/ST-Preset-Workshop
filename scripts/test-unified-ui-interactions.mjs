@@ -117,7 +117,17 @@ for(const theme of ['aqua','glass','violet','theme'])for(const tone of ['light',
   }
 }
 
-// Frozen source bytes remain exact; only explicit main corrections and the count exception are allowed.
+// Body repair and automatic sizing are event-driven; neither adds a polling/DOM observation loop.
+{
+  const bodyRepair=between(themes,'const ENTRY_TEXT_SELECTOR=', 'function installStyle(){');
+  assert(!/MutationObserver|ResizeObserver|setInterval|setTimeout|getBoundingClientRect/.test(bodyRepair));
+  assert(!floating.includes('nameObserver'));
+  assert(workshop.includes("PMM_BANNER_NAME_EVENT: Vue owns name changes; no DOM observer or polling."));
+  assert(workshop.includes("__PMM_FLOATING_CONTROLLER__?.refreshHeader?.()}catch(_){}},{flush:'post'}"));
+  assert(bodyRepair.includes("event.propertyName!=='background-color'"),'Foreground corrections cannot trigger their own background callback');
+  assert(bodyRepair.includes("['color','-webkit-text-fill-color'].includes(animation.transitionProperty)"),'Only foreground animation can be completed by the text repair');
+}
+// Frozen source bytes remain exact; authorized entry text colors cannot change material or layout.
 {
   const frozen=JSON.parse(read('scripts/fixtures/workshop-frozen-visuals.json'));
   const hash=value=>createHash('sha256').update(value).digest('hex');
@@ -144,7 +154,22 @@ for(const theme of ['aqua','glass','violet','theme'])for(const tone of ['light',
   assert.equal(railRules.length,5);
   assert(railRules.every(rule=>rule.startsWith('html[data-pmm-visual-theme] body #preset-manager-main-panel .side-panel-root')));
   assert(!/rgba?\(|#[0-9a-f]{3,8}\b|blur|padding|width|height|font-size|shadow/.test(approvedRail),'Rail fixes cannot introduce a new material or layout');
-  const additions=allAdditions.replace(approvedMain,'').replace(approvedBranch,'').replace(approvedRail,'');
+  const approvedText=between(allAdditions,'/* PMM_APPROVED_ENTRY_TEXT_BEGIN:','/* PMM_APPROVED_ENTRY_TEXT_END */');
+  for(const name of ['prompt-editor__textarea','full-editor__textarea','inline-editor__textarea']){
+    assert(approvedText.includes('.'+name),'Real entry editors must receive the chosen text color');
+    assert(workshop.includes('class:'+"'"+name+"'")||workshop.includes('class="'+name+'"'),'The text fix must target shipped editor DOM, not imagined content classes');
+  }
+  const independentEditor=read('dist/preset-content-editor.js'),sharedEditor=read('dist/worldbook-stitch-test3.js');
+  assert(independentEditor.includes('class="pmm-preset-editor-dialog"'));
+  assert(sharedEditor.includes('class="pmm-wb-editor-body"'));
+  assert(approvedText.includes('.pmm-preset-editor-dialog textarea'),'The independently loaded fullscreen editor needs its own text rule');
+  assert(approvedText.includes('.pmm-wb-editor-body:not(.is-search-active)>textarea'),'Normal shared editor text follows the skin while the search input stays transparent');
+  assert(approvedText.includes('.pmm-wb-editor-search-preview'),'Search display text must follow the skin too');
+  assert(!approvedText.includes('.pmm-wb-editor-dialog textarea{'),'Do not override the transparent search input');
+  const textDeclarations=[...approvedText.matchAll(/\{([^}]+)\}/g)].flatMap(match=>match[1].split(';').filter(Boolean));
+  assert(textDeclarations.length>0);
+  assert(textDeclarations.every(value=>/^(color|-webkit-text-fill-color):var\((?:--pmm-entry-text,var\()?--pmm-theme-(text|muted)\)\)?!important$/.test(value)),'Entry readability exceptions can change only text colors');
+  const additions=allAdditions.replace(approvedMain,'').replace(approvedBranch,'').replace(approvedRail,'').replace(approvedText,'');
   const aquaRules=additions.split('\n').filter(line=>line.includes('[data-pmm-visual-theme="aqua"]'));
   assert.equal(aquaRules.length,1);assert(aquaRules[0].includes('.section-header>.section-header__count'));
   assert(!/background|font-weight|border|padding|blur/.test(aquaRules[0]),'The approved aqua exception is count text only');
@@ -539,7 +564,7 @@ for(const touch of [false,true]){
   let current, reads=0;
   const size={width:360,height:780};
   const view={get innerWidth(){reads++;return size.width;},get innerHeight(){reads++;return size.height;}};
-  const api=vm.runInNewContext(`(() => {${constants}\n${functions};return {makeLayoutState,valueRange,refreshDeviceValues};})()`,{VIEW:view,LEGACY_PRESET_WIDTH_BASE:108,currentState:()=>current});
+  const api=vm.runInNewContext(`(() => {${constants}\n${functions};return {makeLayoutState,valueRange,refreshDeviceValues};})()`,{VIEW:view,TOP:{},LEGACY_PRESET_WIDTH_BASE:108,currentState:()=>current});
   for(const [width,height] of [[360,780],[800,1100],[1280,800],[800,360],[1280,1800]]){
     Object.assign(size,{width,height});
     current=api.makeLayoutState();
@@ -549,18 +574,18 @@ for(const touch of [false,true]){
     assert.equal(api.valueRange('floatingHeight')[1],height);
     assert(api.valueRange('floatingHeight')[0]<api.valueRange('floatingHeight')[1],'The full-screen upper bound cannot consume the useful lower range');
     assert(current.values.controllerWidth<=width&&current.values.controllerHeight<=height);
-    assert.equal(current.values.floatingWidth,Math.floor(width/2),'Default banner width is exactly half the device viewport');
+    assert.equal(current.values.floatingWidth,0,'An unmeasured default stays pending, never half-screen');
     assert.equal(current.values.floatingHeight,Math.floor(height/2),'Default expanded banner must fill half the screen even on tall tablets');
     assert.equal(current.values.floatingFont,11);
     assert.equal(api.makeLayoutState({floatingFont:8},{floatingFont:true}).values.floatingFont,8);
     assert.equal(api.makeLayoutState({floatingFont:30},{floatingFont:true}).values.floatingFont,22);
     assert.equal(api.makeLayoutState({floatingFont:8},{}).values.floatingFont,11);
-    assert(api.valueRange('floatingWidth')[0]<current.values.floatingWidth);
+    assert.equal(current.bannerAutoWidth,0);
     assert(api.valueRange('floatingHeight')[0]<current.values.floatingHeight);
     const larger=api.makeLayoutState({floatingWidth:width*.9,floatingHeight:height*.9},{floatingWidth:true,floatingHeight:true});
     assert.equal(larger.values.floatingWidth,width*.9);assert.equal(larger.values.floatingHeight,height*.9);
     const maximum=api.makeLayoutState({floatingWidth:width+100,floatingHeight:height+100},{floatingWidth:true,floatingHeight:true});
-    assert.equal(maximum.values.floatingWidth,width);assert.equal(maximum.values.floatingHeight,height);
+    assert.equal(maximum.values.floatingWidth,width+100,'A narrow viewport cannot destroy a saved width');assert.equal(maximum.values.floatingHeight,height);
     for(const key of ['itemGap','groupGap','floatingGap','headerGap']){
       assert.equal(api.valueRange(key)[0],-50);
       assert.equal(api.makeLayoutState({[key]:-60},{[key]:true}).values[key],-50);
@@ -717,12 +742,12 @@ for(const vw of [320,390,768,1024])for(const bannerW of [vw/2,vw*.9,vw])for(cons
 {
   const root=element(),doc={...element(),documentElement:element(),querySelectorAll:()=>[root]};
   const code=between(workshop,'  function applyFloatingWidth(', '  function setFloatingVariables()');
-  const api=vm.runInNewContext(`(()=>{${code};return {width:applyFloatingWidth,font:applyFloatingFont};})()`,{TOP:{},floatingDocuments:()=>[doc],layoutViewport:()=>({width:390,height:844}),setLayoutVariable:(node,key,value)=>node.style.setProperty(key,value)});
+  const api=vm.runInNewContext(`(()=>{${code};return {width:applyFloatingWidth,font:applyFloatingFont};})()`,{TOP:{},isMobile:()=>true,floatingDocuments:()=>[doc],layoutViewport:()=>({width:390,height:844}),setLayoutVariable:(node,key,value)=>node.style.setProperty(key,value)});
   for(const font of [11,8,22]){
     api.font(font);
     for(const width of [117,195,300,390,900]){
       api.width(width);
-      assert.equal(root.style.getPropertyValue('--pmm-mobile-floating-width'),`${Math.min(width,390)}px`);
+      assert.equal(root.style.getPropertyValue('--pmm-mobile-floating-width'),`${width}px`);
       assert.equal(Number(root.style.getPropertyValue('--pmm-banner-content-scale')),font/11,'Width cannot change the explicit font scale');
     }
   }
@@ -732,16 +757,25 @@ for(const vw of [320,390,768,1024])for(const bannerW of [vw/2,vw*.9,vw])for(cons
   assert(floating.includes('>.panel-wrapper>:is(.panel-header,.quick-edit-dropdown){zoom:var(--pmm-banner-content-scale,1)'));
   assert(!floating.includes('>.panel-wrapper{zoom:'),'The drag surface and pointer coordinates must not be zoomed');
 }
-// The native tablet/desktop cap remains upstream, but unified geometry has higher specificity.
+// Inspect the actual name renderer and every node in its clipping chain.
 {
-  assert(workshop.includes('.floating-panel-root:not(.pmm-floating-mobile) .panel-select--preset{'));
-  const rules=floating.slice(floating.indexOf('/* One line at every width.'),floating.indexOf('/* Half-screen defaults;'));
-  assert(rules.includes('>.panel-header{flex-flow:row nowrap!important;white-space:nowrap!important}'));
-  assert(!floating.includes('.panel-header{flex-wrap:wrap!important}'));
-  assert(rules.includes('#preset-manager-floating-panel#preset-manager-floating-panel .pmm-unified-floating-root .panel-section:has(.panel-select--preset){flex:1 1 0!important;width:auto!important;min-width:0!important;max-width:none!important}'));
-  assert(rules.includes('.panel-select--preset{box-sizing:border-box!important;flex:1 1 0!important;width:0!important;min-width:0!important;max-width:none!important;'));
-  assert(!/max-width:(160|100|130)px/.test(rules),'Name space cannot keep the legacy maximum');
-  assert(rules.includes('.pmm-unified-floating-root>.panel-wrapper{width:min(var(--pmm-mobile-floating-width,50vw),100vw'));
+  const rules=between(floating,'/* Banner name layout:', '/* Override the upstream desktop');
+  assert(workshop.includes("class:'pmm-preset-name-field'"));
+  assert(workshop.includes("class:'pmm-preset-name-text','aria-hidden':'true'"));
+  for(const selector of ['.panel-section:has(.panel-select--preset)', '.pmm-preset-name-field', ':is(.panel-select--preset,.pmm-preset-name-text)']){
+    const start=rules.indexOf(selector+'{');assert(start>=0,selector);
+    const css=rules.slice(start,rules.indexOf('}',start));
+    for(const property of ['overflow:hidden!important','white-space:nowrap!important','text-overflow:clip!important','min-width:0!important'])assert(css.includes(property),selector+' '+property);
+  }
+  assert(!rules.includes('@media'),'Phone, tablet and desktop share one clipping contract');
+  assert(!floating.includes('text-overflow:ellipsis'));
+  assert(!floating.includes('50vw'));
+  assert(!floating.includes('pmm-entries-toggle'),'The duplicate entry button is removed at its creation site');
+  assert(floating.includes('.panel-section:has(.panel-select--branch){flex:0 0 64px!important;min-width:64px!important}'));
+  assert(floating.includes('width:var(--pmm-mobile-floating-width,max-content)!important;min-width:0!important;max-width:min(100vw,var(--pmm-banner-max-width,100vw))'));
+  const legacy=workshop.match(/\.floating-panel-root:not\(\.pmm-floating-mobile\):not\(\.pmm-unified-floating-root\) \.panel-select--preset\{([^}]+)\}/);
+  assert(legacy,'Legacy preset sizing excludes the new renderer');
+  assert(legacy[1].includes('text-overflow:clip'));
 }
 // A newly mounted controller is never visible until its final coordinates and transform are ready.
 for(const [vw,vh] of [[360,780],[800,1100],[1280,800]])for(const saved of [false,true])for(const full of [false,true]){
@@ -770,7 +804,7 @@ for(const dock of ['left','right']){
 // The square dock opens on the first release; banner taps call the native Vue action exactly once.
 for(const fromHandle of [false,true]){
   let opened=0,entries=0,waits=0;
-  const release=vm.runInNewContext(`(()=>{let gesture={id:1,fromHandle:${fromHandle},dock:'right',moved:false,target:{}};let renderFrame=0;${between(floating,'function onUp(event)','function onCancel(event)')};return onUp;})()`,{
+  const release=vm.runInNewContext(`(()=>{let gesture={id:1,fromHandle:${fromHandle},entry:true,dock:'right',moved:false,target:{}};let renderFrame=0;${between(floating,'function onUp(event)','function onCancel(event)')};return onUp;})()`,{
     root:{__pmmQuickEntries:{toggle:()=>entries++}},handle:{blur(){}},clearLong(){},clearDragPaint(){},cancelPendingTap(){},
     STORE:{getState:()=>({expanded:false})},setExpanded:value=>{assert.equal(value,true);opened++;},singleTap:()=>waits++,
   });
@@ -795,7 +829,7 @@ for(const changed of [false,true]){
   assert.deepEqual(events,changed?['pmm:floating-metrics-change']:[]);
 }
 
-console.log('统一 UI 交互回归通过：主题冻结、主界面例外范围、统一切换/快速反向/降级、比例逐帧同步与取消恢复、触摸/指针捕获、设备范围、唯一开关、搜索、半屏默认/全屏上限/比例缩放与横滑记忆。');
+console.log('统一 UI 交互回归通过：主题冻结、主界面例外范围、统一切换/快速反向/降级、比例逐帧同步与取消恢复、触摸/指针捕获、设备范围、唯一开关、搜索、内容默认/保存宽度/比例缩放与横滑记忆。');
 
 // One CSS mutation per theme surface, no loss of drag geometry or inline priorities.
 {

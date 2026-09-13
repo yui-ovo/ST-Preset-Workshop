@@ -28,4 +28,8 @@ const prompts = section('function getPrompts(presetName)', 'function isBranchMod
 assert.ok(prompts.includes('text(presetName) === currentPresetName()'), '快照条目没有与工坊当前预设绑定');
 assert.ok(prompts.includes('draftPrompts()'), '快照没有读取工坊当前预设的实时开关草稿');
 
-console.log('test.60 回归通过：工坊入口优先跟随工坊预设，原生相机入口独立跟随酒馆当前预设。');
+const opener = section('function openOverlay()', 'function normalPresetContainer()');
+assert.ok(!opener.includes('resumeLast'), '预设相机仍会被上次世界书分类接管');
+assert.ok(opener.includes('ensureOverlay();'), '预设相机没有直接打开自己的快照页面');
+
+console.log('test.60 回归通过：预设相机始终打开预设快照，并继续正确区分工坊与酒馆当前预设。');
