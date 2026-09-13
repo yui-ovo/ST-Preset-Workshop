@@ -7,7 +7,8 @@ for (const marker of [
   ',A=t.map(e=>e.id);E.startDrag(A,r.side,t)',
   'const A=r.prompts.map(e=>e.id),a=A.filter(n=>e.includes(n))',
   "const c='before'===t?a:[...a].reverse()",
-  'else{ie(t,e,n);if(r.sectionGroupMode)',
+  'if(r.sectionFlatView&&r.presetName)',
+  'ie(t,e,n);if(r.sectionGroupMode)',
   'V2.97.19 已加载：预设多选拖动按当前列表顺序稳定落位',
 ]) {
   assert.ok(workshop.includes(marker), `缺少预设批量拖动顺序修复：${marker}`);
