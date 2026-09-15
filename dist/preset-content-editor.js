@@ -3,6 +3,7 @@
   const DOC = TOP.document;
   const API_KEY = '__PMM_PRESET_CONTENT_EDITOR_V1__';
   const STYLE_ID = 'pmm-preset-content-editor-style';
+  let activeEditorCleanup = null;
 
   const escapeHtml = value => String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -17,7 +18,9 @@
     style.textContent = `
       .pmm-preset-editor-host{position:relative!important}
       .pmm-preset-editor-overlay{position:absolute;inset:0;z-index:16000;display:flex;align-items:center;justify-content:center;padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom));background:rgba(0,0,0,.43);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);color:var(--pmm-editor-text,#222)}
+      .pmm-preset-editor-overlay.pmm-preset-editor-desktop{position:fixed!important;inset:0!important;width:auto!important;height:auto!important;margin:0!important;transform:none!important;box-sizing:border-box!important;z-index:2147483000!important;align-items:center!important;justify-content:center!important}
       .pmm-preset-editor-dialog{width:min(92%,660px);height:min(82%,680px);max-height:calc(100dvh - 28px);min-height:250px;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--pmm-editor-border,rgba(127,127,127,.22));border-radius:13px;background-color:var(--pmm-editor-bg,#fff);background-image:var(--pmm-editor-bg-image,none);color:var(--pmm-editor-text,#222);box-shadow:0 18px 52px rgba(0,0,0,.36)}
+      .pmm-preset-editor-desktop .pmm-preset-editor-dialog{box-sizing:border-box;min-height:0;max-height:calc(100% - 24px)}
       .pmm-preset-editor-dialog header{min-height:42px;display:flex;align-items:center;gap:7px;padding:6px 8px;border-bottom:1px solid var(--pmm-editor-border,rgba(127,127,127,.14))}
       .pmm-preset-editor-dialog header strong{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
       .pmm-preset-editor-dialog header span{font-size:9px;opacity:.58;white-space:nowrap}
@@ -31,6 +34,7 @@
   }
 
   function closeActiveEditor() {
+    activeEditorCleanup?.();
     const overlay = DOC.querySelector('#preset-manager-main-panel .pmm-preset-editor-overlay');
     const host = overlay?.parentElement;
     overlay?.remove();
@@ -45,7 +49,10 @@
 
     installStyle();
     closeActiveEditor();
-    host.classList.add('pmm-preset-editor-host');
+    const mobileDevice = /Android|iPhone|iPad|iPod|Mobile/i.test(TOP.navigator?.userAgent || '')
+      || (TOP.navigator?.platform === 'MacIntel' && TOP.navigator?.maxTouchPoints > 1);
+    const desktop = !mobileDevice && TOP.matchMedia('(min-width:769px)').matches;
+    if (!desktop) host.classList.add('pmm-preset-editor-host');
 
     const item = editor.closest('.prompt-item');
     const panel = editor.closest('.preset-panel');
@@ -69,6 +76,7 @@
 
     const overlay = DOC.createElement('div');
     overlay.className = 'pmm-preset-editor-overlay';
+    if (desktop) overlay.classList.add('pmm-preset-editor-desktop');
     overlay.style.setProperty('--pmm-editor-bg', pickStyle('backgroundColor', '#fff', true));
     overlay.style.setProperty('--pmm-editor-bg-image', pickStyle('backgroundImage', 'none'));
     overlay.style.setProperty('--pmm-editor-field-bg', TOP.getComputedStyle(sourceField).backgroundColor || pickStyle('backgroundColor', 'rgba(127,127,127,.05)', true));
@@ -86,15 +94,21 @@
     const undoStack = [];
     let previousValue = original;
     let lastInputAt = 0;
+    let focusTimer = null;
+    let hostObserver = null;
     const updateUndoButton = () => {
       const available = undoStack.length > 0;
       undoButton.disabled = !available;
       undoButton.title = available ? '撤销本次编辑' : '暂无可撤销输入';
     };
     const closeEditor = () => {
+      TOP.clearTimeout(focusTimer);
+      hostObserver?.disconnect();
       overlay.remove();
       host.classList.remove('pmm-preset-editor-host');
+      if (activeEditorCleanup === closeEditor) activeEditorCleanup = null;
     };
+    activeEditorCleanup = closeEditor;
     const undoInput = () => {
       if (!undoStack.length) return;
       const start = textarea.selectionStart;
@@ -103,7 +117,7 @@
       lastInputAt = 0;
       counter.textContent = `${textarea.value.length} 字符`;
       updateUndoButton();
-      textarea.focus();
+      desktop ? textarea.focus({ preventScroll: true }) : textarea.focus();
       const cursor = Math.min(Number.isFinite(start) ? start : textarea.value.length, textarea.value.length);
       textarea.setSelectionRange(cursor, cursor);
     };
@@ -137,8 +151,18 @@
       }
     });
 
-    host.append(overlay);
-    TOP.setTimeout(() => textarea.focus(), 20);
+    if (desktop) {
+      DOC.body.append(overlay);
+      // The desktop portal must disappear if its workshop is closed or removed.
+      hostObserver = new TOP.MutationObserver(() => {
+        if (!host.isConnected || !host.getClientRects().length) closeEditor();
+      });
+      hostObserver.observe(DOC.body, { childList: true, subtree: true });
+      hostObserver.observe(host, { attributes: true, attributeFilter: ['style', 'class', 'hidden'] });
+    } else host.append(overlay);
+    focusTimer = TOP.setTimeout(() => {
+      if (overlay.isConnected) desktop ? textarea.focus({ preventScroll: true }) : textarea.focus();
+    }, 20);
   }
 
   function onPresetExpandClick(event) {
