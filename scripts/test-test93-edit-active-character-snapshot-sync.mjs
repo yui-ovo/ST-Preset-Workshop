@@ -11,8 +11,8 @@ assert.ok(coreSource.includes('activeCharacter='), 'updateBundle 必须检测当
 assert.ok(coreSource.includes('store.session.chosen===id'), '当前应用判断必须依据 session.chosen');
 assert.ok(coreSource.includes('(sync && activeGroup) || activeCharacter'), '当前应用的角色快照编辑必须自动同步写入世界书');
 
-// Ensure preset snapshot maintains blockWhileSnapshotActive protection
-assert.ok(workshopSource.includes("blockWhileSnapshotActive('覆盖快照')"), '预设快照必须维持应用期间禁止覆盖的保护');
+// Preset defaults stay protected while ordinary snapshots may be overwritten.
+assert.ok(workshopSource.includes("blockWhileSnapshotActive('更新预设默认')"), '应用预设快照期间仍须保护预设默认');
 
 // 2. Functional core test suite
 function setupFixture() {

@@ -14188,11 +14188,6 @@ import { requestSnapshotName } from './snapshot-name-dialog.js?v=2.98.0-test.32'
       notify('warning', `当前正在使用“${branchName}”分支，请先切回默认分支后再新建快照`);
       return false;
     }
-    const active = activeSnapshotForPreset(presetName);
-    if (active) {
-      notify('warning', `当前正应用“${active.name}”快照，请先恢复预设默认后再新建快照`);
-      return false;
-    }
     const states = Array.isArray(draft?.promptStates)
       ? draft.promptStates.map(state => ({
         id: text(state?.id),
@@ -14451,22 +14446,25 @@ import { requestSnapshotName } from './snapshot-name-dialog.js?v=2.98.0-test.32'
   function overwriteSnapshot(id) {
     if (isBranchMode()) {
       notify('warning', '开关快照只记录主预设；请先退出分支模式');
-      return;
+      return false;
     }
-    if (blockWhileBranchActive('覆盖快照')) return;
-    if (blockWhileSnapshotActive('覆盖快照')) return;
+    if (blockWhileBranchActive('覆盖快照')) return false;
     const store = readStore();
     const snapshot = store.snapshots.find(item => item.id === id);
     const presetName = currentPresetName();
     const prompts = getPrompts(presetName);
-    if (!snapshot || text(snapshot.presetName) !== presetName || !prompts.length) return;
+    // 普通快照可以保存当前调整；预设默认仍只能通过受保护的入口更新。
+    if (!snapshot || isDefaultSnapshot(snapshot) || text(snapshot.presetName) !== presetName || !prompts.length) return false;
+    if (!TOP.confirm?.(`用当前开关覆盖快照“${snapshot.name}”？`)) return false;
     snapshot.states = makeStates(prompts);
     snapshot.groupStates = makeGroupStates(presetName);
     snapshot.updatedAt = Date.now();
     if (writeStore(store)) {
       notify('success', `已覆盖快照“${snapshot.name}”`);
       renderOverlay();
+      return true;
     }
+    return false;
   }
 
   async function bindSnapshotToCurrentCharacter(id) {
@@ -15281,11 +15279,9 @@ import { requestSnapshotName } from './snapshot-name-dialog.js?v=2.98.0-test.32'
     if (!presetName) return notify('warning', '请先选择一个预设');
     const branchName = activeBranchName(presetName);
     if (branchName) return notify('warning', `当前正在使用“${branchName}”分支，请先切回默认分支后再新建快照`);
-    const active = activeSnapshotForPreset(presetName);
-    if (active) return notify('warning', `当前正应用“${active.name}”快照，请先恢复预设默认后再新建快照`);
     const hasDefault = readStore().snapshots.some(snapshot => text(snapshot.presetName) === presetName && isDefaultSnapshot(snapshot));
     if (!hasDefault) return notify('warning', '请先保存预设默认');
-    const prompts = storedPrompts(presetName);
+    const prompts = getPrompts(presetName);
     if (!prompts.length) return notify('warning', '当前预设没有可记录的条目');
     snapshotEditorSession = createSnapshotEditorDraft(presetName, prompts, returnContext);
     closeOverlay();
