@@ -3,7 +3,7 @@
   const DOC = TOP.document;
   const API_KEY = '__PMM_PRESET_CONTENT_EDITOR_V1__';
   const STYLE_ID = 'pmm-preset-content-editor-style';
-  let activeEditorCleanup = null;
+  const activeEditors = new Map();
 
   const escapeHtml = value => String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -21,6 +21,9 @@
       .pmm-preset-editor-overlay.pmm-preset-editor-desktop{position:fixed!important;inset:0!important;width:auto!important;height:auto!important;margin:0!important;transform:none!important;box-sizing:border-box!important;z-index:2147483000!important;align-items:center!important;justify-content:center!important}
       .pmm-preset-editor-dialog{width:min(92%,660px);height:min(82%,680px);max-height:calc(100dvh - 28px);min-height:250px;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--pmm-editor-border,rgba(127,127,127,.22));border-radius:13px;background-color:var(--pmm-editor-bg,#fff);background-image:var(--pmm-editor-bg-image,none);color:var(--pmm-editor-text,#222);box-shadow:0 18px 52px rgba(0,0,0,.36)}
       .pmm-preset-editor-desktop .pmm-preset-editor-dialog{box-sizing:border-box;min-height:0;max-height:calc(100% - 24px)}
+      .pmm-preset-editor-desktop[data-pmm-editor-side="left"]{right:50%!important}
+      .pmm-preset-editor-desktop[data-pmm-editor-side="right"]{left:50%!important}
+      .pmm-preset-editor-desktop[data-pmm-editor-side] .pmm-preset-editor-dialog{width:100%;height:calc(100% - 24px);max-width:820px}
       .pmm-preset-editor-dialog header{min-height:42px;display:flex;align-items:center;gap:7px;padding:6px 8px;border-bottom:1px solid var(--pmm-editor-border,rgba(127,127,127,.14))}
       .pmm-preset-editor-dialog header strong{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
       .pmm-preset-editor-dialog header span{font-size:9px;opacity:.58;white-space:nowrap}
@@ -34,7 +37,7 @@
   }
 
   function closeActiveEditor() {
-    activeEditorCleanup?.();
+    for (const close of [...activeEditors.values()]) close();
     const overlay = DOC.querySelector('#preset-manager-main-panel .pmm-preset-editor-overlay');
     const host = overlay?.parentElement;
     overlay?.remove();
@@ -48,14 +51,24 @@
     if (!editor || !sourceField || !host) return;
 
     installStyle();
-    closeActiveEditor();
     const mobileDevice = /Android|iPhone|iPad|iPod|Mobile/i.test(TOP.navigator?.userAgent || '')
       || (TOP.navigator?.platform === 'MacIntel' && TOP.navigator?.maxTouchPoints > 1);
     const desktop = !mobileDevice && TOP.matchMedia('(min-width:769px)').matches;
+    const panel = editor.closest('.preset-panel');
+    const mergeContainer = desktop ? panel?.closest('.pm-panel-container--merge-mode') : null;
+    const mergePanels = mergeContainer
+      ? [...mergeContainer.querySelectorAll('.preset-panel')].filter(node => node.closest('.pm-panel-container') === mergeContainer)
+      : [];
+    const panelIndex = mergePanels.indexOf(panel);
+    const side = mergePanels.length === 2 && panelIndex >= 0 ? (panelIndex === 0 ? 'left' : 'right') : '';
+    const editorKey = side ? panel : 'single';
+    if (side) {
+      activeEditors.get('single')?.();
+      activeEditors.get(editorKey)?.();
+    } else closeActiveEditor();
     if (!desktop) host.classList.add('pmm-preset-editor-host');
 
     const item = editor.closest('.prompt-item');
-    const panel = editor.closest('.preset-panel');
     const title = editor.querySelector('.prompt-editor__name-input')?.value
       || item?.querySelector('.prompt-card__name,.prompt-card__title')?.textContent?.trim()
       || '预设条目';
@@ -77,14 +90,16 @@
     const overlay = DOC.createElement('div');
     overlay.className = 'pmm-preset-editor-overlay';
     if (desktop) overlay.classList.add('pmm-preset-editor-desktop');
+    if (side) overlay.dataset.pmmEditorSide = side;
     overlay.style.setProperty('--pmm-editor-bg', pickStyle('backgroundColor', '#fff', true));
     overlay.style.setProperty('--pmm-editor-bg-image', pickStyle('backgroundImage', 'none'));
     overlay.style.setProperty('--pmm-editor-field-bg', TOP.getComputedStyle(sourceField).backgroundColor || pickStyle('backgroundColor', 'rgba(127,127,127,.05)', true));
     overlay.style.setProperty('--pmm-editor-text', pickStyle('color', '#222', true));
     overlay.style.setProperty('--pmm-editor-border', TOP.getComputedStyle(sourceField).borderColor || pickStyle('borderColor', 'rgba(127,127,127,.22)', true));
     overlay.style.setProperty('--pmm-editor-accent', styles.map(style => style.getPropertyValue('--pm-quote-color').trim()).find(Boolean) || pickStyle('color', '#3485f6', true));
-    overlay.innerHTML = `<section class="pmm-preset-editor-dialog" role="dialog" aria-modal="true" aria-label="放大编辑预设正文">
-      <header><strong>${escapeHtml(title)}</strong><span data-pmm-editor-count>${original.length} 字符</span><button type="button" data-pmm-editor-undo title="暂无可撤销输入" aria-label="撤销本次编辑" disabled><i class="fa-solid fa-rotate-left"></i></button><button type="button" data-pmm-editor-cancel title="取消"><i class="fa-solid fa-xmark"></i></button><button type="button" data-pmm-editor-save title="完成"><i class="fa-solid fa-check"></i></button></header>
+    const sideLabel = side ? (side === 'left' ? '左侧 · ' : '右侧 · ') : '';
+    overlay.innerHTML = `<section class="pmm-preset-editor-dialog" role="dialog" aria-modal="${side ? 'false' : 'true'}" aria-label="${sideLabel}放大编辑预设正文">
+      <header><strong>${sideLabel}${escapeHtml(title)}</strong><span data-pmm-editor-count>${original.length} 字符</span><button type="button" data-pmm-editor-undo title="暂无可撤销输入" aria-label="撤销本次编辑" disabled><i class="fa-solid fa-rotate-left"></i></button><button type="button" data-pmm-editor-cancel title="取消"><i class="fa-solid fa-xmark"></i></button><button type="button" data-pmm-editor-save title="完成"><i class="fa-solid fa-check"></i></button></header>
       <textarea spellcheck="false">${escapeHtml(original)}</textarea>
     </section>`;
 
@@ -106,9 +121,9 @@
       hostObserver?.disconnect();
       overlay.remove();
       host.classList.remove('pmm-preset-editor-host');
-      if (activeEditorCleanup === closeEditor) activeEditorCleanup = null;
+      if (activeEditors.get(editorKey) === closeEditor) activeEditors.delete(editorKey);
     };
-    activeEditorCleanup = closeEditor;
+    activeEditors.set(editorKey, closeEditor);
     const undoInput = () => {
       if (!undoStack.length) return;
       const start = textarea.selectionStart;
@@ -155,10 +170,12 @@
       DOC.body.append(overlay);
       // The desktop portal must disappear if its workshop is closed or removed.
       hostObserver = new TOP.MutationObserver(() => {
-        if (!host.isConnected || !host.getClientRects().length) closeEditor();
+        if (!host.isConnected || !host.getClientRects().length || !sourceField.isConnected
+          || (side && !mergeContainer.classList.contains('pm-panel-container--merge-mode'))) closeEditor();
       });
       hostObserver.observe(DOC.body, { childList: true, subtree: true });
       hostObserver.observe(host, { attributes: true, attributeFilter: ['style', 'class', 'hidden'] });
+      if (side) hostObserver.observe(mergeContainer, { attributes: true, attributeFilter: ['class'] });
     } else host.append(overlay);
     focusTimer = TOP.setTimeout(() => {
       if (overlay.isConnected) desktop ? textarea.focus({ preventScroll: true }) : textarea.focus();
