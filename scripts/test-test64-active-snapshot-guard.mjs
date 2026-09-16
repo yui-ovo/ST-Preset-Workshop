@@ -28,7 +28,7 @@ assert.ok(!saveNew.includes('activeSnapshotForPreset(presetName)'), '应用快�
 
 const apply = section('async function applySnapshot(id)', 'function renameSnapshot');
 assert.ok(apply.includes("const snapshotId = isDefaultSnapshot(snapshot) ? '' : snapshot.id"), '应用角色快照或恢复默认后没有生成当前状态');
-assert.ok(apply.includes('setActiveSnapshot(presetName, snapshotId, { rememberHome })'), '应用角色快照或恢复默认后没有切换当前状态');
+assert.ok(apply.includes('setActiveSnapshot(presetName, snapshotId, { rememberHome, manual:'), '应用角色快照或恢复默认后没有切换当前状态');
 
 const overwrite = section('function overwriteSnapshot', 'function bindSnapshotToCurrentCharacter');
 assert.ok(!overwrite.includes("blockWhileSnapshotActive('覆盖快照')"), '应用快照期间应允许覆盖普通快照');

@@ -146,6 +146,29 @@ try {
     const row=page.locator('.pmm-switch-snapshot-row').filter({has:page.locator(`[data-pmm-snapshot-action="apply"][data-pmm-snapshot-id="${mixed.id}"]`)});
     await row.locator('[data-pmm-snapshot-action="apply"]').click();
     await row.locator('button.is-current').waitFor();
+    const frozenStates=await page.evaluate(id=>__PMM_SWITCH_SNAPSHOTS_TEST52__.list().find(s=>s.id===id).states,mixed.id);
+    await page.evaluate(()=>{
+      fixture.prompts[0].enabled=false;
+      __PMM_SWITCH_SNAPSHOTS_TEST52__.close();
+      __PMM_SWITCH_SNAPSHOTS_TEST52__.open({source:'native-preset'});
+    });
+    await row.locator('.pmm-switch-snapshot-adjusted').waitFor();
+    assert.equal(await row.locator('.pmm-switch-snapshot-adjusted').textContent(),'已调整');
+    assert.equal(await row.locator('[data-pmm-snapshot-action="apply"]').textContent(),'恢复此快照');
+    assert.equal(await row.evaluate(el=>el.scrollWidth<=el.clientWidth+1),true,'Adjusted controls fit narrow screens');
+    await page.screenshot({path:fileURLToPath(new URL('adjusted-'+width+'-'+tone+'.png',output))});
+    // Reinitializing the extension preserves both the manual marker and Tavern switches.
+    await page.evaluate(async()=>{
+      __PMM_SWITCH_SNAPSHOTS_TEST52__.cleanup();
+      await import('/preset.js?manual-reload');
+      __PMM_SWITCH_SNAPSHOTS_TEST52__.open({source:'native-preset'});
+    });
+    await row.locator('.pmm-switch-snapshot-adjusted').waitFor();
+    assert.equal(await page.evaluate(()=>fixture.prompts[0].enabled),false);
+    assert.deepEqual(await page.evaluate(id=>__PMM_SWITCH_SNAPSHOTS_TEST52__.list().find(s=>s.id===id).states,mixed.id),frozenStates);
+    await row.locator('[data-pmm-snapshot-action="apply"]').click();
+    await row.locator('button.is-current').waitFor();
+    assert.equal(await page.evaluate(()=>fixture.prompts[0].enabled),true,'Explicit restore re-applies frozen toggles');
     const beforeOverwrite=await page.evaluate(()=>JSON.parse(localStorage.getItem('pmm.switch-snapshots.v1')));
     await page.evaluate(()=>{fixture.prompts[0].enabled=false});
     await row.locator('[data-pmm-snapshot-action="menu"]').click();
@@ -160,6 +183,8 @@ try {
     const confirmedDialog=page.waitForEvent('dialog');
     const confirmClick=overwriteButton.click();
     await (await confirmedDialog).accept();await confirmClick;
+    await row.locator('button.is-current').waitFor();
+    assert.equal(await row.locator('.pmm-switch-snapshot-adjusted').count(),0,'Overwrite adopts adjustments as the snapshot');
     const afterOverwrite=await page.evaluate(()=>JSON.parse(localStorage.getItem('pmm.switch-snapshots.v1')));
     assert.equal(afterOverwrite.snapshots.find(s=>s.id===mixed.id).states[0].enabled,false);
     assert.deepEqual(afterOverwrite.snapshots.find(s=>s.isDefault),beforeOverwrite.snapshots.find(s=>s.isDefault));
