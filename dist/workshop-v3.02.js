@@ -13642,6 +13642,16 @@ import { requestSnapshotName } from './snapshot-name-dialog.js?v=2.98.0-test.32'
   }
 
   function storedPrompts(presetName) {
+    // 原生开关立即写入 in_use，只有点酒馆保存后才写回命名预设。
+    // 仅当前加载的预设读取实时状态，避免编辑另一份预设时串用开关。
+    if (text(presetName) && nativeSelectedPresetName() === text(presetName)) {
+      for (const source of [TOP, SELF]) {
+        try {
+          const prompts = source?.getPreset?.('in_use')?.prompts;
+          if (Array.isArray(prompts)) return clone(prompts);
+        } catch (_) {}
+      }
+    }
     for (const source of [TOP, SELF]) {
       try {
         const prompts = source?.getPreset?.(presetName)?.prompts;

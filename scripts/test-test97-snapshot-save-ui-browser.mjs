@@ -13,8 +13,8 @@ button[role=switch]{background:#75636d!important;box-shadow:0 0 0 5px #75636d!im
 </style><script>
 const presetName='【日月西】Gemini & Claude v0.4 @电波系';
 const prompts=Array.from({length:120},(_,i)=>({id:'p'+i,name:'条目 '+i,enabled:i%3!==0,content:i===0?'<b>正文只读</b>':i===1?'长正文'.repeat(20000):''}));
-window.fixture={prompts,reads:0};window.getPreset=()=>{fixture.reads++;return {prompts:structuredClone(fixture.prompts)}};
-window.getLoadedPresetName=()=>presetName;window.setPreset=async(name,data)=>{fixture.prompts=structuredClone(data.prompts)};
+window.fixture={prompts,savedPrompts:structuredClone(prompts),reads:0,writes:0};window.getPreset=(name)=>{fixture.reads++;return {prompts:structuredClone(name==='in_use'?fixture.prompts:fixture.savedPrompts)}};
+window.getLoadedPresetName=()=>presetName;window.setPreset=async(name,data)=>{fixture.writes++;if(name==='in_use')fixture.prompts=structuredClone(data.prompts);else fixture.savedPrompts=structuredClone(data.prompts)};
 window.SillyTavern={getContext:()=>({getPresetManager:()=>({getSelectedPresetName:()=>presetName}),characters:[],eventSource:{on(){},off(){}}})};
 window.__PMM_BAIBAI_COMPAT__={snapshotBranchState:()=>({sections:Array.from({length:12},(_,i)=>({id:'baibai_g'+i,displayName:['🔒预设头部','🌎世界引擎','🐚人物活化','🎵文风指导'][i%4],itemIds:prompts.slice(i*10,i*10+10).map(p=>p.id)}))}),readGroupEnabledStates:()=>Array.from({length:12},(_,i)=>({id:'g'+i,name:'分组'+i,enabled:true}))};
 </script><script type="module" src="/preset.js"></script>`;
@@ -147,12 +147,15 @@ try {
     await row.locator('[data-pmm-snapshot-action="apply"]').click();
     await row.locator('button.is-current').waitFor();
     const frozenStates=await page.evaluate(id=>__PMM_SWITCH_SNAPSHOTS_TEST52__.list().find(s=>s.id===id).states,mixed.id);
+    const writesBeforeAdjust=await page.evaluate(()=>fixture.writes);
     await page.evaluate(()=>{
       fixture.prompts[0].enabled=false;
       __PMM_SWITCH_SNAPSHOTS_TEST52__.close();
       __PMM_SWITCH_SNAPSHOTS_TEST52__.open({source:'native-preset'});
     });
     await row.locator('.pmm-switch-snapshot-adjusted').waitFor();
+    assert.equal(await page.evaluate(()=>fixture.savedPrompts[0].enabled),true,'Named preset still has the old saved toggle');
+    assert.equal(await page.evaluate(()=>fixture.writes),writesBeforeAdjust,'Detecting unsaved adjustments must not save Tavern');
     assert.equal(await row.locator('.pmm-switch-snapshot-adjusted').textContent(),'已调整');
     assert.equal(await row.locator('[data-pmm-snapshot-action="apply"]').textContent(),'恢复此快照');
     assert.equal(await row.evaluate(el=>el.scrollWidth<=el.clientWidth+1),true,'Adjusted controls fit narrow screens');
@@ -170,6 +173,7 @@ try {
     await row.locator('button.is-current').waitFor();
     assert.equal(await page.evaluate(()=>fixture.prompts[0].enabled),true,'Explicit restore re-applies frozen toggles');
     const beforeOverwrite=await page.evaluate(()=>JSON.parse(localStorage.getItem('pmm.switch-snapshots.v1')));
+    const writesBeforeOverwrite=await page.evaluate(()=>fixture.writes);
     await page.evaluate(()=>{fixture.prompts[0].enabled=false});
     await row.locator('[data-pmm-snapshot-action="menu"]').click();
     const cancelledDialog=page.waitForEvent('dialog');
@@ -187,6 +191,8 @@ try {
     assert.equal(await row.locator('.pmm-switch-snapshot-adjusted').count(),0,'Overwrite adopts adjustments as the snapshot');
     const afterOverwrite=await page.evaluate(()=>JSON.parse(localStorage.getItem('pmm.switch-snapshots.v1')));
     assert.equal(afterOverwrite.snapshots.find(s=>s.id===mixed.id).states[0].enabled,false);
+    assert.equal(await page.evaluate(()=>fixture.writes),writesBeforeOverwrite,'Snapshot overwrite must not save the Tavern preset');
+    assert.equal(await page.evaluate(()=>fixture.savedPrompts[0].enabled),true,'Unsaved toggle is captured without overwriting the named preset');
     assert.deepEqual(afterOverwrite.snapshots.find(s=>s.isDefault),beforeOverwrite.snapshots.find(s=>s.isDefault));
     assert.deepEqual(afterOverwrite.activeSnapshots,beforeOverwrite.activeSnapshots);
     assert.equal(await page.locator('[data-pmm-snapshot-action="update-default"]').isDisabled(),true);

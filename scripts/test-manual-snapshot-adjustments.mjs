@@ -17,6 +17,7 @@ const manual = { ...copy(base), id: 'manual', name: 'Manual', isDefault: false,
 const environment = {
   storage: JSON.stringify({ version: 1, snapshots: [base, manual], activeSnapshots: {}, homeSnapshots: {} }),
   prompts: [{ id: 'p', name: 'Entry', enabled: false, content: 'Untouched' }],
+  savedPrompts: [{ id: 'p', name: 'Entry', enabled: false, content: 'Untouched' }],
   groups: [{ id: 'g', name: 'Group', enabled: true }],
   chat: null, character: null, writes: 0,
 };
@@ -27,7 +28,12 @@ function runtime() {
     localStorage: { getItem: () => environment.storage, setItem: (_, value) => { environment.storage = value; } },
     confirm: () => true, requestAnimationFrame: fn => fn(),
     getLoadedPresetName: () => 'preset',
-    setPreset: async (_, data) => { environment.prompts = copy(data.prompts); environment.writes++; },
+    getPreset: name => ({ prompts: copy(name === 'in_use' ? environment.prompts : environment.savedPrompts) }),
+    setPreset: async (name, data) => {
+      if (name === 'in_use') environment.prompts = copy(data.prompts);
+      else environment.savedPrompts = copy(data.prompts);
+      environment.writes++;
+    },
   };
   c = vm.createContext({
     console, TOP: top, SELF: {}, STORAGE_KEY: 'snapshots', clone: copy,
@@ -35,7 +41,7 @@ function runtime() {
     syncChatBindingListener() {}, notify() {}, renderOverlay() {},
     currentPresetName: () => 'preset', loadedPresetName: () => 'preset',
     currentChat: () => environment.chat, currentCharacter: () => environment.character,
-    getPrompts: () => copy(environment.prompts), currentDraftBridge: () => null,
+    nativeSelectedPresetName: () => 'preset', currentDraftBridge: () => null,
     draftPrompts: () => [], nativeSaveButton: () => null,
     getContext: () => null, refreshNativePromptManager: async () => {},
     isBranchMode: () => false, activeBranchName: () => '', blockWhileBranchActive: () => false,
@@ -52,6 +58,7 @@ function runtime() {
   });
   vm.runInContext([
     'let autoApplySerial = 0, lastAutoContextKey = "", openMenuId = "";',
+    section('  function storedPrompts(', '  function workshopDocuments('),
     section('  function readStore(', '  function normalizeUniqueBindings('),
     section('  function makeStates(', '  function baiBaiCompat('),
     section('  function makeGroupStates(', '  function defaultSnapshotName('),
@@ -73,6 +80,7 @@ assert.equal(adjusted(), false);
 const originalStates = copy(c.findSnapshot('manual').states);
 environment.prompts[0].enabled = false;
 assert.equal(adjusted(), true);
+assert.equal(environment.savedPrompts[0].enabled, true, 'Adjustment is detected before Tavern save');
 const writes = environment.writes;
 for (const chat of [null, { key: 'a' }, { key: 'b' }, null, { key: 'a' }]) {
   environment.chat = chat;
@@ -102,7 +110,12 @@ assert.equal(adjusted(), false);
 environment.prompts[0].content = 'Changed text only';
 assert.equal(adjusted(), false, 'Content edits do not affect a toggle-only snapshot');
 environment.prompts[0].enabled = false;
+const beforeOverwriteWrites = environment.writes;
+const savedBeforeOverwrite = copy(environment.savedPrompts);
 assert.equal(c.overwriteSnapshot('manual'), true);
+assert.equal(environment.writes, beforeOverwriteWrites, 'Overwrite never saves the Tavern preset');
+assert.deepEqual(environment.savedPrompts, savedBeforeOverwrite, 'Overwrite leaves the named preset intact');
+assert.equal(c.findSnapshot('manual').states[0].enabled, false, 'Overwrite captures the unsaved live toggle');
 assert.equal(adjusted(), false, 'Overwrite returns to current without resetting switches');
 assert.equal(environment.prompts[0].enabled, false);
 assert.equal(c.readStore().manualSnapshots.preset, 'manual');
@@ -147,4 +160,35 @@ assert.equal(c.readStore().manualSnapshots.preset, 'role');
 c = runtime();
 await c.autoApplyBoundSnapshot();
 assert.equal(c.readStore().manualSnapshots.preset, undefined);
-console.log('Manual snapshot adjustments passed: persistence, re-entry/reload, explicit restore, overwrite, groups/new entries, defaults and role/chat binding priority.');
+
+// Real source selection: never use a hidden workshop draft for the native entry,
+// or another loaded preset's live toggles for the preset being edited.
+{
+  const reader = runtime();
+  const named = [{ id: 'named', enabled: false }];
+  const live = [{ id: 'live', enabled: true }];
+  const draft = [{ id: 'draft', enabled: false }];
+  const reads = [];
+  reader.TOP.getPreset = name => { reads.push(name); return { prompts: name === 'in_use' ? live : named }; };
+  reader.overlayContext = { source: 'native-preset' };
+  reader.draftPrompts = () => copy(draft);
+  assert.deepEqual(copy(reader.getPrompts('preset')), live);
+  reader.getPrompts('preset')[0].enabled = false;
+  assert.equal(live[0].enabled, true, 'Readers return a detached copy');
+  reader.overlayContext = null;
+  assert.deepEqual(copy(reader.getPrompts('preset')), draft, 'Visible workshop keeps its own unsaved draft');
+  reader.overlayContext = { source: 'native-preset' };
+  reads.length = 0;
+  assert.deepEqual(copy(reader.getPrompts('other')), named);
+  assert.deepEqual(reads, ['other'], 'Different preset never reads in_use');
+  reader.nativeSelectedPresetName = () => '';
+  assert.deepEqual(copy(reader.getPrompts('preset')), named, 'Unknown loaded preset falls back safely');
+  reader.nativeSelectedPresetName = () => 'preset';
+  reader.TOP.getPreset = name => { if (name === 'in_use') throw new Error('unsupported'); return { prompts: named }; };
+  assert.deepEqual(copy(reader.getPrompts('preset')), named, 'Unavailable live API falls back to named preset');
+  reader.SELF.getPreset = () => ({ prompts: live });
+  assert.deepEqual(copy(reader.getPrompts('preset')), live, 'Frame API can supply live state');
+  reader.SELF.getPreset = () => ({ prompts: [] });
+  assert.deepEqual(copy(reader.getPrompts('preset')), [], 'Empty live preset is not replaced with stale saved entries');
+}
+console.log('Manual snapshot adjustments passed: unsaved live detection/overwrite, no native saves, source isolation/fallback, persistence, restore and binding priority.');
