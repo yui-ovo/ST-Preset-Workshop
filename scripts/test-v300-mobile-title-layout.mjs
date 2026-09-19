@@ -22,7 +22,7 @@ const worldbookOuterCss = presetCss.slice(worldbookOuterStart, presetCss.indexOf
 
 assert.ok(workshop.includes('--pmm-title-viewport-width:150px!important'), '原生预设与上方世界书没有统一外层视口');
 assert.ok(workshop.includes('--pmm-native-preset-width:108px!important'), '内部预设名称缺少固定基准');
-assert.ok(workshop.includes("root.style.setProperty('--pmm-primary-title-viewport-width', '150px')"), '上方世界书没有取得稳定外框宽度');
+assert.ok(workshop.includes("setLayoutVariable(root, '--pmm-primary-title-viewport-width', '150px')"), '上方世界书没有取得稳定外框宽度');
 assert.ok(presetOuterCss.includes('flex:0 0 var(--pmm-title-viewport-width,150px)'), '预设外层标题视窗没有固定');
 assert.ok(presetOuterCss.includes('width:var(--pmm-title-viewport-width,150px)'), '预设外层标题宽度不是统一固定值');
 assert.ok(!presetOuterCss.includes('--pmm-user-preset-width-offset'), '滑杆仍会改变预设外层标题框');

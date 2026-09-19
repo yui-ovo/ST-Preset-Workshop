@@ -1,0 +1,76 @@
+{
+  "fixture": "390×844 touch, two panels with 300 native scoped entries each",
+  "publishedBase": "1ab8d92a4167ee5342a22c23826647816bcea054",
+  "localVersion": "2.98.8-page0x00.4",
+  "note": "Single headless Chromium samples for diagnosis, not a physical-device FPS guarantee.",
+  "before": {
+    "tone": {
+      "callbackMs": 188.19999992847443,
+      "metrics": {
+        "LayoutObjects": 14,
+        "LayoutCount": 2,
+        "RecalcStyleCount": 12,
+        "LayoutDuration": 0.0012310000000000376,
+        "RecalcStyleDuration": 0.350247,
+        "ScriptDuration": 0.017698000000000005,
+        "TaskDuration": 0.5486339999999998
+      }
+    },
+    "skin": {
+      "callbackMs": 231,
+      "metrics": {
+        "LayoutObjects": 20,
+        "LayoutCount": 2,
+        "RecalcStyleCount": 13,
+        "LayoutDuration": 0.0012949999999999906,
+        "RecalcStyleDuration": 0.38516799999999995,
+        "ScriptDuration": 0.018549999999999997,
+        "TaskDuration": 0.511666
+      }
+    },
+    "drag": {
+      "LayoutObjects": 0,
+      "LayoutCount": 24,
+      "RecalcStyleCount": 25,
+      "LayoutDuration": 0.055398999999999976,
+      "RecalcStyleDuration": 0.15341400000000016,
+      "ScriptDuration": 0.020359000000000016,
+      "TaskDuration": 1.1781049999999995
+    }
+  },
+  "after": {
+    "tone": {
+      "callbackMs": 191.89999997615814,
+      "metrics": {
+        "LayoutObjects": 14,
+        "LayoutCount": 2,
+        "RecalcStyleCount": 18,
+        "LayoutDuration": 0.0013000000000000234,
+        "RecalcStyleDuration": 0.22190699999999985,
+        "ScriptDuration": 0.018705,
+        "TaskDuration": 0.4374530000000001
+      }
+    },
+    "skin": {
+      "callbackMs": 180.60000002384186,
+      "metrics": {
+        "LayoutObjects": 20,
+        "LayoutCount": 2,
+        "RecalcStyleCount": 17,
+        "LayoutDuration": 0.0011760000000000104,
+        "RecalcStyleDuration": 0.20809900000000003,
+        "ScriptDuration": 0.018618999999999997,
+        "TaskDuration": 0.355661
+      }
+    },
+    "drag": {
+      "LayoutObjects": 0,
+      "LayoutCount": 25,
+      "RecalcStyleCount": 29,
+      "LayoutDuration": 0.047098999999999946,
+      "RecalcStyleDuration": 0.1510340000000001,
+      "ScriptDuration": 0.01771800000000001,
+      "TaskDuration": 1.3863219999999994
+    }
+  }
+}

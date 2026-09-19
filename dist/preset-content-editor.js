@@ -94,7 +94,10 @@
     overlay.style.setProperty('--pmm-editor-bg', pickStyle('backgroundColor', '#fff', true));
     overlay.style.setProperty('--pmm-editor-bg-image', pickStyle('backgroundImage', 'none'));
     overlay.style.setProperty('--pmm-editor-field-bg', TOP.getComputedStyle(sourceField).backgroundColor || pickStyle('backgroundColor', 'rgba(127,127,127,.05)', true));
-    overlay.style.setProperty('--pmm-editor-text', pickStyle('color', '#222', true));
+    // Body portals no longer inherit the existing themed editor text rule from the host.
+    const portalText = desktop && DOC.documentElement.dataset.pmmVisualTheme
+      ? styles.map(style => style.getPropertyValue('--pmm-theme-text').trim()).find(Boolean) : '';
+    overlay.style.setProperty('--pmm-editor-text', portalText || pickStyle('color', '#222', true));
     overlay.style.setProperty('--pmm-editor-border', TOP.getComputedStyle(sourceField).borderColor || pickStyle('borderColor', 'rgba(127,127,127,.22)', true));
     overlay.style.setProperty('--pmm-editor-accent', styles.map(style => style.getPropertyValue('--pm-quote-color').trim()).find(Boolean) || pickStyle('color', '#3485f6', true));
     const sideLabel = side ? (side === 'left' ? '左侧 · ' : '右侧 · ') : '';
@@ -169,13 +172,19 @@
     if (desktop) {
       DOC.body.append(overlay);
       // The desktop portal must disappear if its workshop is closed or removed.
-      hostObserver = new TOP.MutationObserver(() => {
-        if (!host.isConnected || !host.getClientRects().length || !sourceField.isConnected
-          || (side && !mergeContainer.classList.contains('pm-panel-container--merge-mode'))) closeEditor();
+      hostObserver = new TOP.MutationObserver(records => {
+        if (!host.isConnected || !sourceField.isConnected
+          || (side && !mergeContainer.classList.contains('pm-panel-container--merge-mode'))) {
+          closeEditor();
+          return;
+        }
+        // Geometry is needed only for visibility changes, never chat updates or typing.
+        if (records.some(record => record.type === 'attributes') && !host.getClientRects().length) closeEditor();
       });
-      hostObserver.observe(DOC.body, { childList: true, subtree: true });
-      hostObserver.observe(host, { attributes: true, attributeFilter: ['style', 'class', 'hidden'] });
-      if (side) hostObserver.observe(mergeContainer, { attributes: true, attributeFilter: ['class'] });
+      // Observe direct owners to detect source/host removal without scanning the chat tree.
+      for (let owner = sourceField.parentElement; owner; owner = owner.parentElement) {
+        hostObserver.observe(owner, { childList: true, attributes: true, attributeFilter: ['style', 'class', 'hidden'] });
+      }
     } else host.append(overlay);
     focusTimer = TOP.setTimeout(() => {
       if (overlay.isConnected) desktop ? textarea.focus({ preventScroll: true }) : textarea.focus();
@@ -194,12 +203,14 @@
   function cleanup() {
     closeActiveEditor();
     DOC.removeEventListener('click', onPresetExpandClick, true);
+    globalThis.removeEventListener('pagehide', cleanup);
     DOC.getElementById(STYLE_ID)?.remove();
     try { if (TOP[API_KEY]?.cleanup === cleanup) delete TOP[API_KEY]; } catch (_) {}
   }
 
   try { TOP[API_KEY]?.cleanup?.(); } catch (_) {}
   DOC.addEventListener('click', onPresetExpandClick, true);
+  globalThis.addEventListener('pagehide', cleanup, { once: true });
   TOP[API_KEY] = { cleanup, openPresetContentEditor };
   console.info('[预设工坊] 预设条目正文全屏编辑器已加载。');
 })();

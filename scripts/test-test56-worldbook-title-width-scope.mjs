@@ -26,7 +26,7 @@ assert.ok(workshop.includes('#preset-manager-main-panel.pmm-mobile-layout-enable
 assert.ok(workshop.includes('#preset-manager-main-panel.pmm-mobile-layout-enabled .pm-panel-container--merge-mode > .preset-panel .pm-header'), '缝合下方原生预设没有使用统一手机标题视口');
 assert.ok(workshop.includes('--pmm-title-viewport-width:150px!important'), '预设与世界书混合模式的外层视口仍不一致');
 assert.ok(workshop.includes('--pmm-native-preset-width:108px!important'), '滑杆缺少仅供内部预设名称使用的固定基准');
-assert.ok(workshop.includes("root.style.setProperty('--pmm-primary-title-viewport-width', '150px')"), '上方世界书仍可能读取首次挂载时尚未统一的预设视口');
+assert.ok(workshop.includes("setLayoutVariable(root, '--pmm-primary-title-viewport-width', '150px')"), '上方世界书仍可能读取首次挂载时尚未统一的预设视口');
 assert.ok(presetOuterCss.includes('flex:0 0 var(--pmm-title-viewport-width,150px)'), '原生预设外层标题视窗没有固定');
 assert.ok(presetOuterCss.includes('width:var(--pmm-title-viewport-width,150px)'), '原生预设外层标题宽度不是统一固定值');
 assert.ok(!presetOuterCss.includes('--pmm-user-preset-width-offset'), '预设滑杆仍会改变外层标题框');

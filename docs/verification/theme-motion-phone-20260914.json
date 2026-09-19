@@ -1,0 +1,2447 @@
+{
+  "version": "2.98.8-page0x00.4",
+  "cases": [
+    {
+      "name": "phone",
+      "skin": "aqua",
+      "tone": "dark",
+      "layers": 10,
+      "stages": [
+        [
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ]
+      ],
+      "controls": [
+        {
+          "node": ".action-card",
+          "bg": "rgba(92, 166, 209, 0.42)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        },
+        {
+          "node": ".prompt-card",
+          "bg": "rgba(54, 82, 108, 0.66)",
+          "duration": "0s",
+          "properties": "none"
+        },
+        {
+          "node": "#pmm-mobile-layout-card button",
+          "bg": "rgba(0, 0, 0, 0)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        }
+      ]
+    },
+    {
+      "name": "phone",
+      "skin": "aqua",
+      "tone": "light",
+      "layers": 10,
+      "stages": [
+        [
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ]
+      ],
+      "controls": [
+        {
+          "node": ".action-card",
+          "bg": "rgba(107, 174, 214, 0.38)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        },
+        {
+          "node": ".prompt-card",
+          "bg": "rgba(0, 0, 0, 0)",
+          "duration": "0s",
+          "properties": "none"
+        },
+        {
+          "node": "#pmm-mobile-layout-card button",
+          "bg": "rgba(0, 0, 0, 0)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        }
+      ]
+    },
+    {
+      "name": "phone",
+      "skin": "glass",
+      "tone": "light",
+      "layers": 10,
+      "stages": [
+        [
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ]
+      ],
+      "controls": [
+        {
+          "node": ".action-card",
+          "bg": "rgba(182, 201, 214, 0.463)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        },
+        {
+          "node": ".prompt-card",
+          "bg": "rgba(214, 216, 219, 0.2)",
+          "duration": "0s",
+          "properties": "none"
+        },
+        {
+          "node": "#pmm-mobile-layout-card button",
+          "bg": "rgba(0, 0, 0, 0)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        }
+      ]
+    },
+    {
+      "name": "phone",
+      "skin": "violet",
+      "tone": "light",
+      "layers": 10,
+      "stages": [
+        [
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ]
+      ],
+      "controls": [
+        {
+          "node": ".action-card",
+          "bg": "rgba(130, 105, 147, 0.51)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        },
+        {
+          "node": ".prompt-card",
+          "bg": "rgba(70, 51, 82, 0.72)",
+          "duration": "0s",
+          "properties": "none"
+        },
+        {
+          "node": "#pmm-mobile-layout-card button",
+          "bg": "rgba(0, 0, 0, 0)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        }
+      ]
+    },
+    {
+      "name": "phone",
+      "skin": "theme",
+      "tone": "light",
+      "layers": 10,
+      "stages": [
+        [
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ]
+      ],
+      "controls": [
+        {
+          "node": ".action-card",
+          "bg": "rgba(210, 208, 221, 0.85)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        },
+        {
+          "node": ".prompt-card",
+          "bg": "rgba(248, 249, 251, 0.98)",
+          "duration": "0s",
+          "properties": "none"
+        },
+        {
+          "node": "#pmm-mobile-layout-card button",
+          "bg": "rgba(0, 0, 0, 0)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        }
+      ]
+    },
+    {
+      "name": "phone",
+      "skin": "theme",
+      "tone": "dark",
+      "layers": 10,
+      "stages": [
+        [
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ]
+      ],
+      "controls": [
+        {
+          "node": ".action-card",
+          "bg": "rgba(231, 234, 240, 0.698)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        },
+        {
+          "node": ".prompt-card",
+          "bg": "rgba(28, 31, 37, 0.95)",
+          "duration": "0s",
+          "properties": "none"
+        },
+        {
+          "node": "#pmm-mobile-layout-card button",
+          "bg": "rgba(0, 0, 0, 0)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        }
+      ],
+      "performance": {
+        "computed": 4,
+        "rect": 0,
+        "entryChecks": [
+          {
+            "frame": 12,
+            "entry": true
+          },
+          {
+            "frame": 12,
+            "entry": true
+          },
+          {
+            "frame": 12,
+            "entry": true
+          },
+          {
+            "frame": 12,
+            "entry": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "tablet landscape",
+      "skin": "aqua",
+      "tone": "dark",
+      "layers": 10,
+      "stages": [
+        [
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ]
+      ],
+      "controls": [
+        {
+          "node": ".action-card",
+          "bg": "rgba(92, 166, 209, 0.42)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        },
+        {
+          "node": ".prompt-card",
+          "bg": "rgba(54, 82, 108, 0.66)",
+          "duration": "0s",
+          "properties": "none"
+        },
+        {
+          "node": "#pmm-mobile-layout-card button",
+          "bg": "rgba(0, 0, 0, 0)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        }
+      ]
+    },
+    {
+      "name": "tablet landscape",
+      "skin": "aqua",
+      "tone": "light",
+      "layers": 10,
+      "stages": [
+        [
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ]
+      ],
+      "controls": [
+        {
+          "node": ".action-card",
+          "bg": "rgba(112, 177, 216, 0.365)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        },
+        {
+          "node": ".prompt-card",
+          "bg": "rgba(0, 0, 0, 0)",
+          "duration": "0s",
+          "properties": "none"
+        },
+        {
+          "node": "#pmm-mobile-layout-card button",
+          "bg": "rgba(0, 0, 0, 0)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        }
+      ]
+    },
+    {
+      "name": "tablet landscape",
+      "skin": "glass",
+      "tone": "light",
+      "layers": 10,
+      "stages": [
+        [
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ]
+      ],
+      "controls": [
+        {
+          "node": ".action-card",
+          "bg": "rgba(163, 194, 213, 0.455)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        },
+        {
+          "node": ".prompt-card",
+          "bg": "rgba(214, 216, 219, 0.2)",
+          "duration": "0s",
+          "properties": "none"
+        },
+        {
+          "node": "#pmm-mobile-layout-card button",
+          "bg": "rgba(0, 0, 0, 0)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        }
+      ]
+    },
+    {
+      "name": "tablet landscape",
+      "skin": "violet",
+      "tone": "light",
+      "layers": 10,
+      "stages": [
+        [
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ]
+      ],
+      "controls": [
+        {
+          "node": ".action-card",
+          "bg": "rgba(174, 165, 186, 0.494)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        },
+        {
+          "node": ".prompt-card",
+          "bg": "rgba(70, 51, 82, 0.72)",
+          "duration": "0s",
+          "properties": "none"
+        },
+        {
+          "node": "#pmm-mobile-layout-card button",
+          "bg": "rgba(0, 0, 0, 0)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        }
+      ]
+    },
+    {
+      "name": "tablet landscape",
+      "skin": "theme",
+      "tone": "light",
+      "layers": 10,
+      "stages": [
+        [
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ]
+      ],
+      "controls": [
+        {
+          "node": ".action-card",
+          "bg": "rgba(203, 199, 215, 0.816)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        },
+        {
+          "node": ".prompt-card",
+          "bg": "rgba(248, 249, 251, 0.98)",
+          "duration": "0s",
+          "properties": "none"
+        },
+        {
+          "node": "#pmm-mobile-layout-card button",
+          "bg": "rgba(0, 0, 0, 0)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        }
+      ]
+    },
+    {
+      "name": "tablet landscape",
+      "skin": "theme",
+      "tone": "dark",
+      "layers": 10,
+      "stages": [
+        [
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ]
+      ],
+      "controls": [
+        {
+          "node": ".action-card",
+          "bg": "rgba(231, 234, 240, 0.698)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        },
+        {
+          "node": ".prompt-card",
+          "bg": "rgba(28, 31, 37, 0.95)",
+          "duration": "0s",
+          "properties": "none"
+        },
+        {
+          "node": "#pmm-mobile-layout-card button",
+          "bg": "rgba(0, 0, 0, 0)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        }
+      ],
+      "performance": {
+        "computed": 4,
+        "rect": 0,
+        "entryChecks": [
+          {
+            "frame": 9,
+            "entry": true
+          },
+          {
+            "frame": 9,
+            "entry": true
+          },
+          {
+            "frame": 9,
+            "entry": true
+          },
+          {
+            "frame": 9,
+            "entry": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "desktop",
+      "skin": "aqua",
+      "tone": "dark",
+      "layers": 10,
+      "stages": [
+        [
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ]
+      ],
+      "controls": [
+        {
+          "node": ".action-card",
+          "bg": "rgba(92, 166, 209, 0.42)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        },
+        {
+          "node": ".prompt-card",
+          "bg": "rgba(54, 82, 108, 0.66)",
+          "duration": "0s",
+          "properties": "all"
+        },
+        {
+          "node": "#pmm-mobile-layout-card button",
+          "bg": "rgba(0, 0, 0, 0)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        }
+      ]
+    },
+    {
+      "name": "desktop",
+      "skin": "aqua",
+      "tone": "light",
+      "layers": 10,
+      "stages": [
+        [
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ]
+      ],
+      "controls": [
+        {
+          "node": ".action-card",
+          "bg": "rgba(141, 192, 227, 0.31)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        },
+        {
+          "node": ".prompt-card",
+          "bg": "rgba(0, 0, 0, 0)",
+          "duration": "0s",
+          "properties": "all"
+        },
+        {
+          "node": "#pmm-mobile-layout-card button",
+          "bg": "rgba(0, 0, 0, 0)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        }
+      ]
+    },
+    {
+      "name": "desktop",
+      "skin": "glass",
+      "tone": "light",
+      "layers": 10,
+      "stages": [
+        [
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ]
+      ],
+      "controls": [
+        {
+          "node": ".action-card",
+          "bg": "rgba(163, 194, 213, 0.455)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        },
+        {
+          "node": ".prompt-card",
+          "bg": "rgba(214, 216, 219, 0.2)",
+          "duration": "0s",
+          "properties": "all"
+        },
+        {
+          "node": "#pmm-mobile-layout-card button",
+          "bg": "rgba(0, 0, 0, 0)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        }
+      ]
+    },
+    {
+      "name": "desktop",
+      "skin": "violet",
+      "tone": "light",
+      "layers": 10,
+      "stages": [
+        [
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ]
+      ],
+      "controls": [
+        {
+          "node": ".action-card",
+          "bg": "rgba(124, 97, 142, 0.514)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        },
+        {
+          "node": ".prompt-card",
+          "bg": "rgba(70, 51, 82, 0.72)",
+          "duration": "0s",
+          "properties": "all"
+        },
+        {
+          "node": "#pmm-mobile-layout-card button",
+          "bg": "rgba(0, 0, 0, 0)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        }
+      ]
+    },
+    {
+      "name": "desktop",
+      "skin": "theme",
+      "tone": "light",
+      "layers": 10,
+      "stages": [
+        [
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ]
+      ],
+      "controls": [
+        {
+          "node": ".action-card",
+          "bg": "rgba(105, 72, 126, 0.52)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        },
+        {
+          "node": ".prompt-card",
+          "bg": "rgba(248, 249, 251, 0.98)",
+          "duration": "0s",
+          "properties": "all"
+        },
+        {
+          "node": "#pmm-mobile-layout-card button",
+          "bg": "rgba(0, 0, 0, 0)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        }
+      ]
+    },
+    {
+      "name": "desktop",
+      "skin": "theme",
+      "tone": "dark",
+      "layers": 10,
+      "stages": [
+        [
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "1",
+            "to": "0",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.405749",
+            "to": "0.594251",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0.127107",
+            "to": "0.872893",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ],
+        [
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          },
+          {
+            "from": "0",
+            "to": "1",
+            "blend": "plus-lighter",
+            "duration": "0.28s"
+          }
+        ]
+      ],
+      "controls": [
+        {
+          "node": ".action-card",
+          "bg": "rgba(237, 240, 244, 0.35)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        },
+        {
+          "node": ".prompt-card",
+          "bg": "rgba(28, 31, 37, 0.95)",
+          "duration": "0s",
+          "properties": "all"
+        },
+        {
+          "node": "#pmm-mobile-layout-card button",
+          "bg": "rgba(0, 0, 0, 0)",
+          "duration": "0.28s",
+          "properties": "background-color, color, -webkit-text-fill-color, border-color"
+        }
+      ],
+      "performance": {
+        "computed": 4,
+        "rect": 0,
+        "entryChecks": [
+          {
+            "frame": 3,
+            "entry": true
+          },
+          {
+            "frame": 3,
+            "entry": true
+          },
+          {
+            "frame": 3,
+            "entry": true
+          },
+          {
+            "frame": 3,
+            "entry": true
+          }
+        ]
+      }
+    }
+  ]
+}

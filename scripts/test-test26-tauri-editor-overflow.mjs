@@ -32,7 +32,8 @@ for (const marker of [
   'element.scrollWidth',
   'header.clientWidth + 1',
   'new win.ResizeObserver(schedule)',
-  'new win.MutationObserver(schedule)',
+  'new win.MutationObserver(() => { observeEditorPanel();schedule(); })',
+  'mutationObserver.observe(DOC.body || DOC.documentElement, { childList:true })',
 ]) {
   assert.ok(runtime.includes(marker), `test.28 缺少实现：${marker}`);
 }

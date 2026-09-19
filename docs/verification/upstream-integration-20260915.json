@@ -1,0 +1,122 @@
+{
+  "version": "2.98.12-page0x00.1",
+  "upstream_commit": "bc7e746b2b8c48c123e1035be134a0f744418cf7",
+  "previous_local_commit": "b6403f8b1c4292dce0ff62a529b9c6dfd674522f",
+  "core_sections": {
+    "favorite_moves": {
+      "matches_author": true,
+      "sha256": "a8a7fb80c6f807680884a372fb26ec20c6ea0e7f5c84c68203db35a8807dbcfb"
+    },
+    "favorite_store": {
+      "matches_author": true,
+      "sha256": "ba2c7e3a2bb00306c1ad24a202454c1c006f498d274b1b5ff54fa5e31ea1bf9d"
+    },
+    "favorite_item_drop": {
+      "matches_author": true,
+      "sha256": "ef4424e1eb92cb1deec527d37ae478f32803e347ee7e5f21824375cebbf1e25a"
+    },
+    "favorite_panel_handlers": {
+      "matches_author": true,
+      "sha256": "767462dd2d49fe2f637061820b22fe06adfb43beadc30b5ff50780deec81cdfa"
+    },
+    "snapshot_matching": {
+      "matches_author": true,
+      "sha256": "9f2b011f587af13aa715db795dd1791fb8b8cfb3fded4b95e0c6bc4929f34089"
+    },
+    "snapshot_apply": {
+      "matches_author": true,
+      "sha256": "9dc11f6094c010fe6d9121bed1e8353654af8f17dc3cbb58d8f3783705f82edb"
+    }
+  },
+  "checks": {
+    "check": {
+      "exit_code": 0,
+      "output_tail": [
+        "Worldbook snapshots: transitions, drafts, shared books, eligibility, groups and recovery passed.",
+        "Worldbook bundles passed: defaults, chat locks, editing, rollback, group plans, conflicts and stale drafts.",
+        "Character worldbook identity passed: duplicate names, current/avatar lookup, one-call reads, stale context, snapshot binding/restore and old snapshot safety."
+      ]
+    },
+    "check:ui": {
+      "exit_code": 0,
+      "output_tail": [
+        "中控保存回归通过：独立/主界面下重置即时同步、保存不关闭、数值/界面即时同步、输入法草稿提交、旧滑杆帧不能覆盖新数值、滑杆继续可用、保存提示、失败保护及保存后取消/重载。",
+        "条幅宽度契约通过：旧保存值迁移、首次内容默认、独立 profile、默认持久化、数值逐帧预览及取消/保存。",
+        "作者整合运行回归通过：搜索、原生入口与清理，以及轻量快照保存/取消时的正文草稿与重启缓存隔离。"
+      ]
+    },
+    "test:banner-browser": {
+      "exit_code": 0,
+      "output_tail": [
+        "  }",
+        "}",
+        "真实 Chromium 回归通过：5 类屏幕、最终 clip、唯一入口、内容默认/重置、保存/reload/重挂载、八种正文状态在浅/深宿主背景下可读，材质不变。"
+      ]
+    },
+    "test:phone-performance-browser": {
+      "exit_code": 0,
+      "output_tail": [
+        "Phone performance regression passed: phone landscape",
+        "Phone performance regression passed: desktop",
+        "Passed: surface-only motion variables, native scoped DOM, phone ratio preview, save/cancel/reload, material restoration and unchanged desktop path."
+      ]
+    },
+    "test:floating-dock-browser": {
+      "exit_code": 0,
+      "output_tail": [
+        "Floating dock passed: tablet landscape",
+        "Floating dock passed: desktop",
+        "Floating dock browser passed: short inward detach, release/reload, cancel, redock, immediate opening, native edge shape, skin follow and zero gesture reads."
+      ]
+    }
+  },
+  "unsaved_target": {
+    "exit_code": 0
+  },
+  "unchanged_files": {
+    "dist/workshop-theme-system.js": "d8c1a8ea6e643c0e3e86a3ecfc092cae3027569cf5d21d7e8ae0f8e6e49586da",
+    "scripts/fixtures/workshop-frozen-visuals.json": "a82158a143b654eb2d3c28cf997c3a9659bac7c5957a5506d75d21226cdb95cb",
+    "preset-v2.48-p39.json": "dca1f582cbafd4d0eb5c4d07d12dc38983461fea8d0977d5e3d74c8f1a250cba"
+  },
+  "historical_tests": {
+    "files": [
+      "scripts/test-test46-switch-snapshots.mjs",
+      "scripts/test-test47-switch-snapshot-entry.mjs",
+      "scripts/test-test55-snapshot-draft-transaction.mjs"
+    ],
+    "local_exit_codes": [
+      1,
+      1,
+      1
+    ],
+    "clean_upstream_exit_codes": [
+      1,
+      1,
+      1
+    ],
+    "reason": "Initial integration failures targeted the superseded capture UI; corrected by the snapshot workflow follow-up below."
+  },
+  "limitations": [
+    "Browser fixtures run real frontend modules and CSS without the full Tavern backend.",
+    "Android device interaction and GPU frame rate need host verification."
+  ],
+  "snapshot_workflow_followup": {
+    "runtime_changed": false,
+    "tests": [
+      "test-test46-switch-snapshots.mjs",
+      "test-test47-switch-snapshot-entry.mjs",
+      "test-test55-snapshot-draft-transaction.mjs"
+    ],
+    "standalone_exit_code": 0,
+    "default_check_includes_workflow": true,
+    "check_exit_code": 0,
+    "check_ui_exit_code": 0,
+    "deliberate_regressions_rejected": [
+      "stale naming result",
+      "failed save loses draft",
+      "native entry loses selected preset"
+    ],
+    "browser_tests_rerun": false,
+    "notes": "Shared host fixture executes shipped functions. Previous browser results remain applicable because runtime files are unchanged."
+  }
+}
