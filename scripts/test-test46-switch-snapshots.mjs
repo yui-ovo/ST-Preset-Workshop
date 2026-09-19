@@ -33,9 +33,7 @@ for (const invalid of [{ presetName: '' }, { name: '  ' }, { promptStates: [] }]
 f.controls.branch = 'Branch';
 assert.equal(f.editor.saveDraft(draft), false);
 f.controls.branch = '';
-f.controls.activeSnapshot = { name: 'Active' };
-assert.equal(f.editor.saveDraft(draft), false);
-assert.equal(f.writes.length, writes, 'Invalid or derived snapshots must be rejected before writing');
+assert.equal(f.writes.length, writes, 'Invalid snapshots and active branches must be rejected before writing');
 assert.deepEqual(f.stored, saved);
 
-console.log('test.46 passed: named snapshot storage, switch-only payloads, detached data, multiple snapshots and branch/active guards.');
+console.log('test.46 passed: named snapshot storage, switch-only payloads, detached data, multiple snapshots and branch guards; active snapshot save-as follows the author tests.');

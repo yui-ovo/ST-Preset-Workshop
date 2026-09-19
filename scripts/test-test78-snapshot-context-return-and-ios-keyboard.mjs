@@ -32,7 +32,7 @@ assert.ok(state.includes('function migrateCurrentHomeSnapshot'), '升级旧版�
 
 const apply = section('async function applySnapshot(id)', 'function renameSnapshot');
 assert.ok(apply.includes("!options.automatic && !currentChat()"), '主页手动应用没有记住返回快照');
-assert.ok(apply.includes('{ rememberHome }'), '应用结果没有写入主页快照状态');
+assert.ok(apply.includes('{ rememberHome, manual:'), '应用结果没有写入主页快照状态');
 
 const binding = section('async function bindSnapshotToCurrentCharacter', 'function openCharacterPicker');
 assert.ok(binding.includes('await autoApplyBoundSnapshot({ silent: true })'), '绑定当前角色或聊天后没有立即静默解析并应用快照');

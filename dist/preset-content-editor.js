@@ -3,6 +3,7 @@
   const DOC = TOP.document;
   const API_KEY = '__PMM_PRESET_CONTENT_EDITOR_V1__';
   const STYLE_ID = 'pmm-preset-content-editor-style';
+  const activeEditors = new Map();
 
   const escapeHtml = value => String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -17,7 +18,12 @@
     style.textContent = `
       .pmm-preset-editor-host{position:relative!important}
       .pmm-preset-editor-overlay{position:absolute;inset:0;z-index:16000;display:flex;align-items:center;justify-content:center;padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom));background:rgba(0,0,0,.43);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);color:var(--pmm-editor-text,#222)}
+      .pmm-preset-editor-overlay.pmm-preset-editor-desktop{position:fixed!important;inset:0!important;width:auto!important;height:auto!important;margin:0!important;transform:none!important;box-sizing:border-box!important;z-index:2147483000!important;align-items:center!important;justify-content:center!important}
       .pmm-preset-editor-dialog{width:min(92%,660px);height:min(82%,680px);max-height:calc(100dvh - 28px);min-height:250px;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--pmm-editor-border,rgba(127,127,127,.22));border-radius:13px;background-color:var(--pmm-editor-bg,#fff);background-image:var(--pmm-editor-bg-image,none);color:var(--pmm-editor-text,#222);box-shadow:0 18px 52px rgba(0,0,0,.36)}
+      .pmm-preset-editor-desktop .pmm-preset-editor-dialog{box-sizing:border-box;min-height:0;max-height:calc(100% - 24px)}
+      .pmm-preset-editor-desktop[data-pmm-editor-side="left"]{right:50%!important}
+      .pmm-preset-editor-desktop[data-pmm-editor-side="right"]{left:50%!important}
+      .pmm-preset-editor-desktop[data-pmm-editor-side] .pmm-preset-editor-dialog{width:100%;height:calc(100% - 24px);max-width:820px}
       .pmm-preset-editor-dialog header{min-height:42px;display:flex;align-items:center;gap:7px;padding:6px 8px;border-bottom:1px solid var(--pmm-editor-border,rgba(127,127,127,.14))}
       .pmm-preset-editor-dialog header strong{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
       .pmm-preset-editor-dialog header span{font-size:9px;opacity:.58;white-space:nowrap}
@@ -31,6 +37,7 @@
   }
 
   function closeActiveEditor() {
+    for (const close of [...activeEditors.values()]) close();
     const overlay = DOC.querySelector('#preset-manager-main-panel .pmm-preset-editor-overlay');
     const host = overlay?.parentElement;
     overlay?.remove();
@@ -44,11 +51,24 @@
     if (!editor || !sourceField || !host) return;
 
     installStyle();
-    closeActiveEditor();
-    host.classList.add('pmm-preset-editor-host');
+    const mobileDevice = /Android|iPhone|iPad|iPod|Mobile/i.test(TOP.navigator?.userAgent || '')
+      || (TOP.navigator?.platform === 'MacIntel' && TOP.navigator?.maxTouchPoints > 1);
+    const desktop = !mobileDevice && TOP.matchMedia('(min-width:769px)').matches;
+    const panel = editor.closest('.preset-panel');
+    const mergeContainer = desktop ? panel?.closest('.pm-panel-container--merge-mode') : null;
+    const mergePanels = mergeContainer
+      ? [...mergeContainer.querySelectorAll('.preset-panel')].filter(node => node.closest('.pm-panel-container') === mergeContainer)
+      : [];
+    const panelIndex = mergePanels.indexOf(panel);
+    const side = mergePanels.length === 2 && panelIndex >= 0 ? (panelIndex === 0 ? 'left' : 'right') : '';
+    const editorKey = side ? panel : 'single';
+    if (side) {
+      activeEditors.get('single')?.();
+      activeEditors.get(editorKey)?.();
+    } else closeActiveEditor();
+    if (!desktop) host.classList.add('pmm-preset-editor-host');
 
     const item = editor.closest('.prompt-item');
-    const panel = editor.closest('.preset-panel');
     const title = editor.querySelector('.prompt-editor__name-input')?.value
       || item?.querySelector('.prompt-card__name,.prompt-card__title')?.textContent?.trim()
       || '预设条目';
@@ -69,14 +89,20 @@
 
     const overlay = DOC.createElement('div');
     overlay.className = 'pmm-preset-editor-overlay';
+    if (desktop) overlay.classList.add('pmm-preset-editor-desktop');
+    if (side) overlay.dataset.pmmEditorSide = side;
     overlay.style.setProperty('--pmm-editor-bg', pickStyle('backgroundColor', '#fff', true));
     overlay.style.setProperty('--pmm-editor-bg-image', pickStyle('backgroundImage', 'none'));
     overlay.style.setProperty('--pmm-editor-field-bg', TOP.getComputedStyle(sourceField).backgroundColor || pickStyle('backgroundColor', 'rgba(127,127,127,.05)', true));
-    overlay.style.setProperty('--pmm-editor-text', pickStyle('color', '#222', true));
+    // Body portals no longer inherit the existing themed editor text rule from the host.
+    const portalText = desktop && DOC.documentElement.dataset.pmmVisualTheme
+      ? styles.map(style => style.getPropertyValue('--pmm-theme-text').trim()).find(Boolean) : '';
+    overlay.style.setProperty('--pmm-editor-text', portalText || pickStyle('color', '#222', true));
     overlay.style.setProperty('--pmm-editor-border', TOP.getComputedStyle(sourceField).borderColor || pickStyle('borderColor', 'rgba(127,127,127,.22)', true));
     overlay.style.setProperty('--pmm-editor-accent', styles.map(style => style.getPropertyValue('--pm-quote-color').trim()).find(Boolean) || pickStyle('color', '#3485f6', true));
-    overlay.innerHTML = `<section class="pmm-preset-editor-dialog" role="dialog" aria-modal="true" aria-label="放大编辑预设正文">
-      <header><strong>${escapeHtml(title)}</strong><span data-pmm-editor-count>${original.length} 字符</span><button type="button" data-pmm-editor-undo title="暂无可撤销输入" aria-label="撤销本次编辑" disabled><i class="fa-solid fa-rotate-left"></i></button><button type="button" data-pmm-editor-cancel title="取消"><i class="fa-solid fa-xmark"></i></button><button type="button" data-pmm-editor-save title="完成"><i class="fa-solid fa-check"></i></button></header>
+    const sideLabel = side ? (side === 'left' ? '左侧 · ' : '右侧 · ') : '';
+    overlay.innerHTML = `<section class="pmm-preset-editor-dialog" role="dialog" aria-modal="${side ? 'false' : 'true'}" aria-label="${sideLabel}放大编辑预设正文">
+      <header><strong>${sideLabel}${escapeHtml(title)}</strong><span data-pmm-editor-count>${original.length} 字符</span><button type="button" data-pmm-editor-undo title="暂无可撤销输入" aria-label="撤销本次编辑" disabled><i class="fa-solid fa-rotate-left"></i></button><button type="button" data-pmm-editor-cancel title="取消"><i class="fa-solid fa-xmark"></i></button><button type="button" data-pmm-editor-save title="完成"><i class="fa-solid fa-check"></i></button></header>
       <textarea spellcheck="false">${escapeHtml(original)}</textarea>
     </section>`;
 
@@ -86,15 +112,21 @@
     const undoStack = [];
     let previousValue = original;
     let lastInputAt = 0;
+    let focusTimer = null;
+    let hostObserver = null;
     const updateUndoButton = () => {
       const available = undoStack.length > 0;
       undoButton.disabled = !available;
       undoButton.title = available ? '撤销本次编辑' : '暂无可撤销输入';
     };
     const closeEditor = () => {
+      TOP.clearTimeout(focusTimer);
+      hostObserver?.disconnect();
       overlay.remove();
       host.classList.remove('pmm-preset-editor-host');
+      if (activeEditors.get(editorKey) === closeEditor) activeEditors.delete(editorKey);
     };
+    activeEditors.set(editorKey, closeEditor);
     const undoInput = () => {
       if (!undoStack.length) return;
       const start = textarea.selectionStart;
@@ -103,7 +135,7 @@
       lastInputAt = 0;
       counter.textContent = `${textarea.value.length} 字符`;
       updateUndoButton();
-      textarea.focus();
+      desktop ? textarea.focus({ preventScroll: true }) : textarea.focus();
       const cursor = Math.min(Number.isFinite(start) ? start : textarea.value.length, textarea.value.length);
       textarea.setSelectionRange(cursor, cursor);
     };
@@ -137,8 +169,26 @@
       }
     });
 
-    host.append(overlay);
-    TOP.setTimeout(() => textarea.focus(), 20);
+    if (desktop) {
+      DOC.body.append(overlay);
+      // The desktop portal must disappear if its workshop is closed or removed.
+      hostObserver = new TOP.MutationObserver(records => {
+        if (!host.isConnected || !sourceField.isConnected
+          || (side && !mergeContainer.classList.contains('pm-panel-container--merge-mode'))) {
+          closeEditor();
+          return;
+        }
+        // Geometry is needed only for visibility changes, never chat updates or typing.
+        if (records.some(record => record.type === 'attributes') && !host.getClientRects().length) closeEditor();
+      });
+      // Observe direct owners to detect source/host removal without scanning the chat tree.
+      for (let owner = sourceField.parentElement; owner; owner = owner.parentElement) {
+        hostObserver.observe(owner, { childList: true, attributes: true, attributeFilter: ['style', 'class', 'hidden'] });
+      }
+    } else host.append(overlay);
+    focusTimer = TOP.setTimeout(() => {
+      if (overlay.isConnected) desktop ? textarea.focus({ preventScroll: true }) : textarea.focus();
+    }, 20);
   }
 
   function onPresetExpandClick(event) {
@@ -153,12 +203,14 @@
   function cleanup() {
     closeActiveEditor();
     DOC.removeEventListener('click', onPresetExpandClick, true);
+    globalThis.removeEventListener('pagehide', cleanup);
     DOC.getElementById(STYLE_ID)?.remove();
     try { if (TOP[API_KEY]?.cleanup === cleanup) delete TOP[API_KEY]; } catch (_) {}
   }
 
   try { TOP[API_KEY]?.cleanup?.(); } catch (_) {}
   DOC.addEventListener('click', onPresetExpandClick, true);
+  globalThis.addEventListener('pagehide', cleanup, { once: true });
   TOP[API_KEY] = { cleanup, openPresetContentEditor };
   console.info('[预设工坊] 预设条目正文全屏编辑器已加载。');
 })();

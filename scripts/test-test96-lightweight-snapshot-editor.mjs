@@ -65,7 +65,7 @@ assert.ok(promptToggle.includes('prompt.enabled = !prompt.enabled'), '条目开�
 assert.ok(!promptToggle.includes('group.enabled ='), '条目开关错误联动了分组供电 draft');
 
 const openEditor = section('function openSnapshotEditorFromOverlay()', 'function renderFirstDefaultPrompt');
-assert.ok(openEditor.includes('const prompts = storedPrompts(presetName)'), '编辑器没有直接读取酒馆当前预设 prompts');
+assert.ok(openEditor.includes('const prompts = getPrompts(presetName)'), '编辑器没有按入口读取当前开关');
 assert.ok(openEditor.includes('createSnapshotEditorDraft'), '编辑器没有先创建隔离 draft');
 assert.ok(openEditor.indexOf('closeOverlay()') < openEditor.indexOf('mountSnapshotEditor()'), '管理弹窗没有先关闭再挂载独立编辑器');
 

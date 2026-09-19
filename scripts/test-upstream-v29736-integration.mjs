@@ -115,11 +115,14 @@ for (const dirty of [false, true]) {
   await store.initialize();
   if (dirty) await store.updatePrompt('one', { content: 'Unsaved text' });
   const expected = clone(store.prompts.value), opened = [];
+  const live = baseline.map(prompt => ({ ...prompt, enabled: !prompt.enabled, content: 'Live text' }));
   let snapshots = { snapshots: [{ presetName: 'A', default: true }] };
   const api = vm.runInNewContext(`(() => {
     let snapshotEditorSession = null, overlayContext = { source: 'native-preset', presetName: 'A' }, openMenuId = '';
     const closeOverlay = () => { overlayContext = null; };
+    const openOverlay = value => { overlayContext = clone(value); opened.push(clone(value)); };
     const destroySnapshotEditor = () => { snapshotEditorSession = null; };
+    ${section('  function storedPrompts(', '  function workshopDocuments(')}
     ${section('  function makeStates(', '  function baiBaiCompat(')}
     ${section('  function createSnapshotEditorDraft', '  function snapshotEditorGroupCount')}
     ${section('  function openSnapshotEditorFromOverlay()', '  function renderFirstDefaultPrompt')}
@@ -128,11 +131,12 @@ for (const dirty of [false, true]) {
     return { open: openSnapshotEditorFromOverlay, save: saveSnapshotEditor, cancel: returnFromSnapshotEditor, current: () => snapshotEditorSession };
   })()`, {
     text: value => String(value || ''), clone, DOC: { getElementById: () => ({}) }, EDITOR_OVERLAY_ID: 'snapshot',
-    currentPresetName: () => 'A', activeBranchName: () => '', activeSnapshotForPreset: () => null,
+    opened, isBranchMode: () => false, currentPresetName: () => 'A', activeBranchName: () => '',
+    TOP: { getPreset: name => ({ prompts: name === 'in_use' ? live : baseline }) }, SELF: {}, nativeSelectedPresetName: () => 'A',
     readStore: () => clone(snapshots), writeStore: value => { snapshots = clone(value); return true; },
-    isDefaultSnapshot: item => item.default, storedPrompts: () => clone(baseline), defaultSnapshotName: () => 'Snapshot',
+    isDefaultSnapshot: item => item.default, draftPrompts: () => clone(store.prompts.value), defaultSnapshotName: () => 'Snapshot',
     editorGroupState: () => [{ id: 'g1', name: 'Group', enabled: true, promptIds: new Set(['one']) }],
-    mountSnapshotEditor: () => true, openOverlay: value => opened.push(clone(value)), notify() {}, makeId: () => 'snapshot-id',
+    mountSnapshotEditor: () => true, notify() {}, makeId: () => 'snapshot-id',
     requestSnapshotName: async () => 'Snapshot',
     setPreset: () => { throw Error('Snapshot editing must not write named or in-use presets'); },
   });
@@ -140,8 +144,9 @@ for (const dirty of [false, true]) {
     api.open();
     const draft = api.current();
     assert(draft);
-    assert.equal(draft.promptContents[0], 'Saved', 'Native snapshot source stays independent of an open workshop draft');
-    draft.promptStates[0].enabled = false;
+    assert.equal(draft.promptContents[0], 'Live text', 'Native snapshot reads live Tavern content instead of the named preset or hidden draft');
+    assert.equal(draft.promptStates[0].enabled, false, 'Unsaved live switches seed the editor');
+    draft.promptStates[0].enabled = true;
     draft.groups[0].enabled = false;
     session.flush();
     if (save) assert.equal(await api.save(), true); else api.cancel();
@@ -150,13 +155,14 @@ for (const dirty of [false, true]) {
     assert.deepEqual(clone(store.prompts.value), expected);
     assert.equal(store.isDirty.value, dirty);
     assert.deepEqual(baseline.map(item => item.enabled), [true, false]);
+    assert.deepEqual(live.map(item => item.enabled), [false, true], 'Saving/cancelling snapshots must not apply edits to Tavern');
     session.flush();
     const restarted = createDraftSession(storage, { setTimeout: () => 1, clearTimeout() {} });
     assert.deepEqual(restarted.read('A', baseline), dirty ? expected : null);
     restarted.dispose();
   }
   assert.equal(snapshots.snapshots.length, 2, 'Cancel creates no snapshot; save creates exactly one');
-  assert.equal(snapshots.snapshots[0].states[0].enabled, false);
+  assert.equal(snapshots.snapshots[0].states[0].enabled, true);
   assert.equal(snapshots.snapshots[0].groupStates[0].enabled, false);
   assert(!('content' in snapshots.snapshots[0].states[0]), 'Snapshot storage contains switches, not duplicated prompt text');
   session.dispose();

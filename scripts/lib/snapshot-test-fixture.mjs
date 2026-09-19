@@ -17,7 +17,7 @@ export function snapshotFixture() {
     { id: 'two', name: 'Two', content: 'Second text', enabled: false },
   ];
   let store = { snapshots: [{ id: 'default', presetName: 'A', kind: 'default' }] };
-  const controls = { presetName: 'A', branch: '', activeSnapshot: null, writeFailure: false, mountFailure: false };
+  const controls = { presetName: 'A', branch: '', writeFailure: false, mountFailure: false };
   const events = [], names = [], writes = [], notices = [];
   let serial = 0;
   const context = vm.createContext({
@@ -26,7 +26,6 @@ export function snapshotFixture() {
     DOC: { getElementById: () => ({}) }, EDITOR_OVERLAY_ID: 'snapshot-editor',
     currentPresetName: () => controls.presetName,
     activeBranchName: () => controls.branch,
-    activeSnapshotForPreset: () => controls.activeSnapshot,
     readStore: () => clone(store),
     writeStore: value => {
       writes.push(clone(value));
@@ -34,6 +33,7 @@ export function snapshotFixture() {
       store = clone(value); return true;
     },
     isDefaultSnapshot: item => item.kind === 'default',
+    draftPrompts: () => [],
     storedPrompts: name => { assert.equal(name, 'A'); return clone(prompts); },
     defaultSnapshotName: () => 'Snapshot',
     editorGroupState: () => [{ id: 'g', name: 'Group', enabled: true, promptIds: new Set(['one']) }],
@@ -47,6 +47,7 @@ export function snapshotFixture() {
     function closeOverlay() { overlayContext = null; events.push('close'); }
     function destroySnapshotEditor() { snapshotEditorSession = null; events.push('destroy'); }
     function openOverlay(options) { overlayContext = clone(options); events.push(clone(options)); }
+    ${section('  function getPrompts(', '  function workshopDocuments(')}
     ${section('  function makeStates(', '  function baiBaiCompat(')}
     ${section('  function createSnapshotEditorDraft(', '  function snapshotEditorGroupCount')}
     ${section('  function saveSnapshotDraft(', '  function findSnapshot(')}

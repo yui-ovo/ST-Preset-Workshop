@@ -14590,6 +14590,16 @@ import { requestSnapshotName } from './snapshot-name-dialog.js?v=2.98.0-test.32'
   }
 
   function storedPrompts(presetName) {
+    // 原生开关立即写入 in_use，只有点酒馆保存后才写回命名预设。
+    // 仅当前加载的预设读取实时状态，避免编辑另一份预设时串用开关。
+    if (text(presetName) && nativeSelectedPresetName() === text(presetName)) {
+      for (const source of [TOP, SELF]) {
+        try {
+          const prompts = source?.getPreset?.('in_use')?.prompts;
+          if (Array.isArray(prompts)) return clone(prompts);
+        } catch (_) {}
+      }
+    }
     for (const source of [TOP, SELF]) {
       try {
         const prompts = source?.getPreset?.(presetName)?.prompts;
@@ -14741,6 +14751,9 @@ import { requestSnapshotName } from './snapshot-name-dialog.js?v=2.98.0-test.32'
           homeSnapshots: parsed.homeSnapshots && typeof parsed.homeSnapshots === 'object'
             ? { ...parsed.homeSnapshots }
             : {},
+          manualSnapshots: parsed.manualSnapshots && typeof parsed.manualSnapshots === 'object'
+            ? { ...parsed.manualSnapshots }
+            : {},
           snapshots: parsed.snapshots
             .filter(snapshot => snapshot && typeof snapshot === 'object' && Array.isArray(snapshot.states))
             .map(snapshot => ({
@@ -14780,6 +14793,7 @@ import { requestSnapshotName } from './snapshot-name-dialog.js?v=2.98.0-test.32'
         version: 1,
         activeSnapshots: store.activeSnapshots && typeof store.activeSnapshots === 'object' ? store.activeSnapshots : {},
         homeSnapshots: store.homeSnapshots && typeof store.homeSnapshots === 'object' ? store.homeSnapshots : {},
+        manualSnapshots: store.manualSnapshots && typeof store.manualSnapshots === 'object' ? store.manualSnapshots : {},
         snapshots: store.snapshots,
       }));
       syncChatBindingListener(store);
@@ -15064,6 +15078,9 @@ import { requestSnapshotName } from './snapshot-name-dialog.js?v=2.98.0-test.32'
       : {};
     if (snapshotId) store.activeSnapshots[name] = text(snapshotId);
     else delete store.activeSnapshots[name];
+    store.manualSnapshots = { ...store.manualSnapshots };
+    if (snapshotId && options.manual === true) store.manualSnapshots[name] = text(snapshotId);
+    else delete store.manualSnapshots[name];
     if (options.rememberHome === true) {
       if (snapshotId) store.homeSnapshots[name] = text(snapshotId);
       else delete store.homeSnapshots[name];
@@ -15134,11 +15151,6 @@ import { requestSnapshotName } from './snapshot-name-dialog.js?v=2.98.0-test.32'
     const branchName = activeBranchName(presetName);
     if (branchName) {
       notify('warning', `当前正在使用“${branchName}”分支，请先切回默认分支后再新建快照`);
-      return false;
-    }
-    const active = activeSnapshotForPreset(presetName);
-    if (active) {
-      notify('warning', `当前正应用“${active.name}”快照，请先恢复预设默认后再新建快照`);
       return false;
     }
     const states = Array.isArray(draft?.promptStates)
@@ -15335,7 +15347,7 @@ import { requestSnapshotName } from './snapshot-name-dialog.js?v=2.98.0-test.32'
       const groupMatches = matchGroupStates(makeGroupStates(presetName), snapshot.groupStates);
       const groupsChanged = groupMatches.some(({ current, saved }) => (current.enabled !== false) !== (saved.enabled !== false));
       if (!groupsChanged && (applied || groupMatches.length)) {
-        setActiveSnapshot(presetName, isDefaultSnapshot(snapshot) ? '' : snapshot.id, { rememberHome: false });
+        setActiveSnapshot(presetName, isDefaultSnapshot(snapshot) ? '' : snapshot.id, { rememberHome: false, manual: options.manual === true });
         return true;
       }
     }
@@ -15372,7 +15384,7 @@ import { requestSnapshotName } from './snapshot-name-dialog.js?v=2.98.0-test.32'
       }
       const snapshotId = isDefaultSnapshot(snapshot) ? '' : snapshot.id;
       const rememberHome = options.rememberHome === true || (!options.automatic && !currentChat());
-      setActiveSnapshot(presetName, snapshotId, { rememberHome });
+      setActiveSnapshot(presetName, snapshotId, { rememberHome, manual: !options.automatic || options.manual === true });
       renderOverlay();
       return true;
     } catch (error) {
@@ -15399,22 +15411,25 @@ import { requestSnapshotName } from './snapshot-name-dialog.js?v=2.98.0-test.32'
   function overwriteSnapshot(id) {
     if (isBranchMode()) {
       notify('warning', '开关快照只记录主预设；请先退出分支模式');
-      return;
+      return false;
     }
-    if (blockWhileBranchActive('覆盖快照')) return;
-    if (blockWhileSnapshotActive('覆盖快照')) return;
+    if (blockWhileBranchActive('覆盖快照')) return false;
     const store = readStore();
     const snapshot = store.snapshots.find(item => item.id === id);
     const presetName = currentPresetName();
     const prompts = getPrompts(presetName);
-    if (!snapshot || text(snapshot.presetName) !== presetName || !prompts.length) return;
+    // 普通快照可以保存当前调整；预设默认仍只能通过受保护的入口更新。
+    if (!snapshot || isDefaultSnapshot(snapshot) || text(snapshot.presetName) !== presetName || !prompts.length) return false;
+    if (!TOP.confirm?.(`用当前开关覆盖快照“${snapshot.name}”？`)) return false;
     snapshot.states = makeStates(prompts);
     snapshot.groupStates = makeGroupStates(presetName);
     snapshot.updatedAt = Date.now();
     if (writeStore(store)) {
       notify('success', `已覆盖快照“${snapshot.name}”`);
       renderOverlay();
+      return true;
     }
+    return false;
   }
 
   async function bindSnapshotToCurrentCharacter(id) {
@@ -15612,13 +15627,19 @@ import { requestSnapshotName } from './snapshot-name-dialog.js?v=2.98.0-test.32'
     // A default is a saved baseline, not permission to take over an unrelated chat.
     const active = activeSnapshotForPreset(presetName, store);
     const home = homeSnapshotForPreset(presetName, store);
+    // Manual application is a one-time copy. Only a context binding may replace it.
+    if (!binding.snapshot && active && store.manualSnapshots?.[presetName] === active.id) {
+      lastAutoContextKey = '';
+      return false;
+    }
     if (!binding.snapshot && !active && !home) { lastAutoContextKey = ''; return false; }
     const target = binding.snapshot || fallbackSnapshotForPreset(presetName, store);
     const contextKey = `${presetName}\u0000${binding.chat?.key || ''}\u0000${binding.character?.key || ''}\u0000${target?.id || ''}`;
     if (contextKey === lastAutoContextKey) return false;
     lastAutoContextKey = contextKey;
     if (!target || serial !== autoApplySerial) return false;
-    const applied = await applySnapshot(target.id, { presetName, automatic: true, silent: options.silent === true });
+    const applied = await applySnapshot(target.id, { presetName, automatic: true, silent: options.silent === true,
+      manual: !binding.snapshot && home?.id === target.id });
     if (!applied && lastAutoContextKey === contextKey) lastAutoContextKey = '';
     return applied;
   }
@@ -15744,6 +15765,7 @@ import { requestSnapshotName } from './snapshot-name-dialog.js?v=2.98.0-test.32'
       : {};
     delete latestStore.activeSnapshots[presetName];
     delete latestStore.homeSnapshots[presetName];
+    if (latestStore.manualSnapshots) delete latestStore.manualSnapshots[presetName];
     if (!writeStore(latestStore)) {
       notify('error', '重置开关快照失败');
       return false;
@@ -16229,11 +16251,9 @@ import { requestSnapshotName } from './snapshot-name-dialog.js?v=2.98.0-test.32'
     if (!presetName) return notify('warning', '请先选择一个预设');
     const branchName = activeBranchName(presetName);
     if (branchName) return notify('warning', `当前正在使用“${branchName}”分支，请先切回默认分支后再新建快照`);
-    const active = activeSnapshotForPreset(presetName);
-    if (active) return notify('warning', `当前正应用“${active.name}”快照，请先恢复预设默认后再新建快照`);
     const hasDefault = readStore().snapshots.some(snapshot => text(snapshot.presetName) === presetName && isDefaultSnapshot(snapshot));
     if (!hasDefault) return notify('warning', '请先保存预设默认');
-    const prompts = storedPrompts(presetName);
+    const prompts = getPrompts(presetName);
     if (!prompts.length) return notify('warning', '当前预设没有可记录的条目');
     snapshotEditorSession = createSnapshotEditorDraft(presetName, prompts, returnContext);
     closeOverlay();
@@ -16316,6 +16336,14 @@ import { requestSnapshotName } from './snapshot-name-dialog.js?v=2.98.0-test.32'
     return true;
   }
 
+  function isManualSnapshotAdjusted(presetName, snapshot) {
+    if (!snapshot || readStore().manualSnapshots?.[presetName] !== snapshot.id) return false;
+    const { changed } = mergeSnapshotStates(getPrompts(presetName), snapshot.states, { closeUnrecorded: true });
+    if (changed) return true;
+    return matchGroupStates(makeGroupStates(presetName), snapshot.groupStates)
+      .some(({ current, saved }) => (current.enabled !== false) !== (saved.enabled !== false));
+  }
+
   function renderOverlay() {
     const existing = DOC?.getElementById?.(OVERLAY_ID);
     if (!existing) return;
@@ -16326,9 +16354,11 @@ import { requestSnapshotName } from './snapshot-name-dialog.js?v=2.98.0-test.32'
     const defaultSnapshot = defaultSnapshotForCurrentPreset();
     const snapshots = snapshotsForCurrentPreset();
     const activeSnapshot = activeSnapshotForCurrentPreset();
+    const activeAdjusted = isManualSnapshotAdjusted(presetName, activeSnapshot);
     const rows = snapshots.length ? snapshots.map(snapshot => {
       const groupCount = Array.isArray(snapshot.groupStates) ? snapshot.groupStates.length : 0;
       const isActive = activeSnapshot?.id === snapshot.id;
+      const isAdjusted = isActive && activeAdjusted;
       const isCurrentCharacter = !!(character && snapshot.characters.some(binding => binding.key === character.key));
       const isCurrentChat = !!(chat && snapshot.chats.some(binding => binding.key === chat.key));
       const characterNames = snapshot.characters.map(binding => binding.name).join('、');
@@ -16354,7 +16384,7 @@ import { requestSnapshotName } from './snapshot-name-dialog.js?v=2.98.0-test.32'
           </div>
         </div>
         <div class="pmm-switch-snapshot-actions">
-          <button type="button" data-pmm-snapshot-action="apply" data-pmm-snapshot-id="${escapeHtml(snapshot.id)}"${isActive ? ' class="is-current" disabled title="当前正在应用"' : ''}>${isActive ? '当前' : '全局应用'}</button>
+          ${isAdjusted ? `<span class="pmm-switch-snapshot-adjusted" role="status">已调整</span><button type="button" data-pmm-snapshot-action="apply" data-pmm-snapshot-id="${escapeHtml(snapshot.id)}" title="恢复这份快照保存的条目和分组开关">恢复此快照</button>` : `<button type="button" data-pmm-snapshot-action="apply" data-pmm-snapshot-id="${escapeHtml(snapshot.id)}"${isActive ? ' class="is-current" disabled title="当前正在应用"' : ''}>${isActive ? '当前' : '全局应用'}</button>`}
           <div class="pmm-switch-snapshot-menu-wrap">
             <button type="button" class="pmm-switch-snapshot-more" data-pmm-snapshot-action="menu" data-pmm-snapshot-id="${escapeHtml(snapshot.id)}" title="更多操作"><i class="fa-solid fa-ellipsis"></i></button>
             ${menu}
@@ -16541,10 +16571,10 @@ import { requestSnapshotName } from './snapshot-name-dialog.js?v=2.98.0-test.32'
       .pmm-switch-snapshot-close,.pmm-switch-snapshot-more{display:flex!important;align-items:center!important;justify-content:center!important;border:1px solid transparent!important;background:transparent!important;color:inherit!important;cursor:pointer!important;border-radius:7px!important}.pmm-switch-snapshot-close{width:28px!important;height:28px!important;opacity:.65!important}.pmm-switch-snapshot-close:hover,.pmm-switch-snapshot-more:hover{background:rgba(127,127,127,.12)!important;opacity:1!important}
       .pmm-switch-snapshot-first-default{display:flex!important;flex-direction:column!important;align-items:center!important;padding:32px 25px 27px!important;text-align:center!important}.pmm-switch-snapshot-first-default-icon{display:flex!important;align-items:center!important;justify-content:center!important;width:43px!important;height:43px!important;margin-bottom:12px!important;border-radius:13px!important;background:color-mix(in srgb,var(--pm-quote-color,var(--SmartThemeQuoteColor,#6b7db2)) 16%,transparent)!important;color:var(--pm-quote-color,var(--SmartThemeQuoteColor,#6b7db2))!important;font-size:18px!important}.pmm-switch-snapshot-first-default h3{margin:0!important;font-size:15px!important;font-weight:650!important}.pmm-switch-snapshot-first-default>p{max-width:330px!important;margin:9px 0 18px!important;font-size:11px!important;line-height:1.55!important;opacity:.68!important}.pmm-switch-snapshot-first-default-actions{display:flex!important;justify-content:center!important;gap:8px!important;width:100%!important}.pmm-switch-snapshot-first-default-actions button{min-height:34px!important;padding:0 13px!important;border:1px solid var(--pm-border,var(--SmartThemeBorderColor,rgba(148,163,184,.32)))!important;border-radius:8px!important;background:rgba(127,127,127,.08)!important;color:inherit!important;font:inherit!important;font-size:12px!important;cursor:pointer!important}.pmm-switch-snapshot-first-default-actions button:last-child{border-color:color-mix(in srgb,var(--pm-quote-color,var(--SmartThemeQuoteColor,#6b7db2)) 60%,transparent)!important;background:color-mix(in srgb,var(--pm-quote-color,var(--SmartThemeQuoteColor,#6b7db2)) 18%,transparent)!important;font-weight:600!important}.pmm-switch-snapshot-first-default-actions button:last-child i{margin-right:6px!important}
       .pmm-switch-snapshot-default{display:flex!important;align-items:center!important;gap:12px!important;padding:12px 18px!important;border-bottom:1px solid var(--pm-border,var(--SmartThemeBorderColor,rgba(148,163,184,.20)))!important}.pmm-switch-snapshot-default.is-saved{background:color-mix(in srgb,var(--pm-quote-color,var(--SmartThemeQuoteColor,#6b7db2)) 7%,transparent)!important}.pmm-switch-snapshot-default.is-empty{background:rgba(127,127,127,.035)!important}.pmm-switch-snapshot-default-copy{min-width:0!important;flex:1 1 auto!important}.pmm-switch-snapshot-default-copy>div{display:flex!important;align-items:center!important;gap:7px!important;font-size:12px!important;font-weight:650!important}.pmm-switch-snapshot-default-copy>div i{color:var(--pm-quote-color,var(--SmartThemeQuoteColor,#6b7db2))!important}.pmm-switch-snapshot-default-copy small{display:block!important;margin-top:4px!important;font-size:10px!important;line-height:1.35!important;opacity:.62!important}.pmm-switch-snapshot-default>button,.pmm-switch-snapshot-default-actions>button:first-child{display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:5px!important;min-height:30px!important;padding:0 9px!important;border:1px solid color-mix(in srgb,var(--pm-quote-color,var(--SmartThemeQuoteColor,#6b7db2)) 60%,transparent)!important;border-radius:7px!important;background:color-mix(in srgb,var(--pm-quote-color,var(--SmartThemeQuoteColor,#6b7db2)) 18%,transparent)!important;color:inherit!important;font:inherit!important;font-size:11px!important;font-weight:600!important;cursor:pointer!important;white-space:nowrap!important}.pmm-switch-snapshot-default>button i,.pmm-switch-snapshot-default-actions>button:first-child i{font-size:10px!important}.pmm-switch-snapshot-default-actions{display:flex!important;align-items:center!important;gap:4px!important;flex:0 0 auto!important}.pmm-switch-snapshot-default-actions>button:not(:first-child){display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:5px!important;min-height:30px!important;padding:0 9px!important;border:1px solid rgba(148,163,184,.28)!important;border-radius:7px!important;background:rgba(127,127,127,.08)!important;color:inherit!important;font:inherit!important;font-size:11px!important;font-weight:600!important;cursor:pointer!important;white-space:nowrap!important;opacity:.78!important}.pmm-switch-snapshot-default-actions>button:not(:first-child) i{font-size:10px!important}.pmm-switch-snapshot-default-actions>button:not(:first-child):hover{background:rgba(127,127,127,.14)!important;opacity:1!important}.pmm-switch-snapshot-default-actions>.pmm-switch-snapshot-reset-all{width:30px!important;padding:0!important;border-color:rgba(239,68,68,.35)!important;color:#ef6b6b!important}.pmm-switch-snapshot-default-actions>.pmm-switch-snapshot-reset-all:hover{background:rgba(239,68,68,.13)!important;border-color:rgba(239,68,68,.55)!important}
-      .pmm-switch-snapshot-create{padding:12px 18px!important;border-bottom:1px solid var(--pm-border,var(--SmartThemeBorderColor,rgba(148,163,184,.20)))!important}.pmm-switch-snapshot-create button,.pmm-switch-snapshot-actions>button:first-child{border:1px solid color-mix(in srgb,var(--pm-quote-color,var(--SmartThemeQuoteColor,#6b7db2)) 60%,transparent)!important;background:color-mix(in srgb,var(--pm-quote-color,var(--SmartThemeQuoteColor,#6b7db2)) 18%,transparent)!important;color:inherit!important;cursor:pointer!important;font:inherit!important;border-radius:8px!important}.pmm-switch-snapshot-create button{width:100%!important;min-height:36px!important;font-size:12px!important;font-weight:600!important}.pmm-switch-snapshot-create button i{margin-right:7px!important}
+      .pmm-switch-snapshot-create{padding:12px 18px!important;border-bottom:1px solid var(--pm-border,var(--SmartThemeBorderColor,rgba(148,163,184,.20)))!important}.pmm-switch-snapshot-create button,.pmm-switch-snapshot-actions>button:first-of-type{border:1px solid color-mix(in srgb,var(--pm-quote-color,var(--SmartThemeQuoteColor,#6b7db2)) 60%,transparent)!important;background:color-mix(in srgb,var(--pm-quote-color,var(--SmartThemeQuoteColor,#6b7db2)) 18%,transparent)!important;color:inherit!important;cursor:pointer!important;font:inherit!important;border-radius:8px!important}.pmm-switch-snapshot-create button{width:100%!important;min-height:36px!important;font-size:12px!important;font-weight:600!important}.pmm-switch-snapshot-create button i{margin-right:7px!important}
       .pmm-switch-snapshot-list{min-height:80px!important;max-height:420px!important;overflow:auto!important;padding:8px!important}.pmm-switch-snapshot-row{display:flex!important;flex-wrap:wrap!important;align-items:center!important;column-gap:12px!important;row-gap:6px!important;padding:10px!important;border-radius:10px!important}.pmm-switch-snapshot-row:hover{background:rgba(127,127,127,.08)!important}.pmm-switch-snapshot-copy{min-width:0!important;flex:1 1 auto!important}.pmm-switch-snapshot-name{display:flex!important;align-items:center!important;gap:7px!important;min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;font-size:13px!important;font-weight:600!important}.pmm-switch-snapshot-meta{margin-top:4px!important;font-size:10px!important;opacity:.58!important}.pmm-switch-snapshot-role{display:inline-flex!important;align-items:center!important;gap:4px!important;flex:0 0 auto!important;padding:2px 6px!important;border-radius:999px!important;background:rgba(127,127,127,.11)!important;font-size:9px!important;font-weight:500!important;opacity:.78!important}.pmm-switch-snapshot-role.is-current{color:var(--pm-quote-color,var(--SmartThemeQuoteColor,#7c93ce))!important;opacity:1!important}
       .pmm-switch-snapshot-bindings{display:flex!important;flex:0 0 auto!important;min-width:109px!important;align-items:center!important}.pmm-switch-snapshot-locks{display:flex!important;align-items:center!important;gap:5px!important}.pmm-switch-snapshot-lock{display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:4px!important;min-width:52px!important;height:27px!important;padding:0 7px!important;border:1px solid currentColor!important;border-radius:7px!important;background:rgba(127,127,127,.04)!important;color:var(--pm-text-primary,var(--SmartThemeBodyColor,#e5e7eb))!important;font:inherit!important;font-size:10px!important;font-weight:600!important;cursor:pointer!important;opacity:.76!important}.pmm-switch-snapshot-lock:hover{background:rgba(127,127,127,.1)!important;opacity:1!important}.pmm-switch-snapshot-lock.is-character.is-bound{border-color:#22c55e!important;background:rgba(34,197,94,.22)!important;color:#22c55e!important;box-shadow:inset 0 0 0 1px rgba(34,197,94,.18)!important;opacity:1!important}.pmm-switch-snapshot-lock.is-chat.is-bound{border-color:#eab308!important;background:rgba(234,179,8,.22)!important;color:#eab308!important;box-shadow:inset 0 0 0 1px rgba(234,179,8,.18)!important;opacity:1!important}.pmm-switch-snapshot-lock:disabled{pointer-events:none!important;cursor:default!important;border-color:rgba(148,163,184,.18)!important;background:rgba(127,127,127,.04)!important;color:inherit!important;opacity:.25!important}.pmm-switch-snapshot-character-names{box-sizing:border-box!important;display:flex!important;flex:0 0 100%!important;align-items:flex-start!important;gap:5px!important;min-width:0!important;padding:0 2px!important;color:#22c55e!important;font-size:9px!important;line-height:1.4!important;opacity:.78!important}.pmm-switch-snapshot-character-names i{flex:0 0 auto!important;margin-top:2px!important;font-size:8px!important}.pmm-switch-snapshot-character-names span{min-width:0!important;white-space:normal!important;overflow-wrap:anywhere!important}
-      .pmm-switch-snapshot-actions{display:flex!important;align-items:center!important;gap:3px!important;flex:0 0 auto!important}.pmm-switch-snapshot-actions>button:first-child{min-width:42px!important;height:28px!important;padding:0 8px!important;font-size:11px!important}.pmm-switch-snapshot-more{width:25px!important;height:28px!important;font-size:10px!important;opacity:.58!important}.pmm-switch-snapshot-menu-wrap{position:relative!important}.pmm-switch-snapshot-menu{position:absolute!important;z-index:2!important;top:calc(100% + 4px)!important;right:0!important;display:flex!important;flex-direction:column!important;min-width:156px!important;padding:5px!important;border:1px solid var(--pm-border,var(--SmartThemeBorderColor,rgba(148,163,184,.32)))!important;border-radius:9px!important;background:var(--pm-card-bg,var(--SmartThemeBlurTintColor,#232630))!important;box-shadow:0 10px 24px rgba(0,0,0,.28)!important}.pmm-switch-snapshot-menu--pending{visibility:hidden!important}.pmm-switch-snapshot-menu button{display:flex!important;align-items:center!important;gap:7px!important;min-height:29px!important;padding:0 8px!important;border:0!important;border-radius:6px!important;background:transparent!important;color:inherit!important;text-align:left!important;font:inherit!important;font-size:11px!important;cursor:pointer!important}.pmm-switch-snapshot-menu button:hover{background:rgba(127,127,127,.12)!important}.pmm-switch-snapshot-menu button i{width:11px!important;opacity:.65!important}.pmm-switch-character-picker-layer{position:absolute!important;inset:0!important;z-index:6!important;box-sizing:border-box!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:14px!important}.pmm-switch-character-picker-backdrop{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;border:0!important;background:rgba(0,0,0,.48)!important;backdrop-filter:blur(2px)!important;-webkit-backdrop-filter:blur(2px)!important;cursor:pointer!important}.pmm-switch-character-picker{position:relative!important;z-index:1!important;box-sizing:border-box!important;width:min(390px,100%)!important;max-height:calc(100% - 10px)!important;display:flex!important;flex-direction:column!important;overflow:hidden!important;border:1px solid var(--pm-border,var(--SmartThemeBorderColor,rgba(148,163,184,.38)))!important;border-radius:13px!important;background:var(--pm-card-bg,var(--SmartThemeBlurTintColor,#232630))!important;box-shadow:0 16px 42px rgba(0,0,0,.38)!important}.pmm-switch-character-picker>header{display:flex!important;align-items:flex-start!important;justify-content:space-between!important;gap:12px!important;padding:13px 14px 11px!important;border-bottom:1px solid rgba(148,163,184,.18)!important}.pmm-switch-character-picker>header h3{display:flex!important;align-items:center!important;gap:7px!important;margin:0!important;font-size:13px!important}.pmm-switch-character-picker>header h3 i{color:#22c55e!important}.pmm-switch-character-picker>header small{display:block!important;margin-top:4px!important;font-size:9px!important;opacity:.58!important}.pmm-switch-character-picker>header button{display:flex!important;align-items:center!important;justify-content:center!important;width:25px!important;height:25px!important;border:0!important;border-radius:6px!important;background:transparent!important;color:inherit!important;cursor:pointer!important;opacity:.65!important}.pmm-switch-character-picker-search{box-sizing:border-box!important;display:flex!important;align-items:center!important;gap:7px!important;margin:11px 12px 8px!important;padding:0 9px!important;height:34px!important;border:1px solid rgba(148,163,184,.28)!important;border-radius:8px!important;background:rgba(127,127,127,.07)!important}.pmm-switch-character-picker-search:focus-within{border-color:#22c55e!important}.pmm-switch-character-picker-search i{font-size:10px!important;opacity:.55!important}.pmm-switch-character-picker-search input{min-width:0!important;flex:1 1 auto!important;border:0!important;outline:0!important;background:transparent!important;color:inherit!important;font:inherit!important;font-size:11px!important}.pmm-switch-character-picker-list{min-height:90px!important;overflow:auto!important;padding:0 8px 8px!important}.pmm-switch-character-picker-option{box-sizing:border-box!important;display:flex!important;align-items:center!important;gap:9px!important;width:100%!important;min-height:39px!important;margin:2px 0!important;padding:6px 8px!important;border:1px solid transparent!important;border-radius:8px!important;background:transparent!important;color:inherit!important;text-align:left!important;font:inherit!important;cursor:pointer!important}.pmm-switch-character-picker-option:hover{background:rgba(127,127,127,.09)!important}.pmm-switch-character-picker-option>i{width:14px!important;color:inherit!important;font-size:13px!important;opacity:.5!important}.pmm-switch-character-picker-option>span{display:flex!important;min-width:0!important;flex-direction:column!important;gap:2px!important}.pmm-switch-character-picker-option strong{overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;font-size:11px!important;font-weight:600!important}.pmm-switch-character-picker-option small{overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;font-size:9px!important;opacity:.5!important}.pmm-switch-character-picker-option.is-selected{border-color:rgba(34,197,94,.3)!important;background:rgba(34,197,94,.09)!important}.pmm-switch-character-picker-option.is-selected>i{color:#22c55e!important;opacity:1!important}.pmm-switch-character-picker-empty{display:flex!important;align-items:center!important;justify-content:center!important;min-height:90px!important;font-size:10px!important;opacity:.58!important}.pmm-switch-character-picker-actions{display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:7px!important;padding:10px 12px!important;border-top:1px solid rgba(148,163,184,.18)!important}.pmm-switch-character-picker-actions>span{margin-right:auto!important;font-size:9px!important;opacity:.58!important}.pmm-switch-character-picker-actions button{height:29px!important;padding:0 10px!important;border:1px solid rgba(148,163,184,.28)!important;border-radius:7px!important;background:rgba(127,127,127,.07)!important;color:inherit!important;font:inherit!important;font-size:10px!important;cursor:pointer!important}.pmm-switch-character-picker-actions button:last-child{border-color:rgba(34,197,94,.45)!important;background:rgba(34,197,94,.15)!important;font-weight:600!important}.pmm-switch-character-picker-actions button i{margin-right:4px!important}.pmm-switch-snapshot-empty{min-height:150px!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:8px!important;text-align:center!important;font-size:12px!important;opacity:.72!important}.pmm-switch-snapshot-empty i{font-size:22px!important;opacity:.55!important}.pmm-switch-snapshot-empty small{max-width:250px!important;font-size:10px!important;line-height:1.5!important;opacity:.72!important}.pmm-switch-snapshot-dialog footer{padding:11px 18px!important;border-top:1px solid var(--pm-border,var(--SmartThemeBorderColor,rgba(148,163,184,.20)))!important;font-size:10px!important;line-height:1.45!important;opacity:.55!important}
+      .pmm-switch-snapshot-actions{display:flex!important;align-items:center!important;gap:3px!important;flex:0 0 auto!important}.pmm-switch-snapshot-actions>button:first-of-type{min-width:42px!important;height:28px!important;padding:0 8px!important;font-size:11px!important}.pmm-switch-snapshot-more{width:25px!important;height:28px!important;font-size:10px!important;opacity:.58!important}.pmm-switch-snapshot-menu-wrap{position:relative!important}.pmm-switch-snapshot-menu{position:absolute!important;z-index:2!important;top:calc(100% + 4px)!important;right:0!important;display:flex!important;flex-direction:column!important;min-width:156px!important;padding:5px!important;border:1px solid var(--pm-border,var(--SmartThemeBorderColor,rgba(148,163,184,.32)))!important;border-radius:9px!important;background:var(--pm-card-bg,var(--SmartThemeBlurTintColor,#232630))!important;box-shadow:0 10px 24px rgba(0,0,0,.28)!important}.pmm-switch-snapshot-menu--pending{visibility:hidden!important}.pmm-switch-snapshot-menu button{display:flex!important;align-items:center!important;gap:7px!important;min-height:29px!important;padding:0 8px!important;border:0!important;border-radius:6px!important;background:transparent!important;color:inherit!important;text-align:left!important;font:inherit!important;font-size:11px!important;cursor:pointer!important}.pmm-switch-snapshot-menu button:hover{background:rgba(127,127,127,.12)!important}.pmm-switch-snapshot-menu button i{width:11px!important;opacity:.65!important}.pmm-switch-character-picker-layer{position:absolute!important;inset:0!important;z-index:6!important;box-sizing:border-box!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:14px!important}.pmm-switch-character-picker-backdrop{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;border:0!important;background:rgba(0,0,0,.48)!important;backdrop-filter:blur(2px)!important;-webkit-backdrop-filter:blur(2px)!important;cursor:pointer!important}.pmm-switch-character-picker{position:relative!important;z-index:1!important;box-sizing:border-box!important;width:min(390px,100%)!important;max-height:calc(100% - 10px)!important;display:flex!important;flex-direction:column!important;overflow:hidden!important;border:1px solid var(--pm-border,var(--SmartThemeBorderColor,rgba(148,163,184,.38)))!important;border-radius:13px!important;background:var(--pm-card-bg,var(--SmartThemeBlurTintColor,#232630))!important;box-shadow:0 16px 42px rgba(0,0,0,.38)!important}.pmm-switch-character-picker>header{display:flex!important;align-items:flex-start!important;justify-content:space-between!important;gap:12px!important;padding:13px 14px 11px!important;border-bottom:1px solid rgba(148,163,184,.18)!important}.pmm-switch-character-picker>header h3{display:flex!important;align-items:center!important;gap:7px!important;margin:0!important;font-size:13px!important}.pmm-switch-character-picker>header h3 i{color:#22c55e!important}.pmm-switch-character-picker>header small{display:block!important;margin-top:4px!important;font-size:9px!important;opacity:.58!important}.pmm-switch-character-picker>header button{display:flex!important;align-items:center!important;justify-content:center!important;width:25px!important;height:25px!important;border:0!important;border-radius:6px!important;background:transparent!important;color:inherit!important;cursor:pointer!important;opacity:.65!important}.pmm-switch-character-picker-search{box-sizing:border-box!important;display:flex!important;align-items:center!important;gap:7px!important;margin:11px 12px 8px!important;padding:0 9px!important;height:34px!important;border:1px solid rgba(148,163,184,.28)!important;border-radius:8px!important;background:rgba(127,127,127,.07)!important}.pmm-switch-character-picker-search:focus-within{border-color:#22c55e!important}.pmm-switch-character-picker-search i{font-size:10px!important;opacity:.55!important}.pmm-switch-character-picker-search input{min-width:0!important;flex:1 1 auto!important;border:0!important;outline:0!important;background:transparent!important;color:inherit!important;font:inherit!important;font-size:11px!important}.pmm-switch-character-picker-list{min-height:90px!important;overflow:auto!important;padding:0 8px 8px!important}.pmm-switch-character-picker-option{box-sizing:border-box!important;display:flex!important;align-items:center!important;gap:9px!important;width:100%!important;min-height:39px!important;margin:2px 0!important;padding:6px 8px!important;border:1px solid transparent!important;border-radius:8px!important;background:transparent!important;color:inherit!important;text-align:left!important;font:inherit!important;cursor:pointer!important}.pmm-switch-character-picker-option:hover{background:rgba(127,127,127,.09)!important}.pmm-switch-character-picker-option>i{width:14px!important;color:inherit!important;font-size:13px!important;opacity:.5!important}.pmm-switch-character-picker-option>span{display:flex!important;min-width:0!important;flex-direction:column!important;gap:2px!important}.pmm-switch-character-picker-option strong{overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;font-size:11px!important;font-weight:600!important}.pmm-switch-character-picker-option small{overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;font-size:9px!important;opacity:.5!important}.pmm-switch-character-picker-option.is-selected{border-color:rgba(34,197,94,.3)!important;background:rgba(34,197,94,.09)!important}.pmm-switch-character-picker-option.is-selected>i{color:#22c55e!important;opacity:1!important}.pmm-switch-character-picker-empty{display:flex!important;align-items:center!important;justify-content:center!important;min-height:90px!important;font-size:10px!important;opacity:.58!important}.pmm-switch-character-picker-actions{display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:7px!important;padding:10px 12px!important;border-top:1px solid rgba(148,163,184,.18)!important}.pmm-switch-character-picker-actions>span{margin-right:auto!important;font-size:9px!important;opacity:.58!important}.pmm-switch-character-picker-actions button{height:29px!important;padding:0 10px!important;border:1px solid rgba(148,163,184,.28)!important;border-radius:7px!important;background:rgba(127,127,127,.07)!important;color:inherit!important;font:inherit!important;font-size:10px!important;cursor:pointer!important}.pmm-switch-character-picker-actions button:last-child{border-color:rgba(34,197,94,.45)!important;background:rgba(34,197,94,.15)!important;font-weight:600!important}.pmm-switch-character-picker-actions button i{margin-right:4px!important}.pmm-switch-snapshot-empty{min-height:150px!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:8px!important;text-align:center!important;font-size:12px!important;opacity:.72!important}.pmm-switch-snapshot-empty i{font-size:22px!important;opacity:.55!important}.pmm-switch-snapshot-empty small{max-width:250px!important;font-size:10px!important;line-height:1.5!important;opacity:.72!important}.pmm-switch-snapshot-dialog footer{padding:11px 18px!important;border-top:1px solid var(--pm-border,var(--SmartThemeBorderColor,rgba(148,163,184,.20)))!important;font-size:10px!important;line-height:1.45!important;opacity:.55!important}
       .pmm-switch-character-picker-actions{flex-wrap:wrap!important}.pmm-switch-snapshot-menu .pmm-switch-snapshot-clear-characters:not(:disabled){color:#ef6b6b!important}.pmm-switch-snapshot-menu .pmm-switch-snapshot-clear-characters:disabled{pointer-events:none!important;background:transparent!important;color:inherit!important;opacity:.25!important}
       .pmm-switch-snapshot-row.is-active{background:color-mix(in srgb,var(--pm-quote-color,var(--SmartThemeQuoteColor,#6b7db2)) 7%,transparent)!important}.pmm-switch-snapshot-actions>button.is-current:disabled,.pmm-switch-snapshot-default-actions>button:disabled{cursor:default!important;pointer-events:none!important;border-color:rgba(148,163,184,.20)!important;background:rgba(127,127,127,.07)!important;color:inherit!important;opacity:.48!important}
     `;
@@ -16558,7 +16588,7 @@ import { requestSnapshotName } from './snapshot-name-dialog.js?v=2.98.0-test.32'
       #pmm-switch-snapshots-test52-overlay .pmm-switch-snapshot-bindings{min-width:0!important}
       #pmm-switch-snapshots-test52-overlay .pmm-switch-snapshot-locks{gap:4px!important}
       #pmm-switch-snapshots-test52-overlay .pmm-switch-snapshot-lock{box-sizing:border-box!important;min-width:46px!important;padding:0 5px!important;white-space:nowrap!important}
-      #pmm-switch-snapshots-test52-overlay .pmm-switch-snapshot-actions{white-space:nowrap!important}
+      #pmm-switch-snapshots-test52-overlay .pmm-switch-snapshot-actions{white-space:nowrap!important}.pmm-switch-snapshot-adjusted{font-size:10px!important;opacity:.75!important;margin-right:3px!important}
       #pmm-switch-snapshots-test52-overlay .pmm-switch-snapshot-character-names{grid-column:1 / -1!important}
       .pmm-switch-editor-standalone{margin:7px 0!important;overflow:hidden!important;border:1px solid var(--pm-border,var(--SmartThemeBorderColor,rgba(148,163,184,.27)))!important;border-radius:11px!important;background:rgba(127,127,127,.035)!important}
     `;
