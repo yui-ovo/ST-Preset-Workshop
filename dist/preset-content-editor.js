@@ -114,13 +114,25 @@
     let lastInputAt = 0;
     let focusTimer = null;
     let hostObserver = null;
+    let chromeFrame = null;
     const updateUndoButton = () => {
       const available = undoStack.length > 0;
       undoButton.disabled = !available;
       undoButton.title = available ? '撤销本次编辑' : '暂无可撤销输入';
     };
+    const updateEditorChrome = () => {
+      chromeFrame = null;
+      counter.textContent = `${textarea.value.length} 字符`;
+      updateUndoButton();
+    };
+    const scheduleEditorChrome = () => {
+      if (chromeFrame !== null) return;
+      chromeFrame = TOP.requestAnimationFrame(updateEditorChrome);
+    };
     const closeEditor = () => {
       TOP.clearTimeout(focusTimer);
+      if (chromeFrame !== null) TOP.cancelAnimationFrame(chromeFrame);
+      chromeFrame = null;
       hostObserver?.disconnect();
       overlay.remove();
       host.classList.remove('pmm-preset-editor-host');
@@ -133,8 +145,8 @@
       textarea.value = undoStack.pop();
       previousValue = textarea.value;
       lastInputAt = 0;
-      counter.textContent = `${textarea.value.length} 字符`;
-      updateUndoButton();
+      if (chromeFrame !== null) TOP.cancelAnimationFrame(chromeFrame);
+      updateEditorChrome();
       desktop ? textarea.focus({ preventScroll: true }) : textarea.focus();
       const cursor = Math.min(Number.isFinite(start) ? start : textarea.value.length, textarea.value.length);
       textarea.setSelectionRange(cursor, cursor);
@@ -153,8 +165,7 @@
       if (!undoStack.length || now - lastInputAt > 450) undoStack.push(previousValue);
       previousValue = textarea.value;
       lastInputAt = now;
-      counter.textContent = `${textarea.value.length} 字符`;
-      updateUndoButton();
+      scheduleEditorChrome();
     });
     undoButton.addEventListener('click', undoInput);
     overlay.querySelector('[data-pmm-editor-cancel]').addEventListener('click', closeEditor);

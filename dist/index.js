@@ -1,18 +1,16 @@
 const EXTENSION_NAME = '🧩预设工坊';
-const EXTENSION_VERSION = '2.98.17-page0x00.1';
+const EXTENSION_VERSION = '2.98.17-page0x00.2';
 const RUNTIME_ID = 'TH-script--🧩预设工坊（GitHub 扩展）--2f53f6af-3c9e-4c71-bc52-9f635be25300';
 const LEGACY_IFRAME_PREFIX = 'TH-script--🧩预设工坊';
 const EXTENSION_FOLDER_NAME = 'ST-Preset-Workshop';
 const HELPER_WAIT_TIMEOUT = 60_000;
 const LEGACY_GRACE_PERIOD = 3_000;
-const VERSION_CHECK_INTERVAL = 30_000;
 const RAPID_VERSION_CHECK_INTERVAL = 750;
 const RAPID_VERSION_CHECK_TIMEOUT = 65_000;
 const UPDATE_MANAGER_SETTLE_DELAY = 1_500;
 const UPDATE_MANAGER_CLOSE_POLL_INTERVAL = 50;
 const TOP_NOTIFICATION_STORAGE_KEY = 'pmm_top_notifications_enabled_v1';
 
-let versionCheckTimer = null;
 let versionCheckBusy = false;
 let rapidVersionCheckTimer = null;
 let rapidVersionCheckStopTimer = null;
@@ -245,9 +243,7 @@ export function onUpdate() {
 }
 
 function startVersionWatcher() {
-  if (versionCheckTimer !== null) return;
   void checkForInstalledUpdate();
-  versionCheckTimer = globalThis.setInterval(() => void checkForInstalledUpdate(), VERSION_CHECK_INTERVAL);
   document.addEventListener('visibilitychange', handleVisibilityChange);
   document.addEventListener('click', handleNativeExtensionManagerClick, true);
 }
@@ -256,10 +252,6 @@ function stopVersionWatcher() {
   document.removeEventListener('visibilitychange', handleVisibilityChange);
   document.removeEventListener('click', handleNativeExtensionManagerClick, true);
   stopRapidVersionCheck();
-  if (versionCheckTimer !== null) {
-    globalThis.clearInterval(versionCheckTimer);
-    versionCheckTimer = null;
-  }
 }
 
 function findLegacyRuntime() {
