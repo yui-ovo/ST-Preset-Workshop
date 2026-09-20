@@ -1,18 +1,16 @@
 const EXTENSION_NAME = '🧩预设工坊';
-const EXTENSION_VERSION = '2.98.17';
+const EXTENSION_VERSION = '2.98.17-page0x00.2';
 const RUNTIME_ID = 'TH-script--🧩预设工坊（GitHub 扩展）--2f53f6af-3c9e-4c71-bc52-9f635be25300';
 const LEGACY_IFRAME_PREFIX = 'TH-script--🧩预设工坊';
 const EXTENSION_FOLDER_NAME = 'ST-Preset-Workshop';
 const HELPER_WAIT_TIMEOUT = 60_000;
 const LEGACY_GRACE_PERIOD = 3_000;
-const VERSION_CHECK_INTERVAL = 30_000;
 const RAPID_VERSION_CHECK_INTERVAL = 750;
 const RAPID_VERSION_CHECK_TIMEOUT = 65_000;
 const UPDATE_MANAGER_SETTLE_DELAY = 1_500;
 const UPDATE_MANAGER_CLOSE_POLL_INTERVAL = 50;
 const TOP_NOTIFICATION_STORAGE_KEY = 'pmm_top_notifications_enabled_v1';
 
-let versionCheckTimer = null;
 let versionCheckBusy = false;
 let rapidVersionCheckTimer = null;
 let rapidVersionCheckStopTimer = null;
@@ -20,6 +18,7 @@ let nativeUpdateReloadTimer = null;
 let nativeUpdateReloadPending = false;
 let singleExtensionUpdatePending = false;
 let bulkExtensionUpdateInProgress = false;
+let updateReloadDeferred = false;
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -69,11 +68,10 @@ async function checkForInstalledUpdate() {
       return;
     } else {
       stopVersionWatcher();
-      notify('info', `扩展已更新至 v${nextVersion}，正在自动刷新酒馆`);
+      notify('info', `扩展已更新至 v${nextVersion}`);
       await sleep(450);
     }
-    globalThis.__PMM_PERFORMANCE_GUARD_V275__?.markReloadReason?.('extension-update');
-    globalThis.location.reload();
+    markExtensionUpdateReload();
   } catch (error) {
     console.debug(`[${EXTENSION_NAME}] 暂未检测到可自动载入的新版本。`, error);
   } finally {
@@ -126,6 +124,20 @@ function startRapidVersionCheck() {
   );
 }
 
+function canAutoReloadAfterUpdate() {
+  // Context is a live snapshot, so check again immediately before every reload.
+  // Never attempt to "flush" an empty/loading chat by calling a chat save API here.
+  try {
+    const context = globalThis.SillyTavern?.getContext?.();
+    if (!context || !Array.isArray(context.chat)) return false;
+    const selected = value => value !== undefined && value !== null && value !== '';
+    if (selected(context.chatId) || selected(context.characterId) || selected(context.groupId)) return false;
+    if (context.chat.length || context.streamingProcessor) return false;
+    if (document.activeElement?.matches?.('input,textarea,[contenteditable="true"]')) return false;
+    return true;
+  } catch (_) { return false; }
+}
+
 function clearPendingExtensionUpdateReload() {
   if (nativeUpdateReloadTimer !== null) {
     globalThis.clearTimeout(nativeUpdateReloadTimer);
@@ -137,8 +149,16 @@ function clearPendingExtensionUpdateReload() {
 
 function markExtensionUpdateReload() {
   clearPendingExtensionUpdateReload();
+  if (!canAutoReloadAfterUpdate()) {
+    if (!updateReloadDeferred) {
+      updateReloadDeferred = true;
+      notify('info', '扩展更新已完成；为避免中断聊天，请在聊天保存完成后手动刷新。');
+    }
+    return false;
+  }
   globalThis.__PMM_PERFORMANCE_GUARD_V275__?.markReloadReason?.('extension-update');
   globalThis.location.reload();
+  return true;
 }
 
 function activeExtensionManagerDialog() {
@@ -223,9 +243,7 @@ export function onUpdate() {
 }
 
 function startVersionWatcher() {
-  if (versionCheckTimer !== null) return;
   void checkForInstalledUpdate();
-  versionCheckTimer = globalThis.setInterval(() => void checkForInstalledUpdate(), VERSION_CHECK_INTERVAL);
   document.addEventListener('visibilitychange', handleVisibilityChange);
   document.addEventListener('click', handleNativeExtensionManagerClick, true);
 }
@@ -234,10 +252,6 @@ function stopVersionWatcher() {
   document.removeEventListener('visibilitychange', handleVisibilityChange);
   document.removeEventListener('click', handleNativeExtensionManagerClick, true);
   stopRapidVersionCheck();
-  if (versionCheckTimer !== null) {
-    globalThis.clearInterval(versionCheckTimer);
-    versionCheckTimer = null;
-  }
 }
 
 function findLegacyRuntime() {
@@ -278,6 +292,11 @@ function buildRuntimeDocument() {
   const parentJqueryUrl = appendRuntimeVersion(new URL('../bridge/parent-jquery.js', import.meta.url).href);
   const predefineUrl = appendRuntimeVersion(new URL('../bridge/predefine.js', import.meta.url).href);
   const workshopUrl = appendRuntimeVersion(new URL('./workshop-v3.02.js', import.meta.url).href);
+  const windowStackUrl = appendRuntimeVersion(new URL('./workshop-window-stack.js', import.meta.url).href);
+  const floatingStoreUrl = appendRuntimeVersion(new URL('./workshop-floating-store.js', import.meta.url).href);
+  const themeSystemUrl = appendRuntimeVersion(new URL('./workshop-theme-system.js', import.meta.url).href);
+  const floatingControllerUrl = appendRuntimeVersion(new URL('./workshop-floating-controller.js', import.meta.url).href);
+  const layoutControllerUrl = appendRuntimeVersion(new URL('./workshop-layout-controller.js', import.meta.url).href);
   const presetContentEditorUrl = appendRuntimeVersion(new URL('./preset-content-editor.js', import.meta.url).href);
   const worldbookStitchUrl = appendRuntimeVersion(new URL('./worldbook-stitch-test3.js', import.meta.url).href);
   const worldbookSnapshotsUrl = appendRuntimeVersion(new URL('./worldbook-snapshots.js', import.meta.url).href);
@@ -296,6 +315,15 @@ function buildRuntimeDocument() {
 <body>
 <script>
 (() => {
+  window.addEventListener('pagehide', () => {
+    for (const key of ['__PMM_FLOATING_CONTROLLER__','__PMM_LAYOUT_CONTROLLER__','__PMM_THEME_SYSTEM__','__PMM_FLOATING_STORE__','__PMM_WINDOW_STACK__']) {
+      const api = window[key];
+      if (api && window.parent[key] === api) {
+        try { api.destroy?.(); } catch (_) {}
+        if (window.parent[key] === api) delete window.parent[key];
+      }
+    }
+  }, { once:true });
   const source = ${JSON.stringify(worldbookStitchUrl)};
   const loaderKey = ${JSON.stringify(worldbookLoaderKey)};
   const apiKey = '__PMM_WORLDBOOK_STITCH_TEST3__';
@@ -330,7 +358,12 @@ function buildRuntimeDocument() {
 </script>
 <script type="module" src="${presetContentEditorUrl}"></script>
 <script type="module" src="${worldbookSnapshotsUrl}"></script>
+<script type="module" src="${windowStackUrl}"></script>
 <script type="module" src="${workshopUrl}"></script>
+<script type="module" src="${floatingStoreUrl}"></script>
+<script type="module" src="${themeSystemUrl}"></script>
+<script type="module" src="${floatingControllerUrl}"></script>
+<script type="module" src="${layoutControllerUrl}"></script>
 </body>
 </html>`;
 }
@@ -381,7 +414,12 @@ export function stopPresetWorkshop() {
   stopVersionWatcher();
   clearPendingExtensionUpdateReload();
   try { globalThis.__PMM_PRESET_CONTENT_EDITOR_V1__?.cleanup?.(); } catch (_) {}
-  document.getElementById(RUNTIME_ID)?.remove();
+  const runtime = document.getElementById(RUNTIME_ID);
+  if (runtime) {
+    // Android WebViews do not reliably dispatch pagehide when an iframe is removed.
+    try { runtime.contentWindow.dispatchEvent(new runtime.contentWindow.Event('pagehide')); } catch (_) {}
+    runtime.remove();
+  }
 }
 
 globalThis.__ST_PRESET_WORKSHOP__ = {

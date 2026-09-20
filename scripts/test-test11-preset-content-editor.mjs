@@ -16,6 +16,8 @@ for (const marker of [
   "DOC.addEventListener('click', onPresetExpandClick, true);",
   'width:min(92%,660px);height:min(82%,680px)',
   'width:94%;height:82%;max-height:calc(100dvh - 24px)',
+  'chromeFrame = TOP.requestAnimationFrame(updateEditorChrome);',
+  'TOP.cancelAnimationFrame(chromeFrame)',
 ]) {
   assert.ok(editor.includes(marker), `test.11 独立预设正文编辑器缺少实现：${marker}`);
 }

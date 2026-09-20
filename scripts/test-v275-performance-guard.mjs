@@ -21,7 +21,8 @@ assert.ok(source.includes('const mo = new MutationObserver(requestScan)'), '移�
 assert.ok(source.includes('if (performanceGuard()?.isBusy?.())'), '延迟后的变量核对没有再次确认忙碌状态');
 assert.ok(source.includes('V2.75 已加载'), '缺少 v2.75 业务加载标记');
 
-assert.ok(entry.includes('VERSION_CHECK_INTERVAL = 30_000'), '扩展版本轮询仍然过于频繁');
+assert.ok(!entry.includes('const VERSION_CHECK_INTERVAL'), '扩展版本检查不应使用常驻轮询');
+assert.ok(!/versionCheckTimer\s*=\s*globalThis\.setInterval/.test(entry), '扩展版本检查不应注册常驻定时器');
 assert.ok(entry.includes("document.visibilityState === 'hidden'"), '页面进入后台时没有暂停版本检查');
 assert.ok(entry.includes("markReloadReason?.('extension-update')"), '扩展主动刷新前没有记录原因');
 assert.ok(entry.includes("document.addEventListener('visibilitychange', handleVisibilityChange)"), '回到前台后不会立即补做版本检查');

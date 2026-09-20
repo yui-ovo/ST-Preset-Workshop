@@ -1,0 +1,115 @@
+{
+  "version": "2.98.17-page0x00.1",
+  "upstream_commit": "da6ecb1f2da2d7b0a9aa966095ab274f13a5d16a",
+  "previous_local_commit": "3a3c52428008bc3eb77428fae91137894d19443e",
+  "snapshot_module": {
+    "matches_author": true,
+    "characters": 131029,
+    "sha256": "619278d7e1d19a1d93ffe7c7553a4d7a34ba2b509ae8d783fc02578574fa729e"
+  },
+  "checks": {
+    "check": {
+      "exit_code": 0,
+      "output_tail": [
+        "Worldbook snapshots: transitions, drafts, shared books, eligibility, groups and recovery passed.",
+        "Worldbook bundles passed: defaults, chat locks, editing, rollback, group plans, conflicts and stale drafts.",
+        "Character worldbook identity passed: duplicate names, current/avatar lookup, one-call reads, stale context, snapshot binding/restore and old snapshot safety."
+      ]
+    },
+    "check:ui": {
+      "exit_code": 0,
+      "output_tail": [
+        "中控保存回归通过：独立/主界面下重置即时同步、保存不关闭、数值/界面即时同步、输入法草稿提交、旧滑杆帧不能覆盖新数值、滑杆继续可用、保存提示、失败保护及保存后取消/重载。",
+        "条幅宽度契约通过：旧保存值迁移、首次内容默认、独立 profile、默认持久化、数值逐帧预览及取消/保存。",
+        "作者整合运行回归通过：搜索、原生入口与清理，以及轻量快照保存/取消时的正文草稿与重启缓存隔离。"
+      ]
+    },
+    "author:desktop-content-editor": {
+      "exit_code": 0,
+      "output_tail": [
+        "Mobile 390px: single editor; 0 MutationObservers, 0 ResizeObservers, 0 viewport listeners after repeated opens.",
+        "Mobile 820px: single editor; 0 MutationObservers, 0 ResizeObservers, 0 viewport listeners after repeated opens.",
+        "Desktop editor passed: centering, independent merge editors, opposite-side clicks, save/undo/cancel, cleanup; mobile geometry and single-editor behavior unchanged."
+      ]
+    },
+    "author:snapshot-save-ui": {
+      "exit_code": 0,
+      "output_tail": [
+        "Preset snapshot UI passed: 390 light",
+        "Preset snapshot UI passed: 1280 dark",
+        "Preset snapshot UI passed: 1280 light"
+      ]
+    },
+    "test:content-editor-integration-browser": {
+      "exit_code": 0,
+      "output_tail": [
+        "",
+        "Desktop editor layout reads: { chatReads: 0, typingReads: 0, overlays: 2 }",
+        "Content editor integration passed: zero chat/typing layout reads, independent source cleanup, hidden/removed owner, mode exit and pagehide."
+      ]
+    },
+    "test:banner-browser": {
+      "exit_code": 0,
+      "output_tail": [
+        "  }",
+        "}",
+        "真实 Chromium 回归通过：5 类屏幕、最终 clip、唯一入口、内容默认/重置、保存/reload/重挂载、八种正文状态在浅/深宿主背景下可读，材质不变。"
+      ]
+    },
+    "test:phone-performance-browser": {
+      "exit_code": 0,
+      "output_tail": [
+        "Phone performance regression passed: phone landscape",
+        "Phone performance regression passed: desktop",
+        "Passed: surface-only motion variables, native scoped DOM, phone ratio preview, save/cancel/reload, material restoration and unchanged desktop path."
+      ]
+    },
+    "test:floating-dock-browser": {
+      "exit_code": 0,
+      "output_tail": [
+        "Floating dock passed: tablet landscape",
+        "Floating dock passed: desktop",
+        "Floating dock browser passed: short inward detach, release/reload, cancel, redock, immediate opening, native edge shape, skin follow and zero gesture reads."
+      ]
+    }
+  },
+  "worldbook_unsaved_target_exit_code": 0,
+  "node_validation_script_invocations": 147,
+  "editor_layout_reads": {
+    "events_per_case": 40,
+    "open_editors": 2,
+    "before": {
+      "chat": 80,
+      "typing": 80
+    },
+    "after": {
+      "chat": 0,
+      "typing": 0
+    }
+  },
+  "editor_theme_text": {
+    "combinations": 8,
+    "matches_existing_theme_text": true,
+    "material_tokens_changed": false
+  },
+  "browser_environment": {
+    "browser": "Chromium 149.0.7827.155",
+    "author_tests": "Unmodified copies in an isolated temporary directory; Playwright over CDP.",
+    "dependencies": "Temporary directory only; no extension dependency added.",
+    "scrollbars": "Hidden to match author desktop viewport-center assertions; default Linux scrollbars reserve 15px."
+  },
+  "initial_diagnostics": [
+    "A parallel banner run failed the changed-width assertion once. An isolated phone diagnostic and the subsequent serial full five-viewport run passed; native CSS and layout/width runtime are byte-identical to the previous release.",
+    "Author desktop observers caused 80 chat and 80 typing layout reads for 40 updates each; narrowed direct-owner observation fixes both.",
+    "Moving desktop editors to body dropped the existing themed text rule (aqua dark showed rgb(8,18,28) instead of white); reuse of the existing text token fixes all eight combinations."
+  ],
+  "unchanged_files": {
+    "dist/workshop-theme-system.js": "d8c1a8ea6e643c0e3e86a3ecfc092cae3027569cf5d21d7e8ae0f8e6e49586da",
+    "scripts/fixtures/workshop-frozen-visuals.json": "a82158a143b654eb2d3c28cf997c3a9659bac7c5957a5506d75d21226cdb95cb",
+    "preset-v2.48-p39.json": "dca1f582cbafd4d0eb5c4d07d12dc38983461fea8d0977d5e3d74c8f1a250cba"
+  },
+  "limitations": [
+    "Frontend browser fixtures do not run the full Tavern chat backend.",
+    "Android GPU frame rate and full host integration require actual device use."
+  ]
+}

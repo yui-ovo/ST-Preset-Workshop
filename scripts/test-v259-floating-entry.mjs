@@ -25,6 +25,8 @@ assert.ok(entry.includes("new URL('../manifest.json', import.meta.url)"), '自�
 assert.ok(entry.includes("cache: 'no-store'"), '版本检查仍可能读取缓存');
 assert.ok(entry.includes('await sleep(900)'), '更新文件没有二次确认写入完成');
 assert.ok(entry.includes('globalThis.location.reload()'), '检测到更新后没有刷新酒馆');
-assert.ok(entry.includes('VERSION_CHECK_INTERVAL = 30_000'), '版本监测间隔没有降低后台开销');
+assert.ok(!entry.includes('const VERSION_CHECK_INTERVAL'), '不应保留常驻版本轮询间隔');
+assert.ok(!/versionCheckTimer\s*=\s*globalThis\.setInterval/.test(entry), '不应常驻轮询扩展版本');
+assert.ok(entry.includes("document.addEventListener('visibilitychange', handleVisibilityChange)"), '回到前台时仍应即时检查版本');
 
 console.log('v2.59 悬浮入口测试通过：默认更短、箭头可短距离横拖换边，后续更新会自动刷新酒馆。');
