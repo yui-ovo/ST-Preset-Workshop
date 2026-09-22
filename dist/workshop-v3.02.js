@@ -17486,4 +17486,93 @@ console.info('[预设工坊] V2.97.21 已加载：快照模式仅保留条目与
   console.info('[预设工坊] test.94 已加载：桌面端四角均可拖动自由缩放，居中扩缩与双击仅恢复默认宽度已就绪。');
 })();
 
+/* ===== PMM_SEARCH_REPEAT_JUMP_V29818：单结果与手机键盘下重复定位 ===== */
+;(() => {
+  const API_KEY = '__PMM_SEARCH_REPEAT_JUMP_V29818__';
+  const INPUT_SELECTOR = '#preset-manager-main-panel .preset-panel .search-card__input';
+  const NAV_SELECTOR = '#preset-manager-main-panel .preset-panel .search-card__nav';
+  const scheduled = new WeakMap();
+  const liveTimers = new Set();
+
+  function clearScheduled(panel) {
+    const ids = scheduled.get(panel) || [];
+    for (const id of ids) {
+      clearTimeout(id);
+      liveTimers.delete(id);
+    }
+    scheduled.delete(panel);
+  }
+
+  function centerCurrentResult(panel, behavior = 'auto') {
+    const list = panel?.querySelector?.('.prompt-panel__list');
+    const target = panel?.querySelector?.('.prompt-item--highlighted');
+    if (!list || !target) return false;
+
+    const listRect = list.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const top = Math.max(0,
+      list.scrollTop + targetRect.top - listRect.top - (list.clientHeight - targetRect.height) / 2
+    );
+    try { list.scrollTo({ top, behavior }); }
+    catch (_) { list.scrollTop = top; }
+    return true;
+  }
+
+  function scheduleCurrentResult(control) {
+    const panel = control?.closest?.('#preset-manager-main-panel .preset-panel');
+    if (!panel) return;
+    clearScheduled(panel);
+
+    const ids = [];
+    const queue = (delay, behavior) => {
+      const id = setTimeout(() => {
+        liveTimers.delete(id);
+        if (!scheduled.get(panel)?.includes(id)) return;
+        centerCurrentResult(panel, behavior);
+      }, delay);
+      ids.push(id);
+      liveTimers.add(id);
+    };
+
+    // 第一轮等待 Vue 完成分组展开；第二轮校正手机键盘改变可视高度后的中心位置。
+    queue(48, 'smooth');
+    queue(360, 'auto');
+    scheduled.set(panel, ids);
+  }
+
+  function onInput(event) {
+    if (event.target?.matches?.(INPUT_SELECTOR)) scheduleCurrentResult(event.target);
+  }
+
+  function onClick(event) {
+    const control = event.target?.closest?.(NAV_SELECTOR);
+    if (control) scheduleCurrentResult(control);
+  }
+
+  const documents = [];
+  for (const candidate of [document, (() => { try { return window.top?.document; } catch (_) { return null; } })()]) {
+    if (candidate && !documents.includes(candidate)) documents.push(candidate);
+  }
+
+  function cleanup() {
+    for (const doc of documents) {
+      doc.removeEventListener('input', onInput);
+      doc.removeEventListener('click', onClick);
+    }
+    for (const id of liveTimers) clearTimeout(id);
+    liveTimers.clear();
+    try { if (window.top?.[API_KEY]?.cleanup === cleanup) delete window.top[API_KEY]; } catch (_) {}
+  }
+
+  try { window.top?.[API_KEY]?.cleanup?.(); } catch (_) {}
+  for (const doc of documents) {
+    doc.addEventListener('input', onInput, { passive: true });
+    doc.addEventListener('click', onClick, { passive: true });
+  }
+
+  const api = { cleanup, centerCurrentResult, scheduleCurrentResult };
+  try { window.top[API_KEY] = api; } catch (_) { window[API_KEY] = api; }
+})();
+/* ===== PMM_SEARCH_REPEAT_JUMP_V29818 END ===== */
+
 console.info('[预设工坊] V2.98.1 已加载：分支继承字段会随最新默认重基。');
