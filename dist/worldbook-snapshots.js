@@ -444,7 +444,7 @@ function decorateBackup(root) {
   control.innerHTML = '<i class="fa-solid fa-box-archive"></i>';
   control.addEventListener('click', async event => {
     event.preventDefault(); event.stopPropagation();
-    try { const module = await import('./snapshot-backup.js?v=2.98.19'); module.openSnapshotBackup(TOP); }
+    try { const module = await import('./snapshot-backup.js?v=2.98.20'); module.openSnapshotBackup(TOP); }
     catch (error) { report(error); }
   });
   header.insertBefore(control, header.lastElementChild);

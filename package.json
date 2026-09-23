@@ -1,9 +1,10 @@
 {
   "name": "st-preset-workshop",
-  "version": "2.98.19",
+  "version": "2.98.20",
   "private": true,
   "type": "module",
   "scripts": {
+    "test:snapshot-backup-viewport": "node scripts/test-snapshot-backup-viewport.mjs",
     "test:snapshot-backup": "node scripts/test-snapshot-backup.mjs",
     "test:worldbook-unsaved-target": "node scripts/test-worldbook-unsaved-target.mjs",
     "test:snapshot-ui": "node scripts/test-test97-snapshot-save-ui-browser.mjs && node scripts/test-worldbook-snapshots-browser.mjs",
