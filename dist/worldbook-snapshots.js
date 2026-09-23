@@ -431,6 +431,23 @@ function decoratePreset(root) {
   root.classList.add('pmm-snapshot-hub-preset');
   theme(root);
   dialog.querySelector('.pmm-snapshot-tabs')?.remove();
+  decorateBackup(root);
+}
+function decorateBackup(root) {
+  const header = root?.querySelector('.pmm-switch-snapshot-head');
+  if (!header || header.querySelector('[data-snapshot-backup]')) return;
+  const control = DOC.createElement('button');
+  control.type = 'button'; control.dataset.snapshotBackup = '';
+  control.className = 'pmm-switch-snapshot-close';
+  control.title = '快照备份（预设和世界书）'; control.setAttribute('aria-label', '快照备份');
+  control.style.cssText = 'flex:0 0 34px;margin-left:auto';
+  control.innerHTML = '<i class="fa-solid fa-box-archive"></i>';
+  control.addEventListener('click', async event => {
+    event.preventDefault(); event.stopPropagation();
+    try { const module = await import('./snapshot-backup.js?v=2.98.19'); module.openSnapshotBackup(TOP); }
+    catch (error) { report(error); }
+  });
+  header.insertBefore(control, header.lastElementChild);
 }
 function theme(target = overlay) {
   if (!target) return;
@@ -917,6 +934,7 @@ function render() {
     <footer class="pmm-wbs-foot"><small>${draft ? (page==='character'?'只保存开关；聊天锁或“应用”才会应用。':'保存方案不挂载世界书；请在分组中选用。') : page==='global' ? '可一键全局挂载世界书分组；也可为分组世界书创建快照。' : '聊天锁自动应用 · 返回主页恢复进入前状态'}</small>${editing ? button('cancel-edit', '取消') + button(draft ? 'save-draft' : editGroup ? 'save-group' : 'save-rename', '保存', 'class="pmm-wbs-primary"') : ''}</footer>
     </section>`;
   filterDraft();
+  if (!editing) decorateBackup(overlay);
   filterGroupBooks();
   syncGroupSave();
   sizeGroupPlanSelects();
@@ -1242,7 +1260,7 @@ function cleanup() {
   closeBatch();void close(true); style.remove();
   if (TOP[KEY]?.engine === engine) delete TOP[KEY];
 }
-TOP[KEY] = { open, openBatch, decoratePreset, engine, cleanup, onChatChanged };
+TOP[KEY] = { open, openBatch, decoratePreset, engine, cleanup, onChatChanged, refreshAfterImport: () => { if (overlay && !draft && !editGroup && !renameId) render(); } };
 syncListener();
 installNativeWorldbookTools();
 // The persisted return journal also handles a browser refresh while inside a character.

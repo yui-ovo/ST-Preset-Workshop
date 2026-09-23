@@ -15675,6 +15675,7 @@ import { requestSnapshotName } from './snapshot-name-dialog.js?v=2.98.0-test.32'
     open: openOverlay,
     close: closeOverlay,
     list: () => clone(readStore().snapshots),
+    refreshAfterImport: () => { syncChatBindingListener(readStore(), false); renderOverlay(); },
     activeForPreset: presetName => {
       const snapshot = activeSnapshotForPreset(presetName);
       return snapshot ? { id:snapshot.id, name:snapshot.name, presetName:snapshot.presetName } : null;

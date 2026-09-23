@@ -4,10 +4,12 @@ import { readFile, mkdir } from 'node:fs/promises';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 const { chromium } = await import(process.env.PMM_PLAYWRIGHT_MODULE
   ? pathToFileURL(process.env.PMM_PLAYWRIGHT_MODULE).href : 'playwright');
-const files = Object.fromEntries(await Promise.all(['snapshot-name-dialog.js', 'worldbook-snapshots.js', 'worldbook-snapshot-core.js', 'worldbook-stitch-test3.js'].map(async name => [name, await readFile(new URL(`../dist/${name}`, import.meta.url), 'utf8')])));
+const files = Object.fromEntries(await Promise.all(['snapshot-backup.js', 'snapshot-backup-core.js', 'snapshot-name-dialog.js', 'worldbook-snapshots.js', 'worldbook-snapshot-core.js', 'worldbook-stitch-test3.js'].map(async name => [name, await readFile(new URL(`../dist/${name}`, import.meta.url), 'utf8')])));
 const html = `<!doctype html><html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
 body{background:#151515;margin:0;color:#ddd;font:14px system-ui} #preset-manager-main-panel{margin:20px;--pm-panel-bg:#191919;--pm-card-bg:#242424;--pm-border:#373737;--pm-text-primary:#eee;--pm-hover-bg:#303030;--pm-accent:#429980}
 .preset-panel{padding:20px;background:#191919}.pmm-switch-snapshot-dialog{display:flex;flex-direction:column;overflow:hidden;background:#222;padding:0;color:#eee}.pmm-switch-snapshot-head,.pmm-switch-snapshot-default,.pmm-switch-snapshot-create,.pmm-switch-snapshot-footer{flex-shrink:0;padding:12px}.pmm-switch-snapshot-list{min-height:0;overflow:auto}.pmm-switch-snapshot-row{min-height:72px;padding:8px;margin:4px}
+/* Match the Tavern host's border-box sizing, including the preset fixture's 1px border. */
+.pmm-switch-snapshot-dialog{box-sizing:border-box}
 </style><div id="preset-manager-main-panel"><div class="pm-panel-container"><div class="pm-main-wrapper"><div class="preset-panel"><div class="header-right"></div>预设工坊 · 界面测试</div></div></div></div><button id="camera">相机</button><script>
 const cp=x=>JSON.parse(JSON.stringify(x)); const listeners=new Set();
 const world=(prefix,n=16)=>({entries:Object.fromEntries(Array.from({length:n},(_,i)=>[i,{uid:i,comment:prefix+' · '+['角色设定','日常互动','剧情推进','场景细节'][i%4]+' '+i,content:'正文保留',disable:i%3===0}]))});
@@ -28,6 +30,55 @@ const browser = await chromium.launch({ channel: 'msedge', headless: true });
 const output = new URL('../../outputs/worldbook-v1/', import.meta.url);
 await mkdir(output, { recursive: true });
 try {
+  for (const width of [360, 390, 1280]) {
+    const page = await browser.newPage({ viewport: { width, height: 844 } });
+    const errors = []; page.on('pageerror', error => errors.push(error.message));
+    await page.goto(`http://127.0.0.1:${server.address().port}/`);
+    await page.waitForFunction(() => !!window.__PMM_WORLDBOOK_SNAPSHOTS__);
+    await page.evaluate(async () => {
+      localStorage.setItem('pmm.switch-snapshots.v1', JSON.stringify({version:1,snapshots:[{id:'p',name:'备份测试',presetName:'测试',states:[{id:'a',name:'条目',enabled:true}],characters:[{key:'rain.png',name:'小雨'}],chats:[]}]}));
+      localStorage.setItem('pmm.test.worldbook-snapshots.v1', JSON.stringify({version:1,snapshots:[{bundle:true,id:'w',name:'方案',scope:'group',owner:'g',books:{日常辅助:{0:false}},chat:null}],groups:[{id:'g',name:'备份分组',books:['日常辅助'],snapshot:'w',enabled:false}],defaults:[{bundle:true,name:'默认',scope:'group',owner:'g',books:{日常辅助:{0:true}}}],owned:[],session:null}));
+      __PMM_SWITCH_SNAPSHOTS_TEST52__.open();
+    });
+    await page.getByRole('button', {name:'快照备份',exact:true}).click();
+    await page.locator('#pmm-snapshot-backup').waitFor();
+    const downloaded = page.waitForEvent('download');
+    await page.getByRole('button', {name:'导出全部快照',exact:true}).click();
+    const file = await downloaded;
+    const payload = await readFile(await file.path(), 'utf8');
+    const backup = JSON.parse(payload);
+    assert.equal(backup.preset.snapshots.length, 1); assert.equal(backup.world.groups.length, 1);
+    const before = await page.evaluate(() => {
+      localStorage.removeItem('pmm.switch-snapshots.v1'); localStorage.removeItem('pmm.test.worldbook-snapshots.v1');
+      return JSON.stringify({data:fixture.data,globals:fixture.globals});
+    });
+    await page.locator('[data-file]').setInputFiles({name:'backup.json',mimeType:'application/json',buffer:Buffer.from(payload)});
+    await page.getByText('将新增：', {exact:false}).waitFor();
+    const bounds = await page.locator('#pmm-snapshot-backup section').boundingBox();
+    assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width && bounds.y >= 0 && bounds.y + bounds.height <= 844);
+    await page.screenshot({path:fileURLToPath(new URL(`backup-${width}.png`,output))});
+    await page.getByRole('button', {name:'确认合并导入'}).click();
+    await page.getByText('导入完成：', {exact:false}).waitFor();
+    assert.equal(await page.evaluate(() => JSON.stringify({data:fixture.data,globals:fixture.globals})), before, 'Import does not apply switches or mount books');
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('pmm.test.worldbook-snapshots.v1')).groups[0].enabled),false);
+    assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('pmm.switch-snapshots.v1')).snapshots[0].characters),[]);
+    await page.locator('[data-file]').setInputFiles({name:'backup.json',mimeType:'application/json',buffer:Buffer.from(payload)});
+    await page.waitForFunction(() => document.querySelector('[data-import]').disabled);
+    assert.equal(await page.locator('[data-conflicts]').isVisible(), true);
+    await page.locator('[data-file]').setInputFiles({name:'bad.json',mimeType:'application/json',buffer:Buffer.from('{"version":999}')});
+    await page.getByText('无法读取备份：', {exact:false}).waitFor();
+    assert.equal(await page.locator('[data-preview]').isVisible(), false);
+    await page.getByRole('button', {name:'关闭快照备份',exact:true}).click();
+    await page.evaluate(async () => { __PMM_SWITCH_SNAPSHOTS_TEST52__.close(); await __PMM_WORLDBOOK_SNAPSHOTS__.open('global','',false); });
+    await page.getByRole('button', {name:'快照备份',exact:true}).click();
+    await page.locator('#pmm-snapshot-backup').waitFor();
+    await page.getByRole('button', {name:'关闭快照备份',exact:true}).click();
+    await page.click('[data-hub-tab="character"]');
+    await page.getByRole('button', {name:'快照备份',exact:true}).click();
+    await page.locator('#pmm-snapshot-backup').waitFor();
+    assert.deepEqual(errors, []);
+    await page.close(); console.log(`Snapshot backup download/import/entrypoints passed: ${width}.`);
+  }
   for (const width of [360, 390, 1280]) {
     const page = await browser.newPage({ viewport:{width, height:width < 600 ? 844 : 900} });
     const errors = []; page.on('pageerror', error => errors.push(error.message)); page.on('dialog', dialog => dialog.accept());
@@ -52,7 +103,10 @@ try {
     assert.equal(await page.locator('[data-hub-tab="character"], [data-hub-tab="global"]').count(),2,'Worldbook camera keeps only its two relevant categories');
     assert.equal(await page.locator('[data-source-query]').count(),0);
     assert.equal(await page.locator('[data-wbs="new"]').count(),0);
-    const initial=await page.locator('.pmm-wbs-dialog').boundingBox();
+    const initial=await (await page.waitForFunction(()=>{
+      const rect=document.querySelector('.pmm-wbs-dialog')?.getBoundingClientRect();
+      return rect?.height ? {x:rect.x,y:rect.y,width:rect.width,height:rect.height} : false;
+    })).jsonValue();
     const initialHalfHeight=await page.evaluate(()=>Math.floor((window.visualViewport?.height || window.innerHeight)*.5));
     const initialMaxHeight=await page.evaluate(()=>Math.floor((window.visualViewport?.height || window.innerHeight)*.6));
     if(width<769)assert.ok(Math.abs(initial.y+initial.height-836)<2,'Worldbook manager is bottom aligned');
@@ -61,7 +115,10 @@ try {
     await page.click('[data-hub-tab="global"]');
     await page.click('[data-hub-tab="character"]');
     assert.equal(await page.evaluate(()=>fixture.bindingCalls),0,'Character/global tab switches reuse the loaded catalog');
-    assert.ok((await page.locator('.pmm-wbs-dialog').boundingBox()).height<=initialMaxHeight+1,'Changing snapshot tabs keeps the worldbook sheet within the same height cap');
+    await page.waitForFunction(max => {
+      const height=document.querySelector('.pmm-wbs-dialog')?.getBoundingClientRect().height;
+      return height > 0 && height <= max + 1;
+    }, initialMaxHeight);
     await page.evaluate(()=>fixture.select(0));
     await page.locator('[data-wbs="new"]:enabled').waitFor();
     assert.equal(await page.evaluate(()=>fixture.bindingCalls),1,'Entering a character chat reads only the current character binding');
@@ -400,6 +457,13 @@ try {
       const list=document.querySelector('#preset-fixture .pmm-switch-snapshot-list');
       const max=Math.floor((window.visualViewport?.height || window.innerHeight)*.6);
       return dialog && list && dialog.getBoundingClientRect().height<=max+1 && list.scrollHeight>list.clientHeight;
+    }).catch(async error => {
+      console.log('Sheet diagnostic', await page.evaluate(() => {
+        const dialog=document.querySelector('#preset-fixture .pmm-switch-snapshot-dialog');
+        const list=document.querySelector('#preset-fixture .pmm-switch-snapshot-list');
+        return {width:innerWidth,height:innerHeight,visual:visualViewport?.height,dialog:dialog?.getBoundingClientRect().height,list:[list?.clientHeight,list?.scrollHeight],style:dialog?{min:getComputedStyle(dialog).minHeight,max:getComputedStyle(dialog).maxHeight}:null};
+      }));
+      throw error;
     });
     const presetLongHeight=await page.locator('#preset-fixture .pmm-switch-snapshot-dialog').evaluate(node=>node.getBoundingClientRect().height);
     assert.ok(presetLongHeight>presetShortHeight+40,'Preset snapshot sheet grows when snapshots are added');
