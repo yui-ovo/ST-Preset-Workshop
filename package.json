@@ -1,9 +1,10 @@
 {
   "name": "st-preset-workshop",
-  "version": "2.98.20",
+  "version": "2.98.21",
   "private": true,
   "type": "module",
   "scripts": {
+    "test:ipad-floating-entry": "node scripts/test-ipad-floating-entry.mjs",
     "test:snapshot-backup-viewport": "node scripts/test-snapshot-backup-viewport.mjs",
     "test:snapshot-backup": "node scripts/test-snapshot-backup.mjs",
     "test:worldbook-unsaved-target": "node scripts/test-worldbook-unsaved-target.mjs",

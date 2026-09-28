@@ -1740,6 +1740,7 @@ async function ce(){
 
   function setFabEnabled(enabled, notify = true) {
     saveFabEnabled(enabled);
+    try { (window.top || window).dispatchEvent(new (window.top || window).Event('pmm-floating-visibility-change')); } catch (_) {}
     docs.forEach(doc => {
       if (!doc) return;
       if (enabled) makeFab(doc);
@@ -2263,6 +2264,30 @@ async function ce(){
     });
   }
 
+  // iPadOS 的桌面网站 UA 会报告 Macintosh，不能只凭屏幕宽度识别触摸入口。
+  function isIPadFloatingEntry() {
+    const nav = parentDoc?.defaultView?.navigator || window.navigator;
+    return /iPad/i.test(nav.userAgent || '') || (/Macintosh|MacIntel/i.test(`${nav.userAgent} ${nav.platform}`) && nav.maxTouchPoints > 1);
+  }
+
+  function ensureFabVisibilityControl(card, doc) {
+    let fabToggle = card.querySelector('.pmm-mobile-fab-toggle');
+    if (!fabToggle) {
+      fabToggle = doc.createElement('button');
+      fabToggle.type = 'button';
+      fabToggle.className = 'theme-btn pmm-runtime-theme-btn pmm-mobile-fab-toggle';
+      fabToggle.__pmmFabRuntimeToken = FAB_RUNTIME_TOKEN;
+      fabToggle.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        setFabEnabled(!fabIsEnabled());
+      });
+      card.appendChild(fabToggle);
+    }
+    const enabled = fabIsEnabled();
+    if (fabToggle.getAttribute('aria-pressed') !== String(enabled)) setFabSwitchVisual(fabToggle, enabled);
+  }
+
   function ensureWorkshopControls(doc) {
     if (!doc) return;
     const roots = Array.from(doc.querySelectorAll?.('#preset-manager-main-panel') || []);
@@ -2288,7 +2313,9 @@ async function ce(){
 
         if (!isMobile()) {
           [lightButton, darkButton, autoButton].filter(Boolean).forEach(button => button.style.removeProperty('display'));
-          Array.from(root.querySelectorAll('.pmm-runtime-theme-btn')).forEach(button => button.remove());
+          const tablet = isIPadFloatingEntry();
+          Array.from(root.querySelectorAll('.pmm-runtime-theme-btn')).filter(button => !tablet || !button.classList.contains('pmm-mobile-fab-toggle')).forEach(button => button.remove());
+          if (tablet) ensureFabVisibilityControl(card, doc);
           return;
         }
 
@@ -2354,22 +2381,7 @@ async function ce(){
           card.appendChild(themeToggle);
         }
 
-        let fabToggle = card.querySelector('.pmm-mobile-fab-toggle');
-        if (!fabToggle) {
-          fabToggle = doc.createElement('button');
-          fabToggle.type = 'button';
-          fabToggle.className = 'theme-btn pmm-runtime-theme-btn pmm-mobile-fab-toggle';
-          fabToggle.__pmmFabRuntimeToken = FAB_RUNTIME_TOKEN;
-          fabToggle.addEventListener('click', event => {
-            event.preventDefault();
-            event.stopPropagation();
-            setFabEnabled(!fabIsEnabled());
-          });
-          card.appendChild(fabToggle);
-        }
-
-        const enabled = fabIsEnabled();
-        setFabSwitchVisual(fabToggle, enabled);
+        ensureFabVisibilityControl(card, doc);
       });
     });
   }
@@ -11824,6 +11836,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   const CLEANUP_KEY = '__PMM_FLOATING_PANEL_BATCH_CLEANUP__';
   const STYLE_ID = 'pmm-floating-panel-batch-style';
   const POSITION_KEY = 'pmm_mobile_floating_dock_v1';
+  const IPAD_POSITION_KEY = 'pmm_ipad_floating_dock_v1';
   const LAYOUT_KEY = 'pmm_mobile_layout_shared_v2';
   const FAB_VISIBILITY_KEY = 'pmm_mobile_fab_visible_v1';
   const BRANCH_ENTRY_VISIBILITY_KEY = 'pmm_floating_branch_visible_v1';
@@ -11835,6 +11848,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   let observers = [];
   let scheduled = 0;
   let activeDragCleanup = null;
+  const dragBindings = new Map();
   let batchDialog = null;
   let batchDialogDocument = null;
   let batchViewportCleanup = null;
@@ -11847,6 +11861,15 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     const view = TOP || SELF;
     return Math.min(view.innerWidth || 9999, view.innerHeight || 9999) <= 768;
   }
+
+  // 仅入口使用此判断，不改变 iPad 的工坊面板、编辑器或批量弹窗布局。
+  function isIPad() {
+    let nav = SELF.navigator;
+    try { nav = TOP.navigator || nav; } catch (_) {}
+    return /iPad/i.test(nav.userAgent || '') || (/Macintosh|MacIntel/i.test(`${nav.userAgent} ${nav.platform}`) && nav.maxTouchPoints > 1);
+  }
+
+  function usesTouchFloatingEntry() { return isMobile() || isIPad(); }
 
   function documents() {
     const result = [];
@@ -11907,15 +11930,16 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
 
   function readPosition() {
     let saved = null;
-    try { saved = JSON.parse(SELF.localStorage?.getItem(POSITION_KEY) || 'null'); } catch (_) {}
+    const tablet = isIPad();
+    try { saved = JSON.parse((tablet ? TOP : SELF).localStorage?.getItem(tablet ? IPAD_POSITION_KEY : POSITION_KEY) || 'null'); } catch (_) {}
     return {
       dock:saved?.dock === 'left' ? 'left' : 'right',
-      top:Number.isFinite(Number(saved?.top)) ? Number(saved.top) : Math.round((SELF.innerHeight || 720) * .38),
+      top:Number.isFinite(Number(saved?.top)) ? Number(saved.top) : Math.round(((tablet ? TOP : SELF).innerHeight || 720) * .38),
     };
   }
 
   function savePosition(dock, top) {
-    try { SELF.localStorage?.setItem(POSITION_KEY, JSON.stringify({ dock, top:Math.round(top) })); } catch (_) {}
+    try { (isIPad() ? TOP : SELF).localStorage?.setItem(isIPad() ? IPAD_POSITION_KEY : POSITION_KEY, JSON.stringify({ dock, top:Math.round(top) })); } catch (_) {}
   }
 
   function readFloatingWidth(view = SELF) {
@@ -12220,7 +12244,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     if (!action || action.dataset.pmmEditCollapseBound === '1') return;
     action.dataset.pmmEditCollapseBound = '1';
     action.addEventListener('click', () => {
-      if (!isMobile()) return;
+      if (!usesTouchFloatingEntry()) return;
       /* 先让工坊原有的铅笔事件完成，再只收起悬浮工具栏。 */
       SELF.setTimeout(() => root.classList.remove('pmm-floating-mobile-open'), 0);
     });
@@ -12235,7 +12259,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     root.classList.toggle('pmm-floating-dock-left', nextDock === 'left');
     root.classList.toggle('pmm-floating-dock-right', nextDock === 'right');
     const nextTopValue = `${nextTop}px`;
-    const nextWidthValue = `${readFloatingWidth(view)}px`;
+    const nextWidthValue = `${isIPad() && !isMobile() ? 328 : readFloatingWidth(view)}px`;
     if (root.style.getPropertyValue('--pmm-mobile-floating-top') !== nextTopValue) {
       root.style.setProperty('--pmm-mobile-floating-top', nextTopValue);
     }
@@ -12251,8 +12275,8 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     const icon = root?.querySelector(':scope > .edge-tab i');
     if (!icon) return;
     const left = root.classList.contains('pmm-floating-dock-left');
-    icon.classList.remove('fa-chevron-left', 'fa-chevron-right');
-    icon.classList.add(left ? 'fa-chevron-right' : 'fa-chevron-left');
+    icon.classList.toggle('fa-chevron-left', !left);
+    icon.classList.toggle('fa-chevron-right', left);
   }
 
   function panelExpanded(root) {
@@ -12296,7 +12320,8 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   }
 
   function beginMobileDrag(event, root) {
-    if (!isMobile() || !root) return;
+    if (!usesTouchFloatingEntry() || !root || !floatingEntryEnabled()) return;
+    if (event.isPrimary === false || event.touches?.length > 1) { endActiveDrag(); return; }
     if (event.button != null && event.button !== 0) return;
     const collapseHandle = event.target?.closest?.('.panel-collapse');
     const interactive = event.target?.closest?.('button,select,input,option,.panel-action,.panel-section,.pmm-preset-batch-trigger');
@@ -12320,6 +12345,8 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     try { event.currentTarget?.setPointerCapture?.(event.pointerId); } catch (_) {}
 
     const move = moveEvent => {
+      if (moveEvent.touches?.length > 1) { cancel(); return; }
+      if (event.pointerId != null && moveEvent.pointerId != null && event.pointerId !== moveEvent.pointerId) return;
       const movePoint = moveEvent.touches?.[0] || moveEvent;
       if (!Number.isFinite(Number(movePoint.clientX)) || !Number.isFinite(Number(movePoint.clientY))) return;
       const dx = Number(movePoint.clientX) - startX;
@@ -12337,6 +12364,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       setDock(root, nextDock, nextTop, false);
     };
     const end = endEvent => {
+      if (event.pointerId != null && endEvent.pointerId != null && event.pointerId !== endEvent.pointerId) return;
       root.classList.remove('pmm-floating-dragging');
       dragDocument.removeEventListener('pointermove', move, true);
       dragDocument.removeEventListener('pointerup', end, true);
@@ -12378,45 +12406,34 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       root.querySelector(':scope > .panel-wrapper > .panel-header'),
     ].filter(Boolean);
     for (const target of targets) {
-      if (target.dataset.pmmFloatingDragBound === '1') continue;
-      target.dataset.pmmFloatingDragBound = '1';
-      if ('PointerEvent' in SELF) target.addEventListener('pointerdown', event => beginMobileDrag(event, root), true);
+      if (dragBindings.has(target)) continue;
+      const bindings = [];
+      const listen = (type, callback, options = true) => {
+        target.addEventListener(type, callback, options);
+        bindings.push(() => target.removeEventListener(type, callback, true));
+      };
+      dragBindings.set(target, () => bindings.forEach(remove => remove()));
+      if ('PointerEvent' in SELF) listen('pointerdown', event => beginMobileDrag(event, root));
       /* iOS Safari 虽支持 PointerEvent，但贴边元素有时不会连续送达 pointermove；触摸事件作为拖动兜底。 */
-      target.addEventListener('touchstart', event => beginMobileDrag(event, root), { capture:true, passive:false });
-    }
-    const edge = root.querySelector(':scope > .edge-tab');
-    if (edge && edge.dataset.pmmFloatingNativeMouseBound !== '1') {
-      edge.dataset.pmmFloatingNativeMouseBound = '1';
-      edge.addEventListener('mousedown', event => {
-        if (!isMobile()) return;
-        /* 手机入口只由 pmm-floating-mobile-open 控制，阻止原组件再次切换内部展开状态。 */
+      listen('touchstart', event => beginMobileDrag(event, root), { capture:true, passive:false });
+      listen('mousedown', event => {
+        if (!usesTouchFloatingEntry()) return;
+        if (event.target?.closest?.('button,select,input,option,.panel-action,.panel-section,.pmm-preset-batch-trigger') && !event.target?.closest?.('.panel-collapse')) return;
+        /* 触摸入口只由 pmm-floating-mobile-open 控制，阻止原组件同时启动鼠标拖动。 */
         event.preventDefault();
         event.stopPropagation();
         event.stopImmediatePropagation();
-      }, true);
-    }
-    if (edge && edge.dataset.pmmFloatingClickBound !== '1') {
-      edge.dataset.pmmFloatingClickBound = '1';
-      edge.addEventListener('click', event => {
-        if (!isMobile()) return;
+      });
+      listen('click', event => {
+        if (!usesTouchFloatingEntry()) return;
+        const edge = target.matches('.edge-tab');
+        if (!edge && !event.target?.closest?.('.panel-collapse')) return;
         event.preventDefault();
         event.stopPropagation();
         event.stopImmediatePropagation();
         if (Date.now() < Number(root.dataset.pmmSuppressFloatingClickUntil || 0)) return;
-        root.classList.add('pmm-floating-mobile-open');
-      }, true);
-    }
-    const collapse = root.querySelector(':scope > .panel-wrapper .panel-collapse');
-    if (collapse && collapse.dataset.pmmFloatingCollapseBound !== '1') {
-      collapse.dataset.pmmFloatingCollapseBound = '1';
-      collapse.addEventListener('click', event => {
-        if (!isMobile()) return;
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-        if (Date.now() < Number(root.dataset.pmmSuppressFloatingClickUntil || 0)) return;
-        root.classList.remove('pmm-floating-mobile-open');
-      }, true);
+        root.classList.toggle('pmm-floating-mobile-open', edge);
+      });
     }
   }
 
@@ -12702,7 +12719,8 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     bindBranchSwitchNotice(root);
     bindAutoCollapseOnEdit(root);
     syncSelectOptions(root);
-    if (isMobile()) {
+    root.classList.toggle('pmm-floating-ipad', isIPad());
+    if (usesTouchFloatingEntry()) {
       const entryEnabled = floatingEntryEnabled();
       root.classList.toggle('pmm-floating-entry-disabled', !entryEnabled);
       if (root.dataset.pmmFloatingMobileInitialized !== '1') {
@@ -12711,13 +12729,17 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
         root.classList.toggle('pmm-floating-mobile-open', nativeOpen);
         root.dataset.pmmFloatingMobileInitialized = '1';
       }
-      if (!entryEnabled) root.classList.remove('pmm-floating-mobile-open', 'pmm-floating-dragging');
-      root.classList.add('pmm-floating-mobile');
+      if (!entryEnabled) {
+        endActiveDrag();
+        root.classList.toggle('pmm-floating-mobile-open', false);
+        root.classList.toggle('pmm-floating-dragging', false);
+      }
+      root.classList.toggle('pmm-floating-mobile', true);
       const saved = readPosition();
       setDock(root, root.dataset.pmmFloatingDock || saved.dock, parseFloat(root.style.getPropertyValue('--pmm-mobile-floating-top')) || saved.top, false);
       bindMobileDrag(root);
     } else {
-      root.classList.remove('pmm-floating-mobile', 'pmm-floating-mobile-open', 'pmm-floating-dock-left', 'pmm-floating-dock-right', 'pmm-floating-dragging', 'pmm-floating-entry-disabled');
+      for (const name of ['pmm-floating-mobile', 'pmm-floating-mobile-open', 'pmm-floating-dock-left', 'pmm-floating-dock-right', 'pmm-floating-dragging', 'pmm-floating-entry-disabled']) root.classList.toggle(name, false);
       delete root.dataset.pmmFloatingMobileInitialized;
       root.style.removeProperty('--pmm-mobile-floating-top');
     }
@@ -12725,9 +12747,12 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
 
   function sync() {
     scheduled = 0;
+    for (const [target, remove] of dragBindings) {
+      if (!target.isConnected || !usesTouchFloatingEntry()) { remove(); dragBindings.delete(target); }
+    }
     const roots = documents().flatMap(currentDocument => Array.from(currentDocument.querySelectorAll(ROOT_SELECTOR)));
     for (const root of roots) syncRoot(root);
-    const mobileToolbarReady = isMobile() && floatingEntryEnabled() && roots.some(root => root?.isConnected);
+    const mobileToolbarReady = usesTouchFloatingEntry() && floatingEntryEnabled() && roots.some(root => root?.isConnected);
     for (const currentDocument of documents()) {
       currentDocument.documentElement?.classList.toggle('pmm-mobile-toolbar-ready', mobileToolbarReady);
     }
@@ -12789,7 +12814,6 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     margin:0!important;border-radius:0 7px 7px 0!important;
   }
 }
-@media screen and (max-width:768px){
   /*
    * 旧版为了显示独立圆形悬浮球，会把原生预设＋分支工具条整个隐藏。
    * 新工具条真正就绪后再解除隐藏并收起旧圆球；若工具条没有挂载，旧入口仍保留作兜底。
@@ -12837,6 +12861,10 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   #preset-manager-floating-panel .pmm-floating-mobile.pmm-floating-dock-right>.edge-tab{border-left:1px solid var(--fp-border-color)!important;border-right:0!important;border-radius:8px 0 0 8px!important}
   #preset-manager-floating-panel .pmm-floating-mobile.pmm-floating-dragging>.edge-tab,
   #preset-manager-floating-panel .pmm-floating-mobile.pmm-floating-dragging>.panel-wrapper{opacity:.72!important}
+  /* 平板的箭头热区稍宽，手机尺寸保持原样。 */
+  #preset-manager-floating-panel .pmm-floating-mobile.pmm-floating-ipad>.edge-tab{width:24px!important}
+  #preset-manager-floating-panel .pmm-floating-mobile.pmm-floating-ipad .panel-collapse{flex:0 0 30px!important;min-height:30px!important}
+@media screen and (max-width:768px){
   .pmm-preset-batch-overlay{align-items:flex-end;padding:10px}
   .pmm-preset-batch-dialog{width:100%;max-height:min(620px,calc(var(--pmm-batch-visible-height,100dvh) - 20px));border-radius:20px;padding:14px}
 }
@@ -12854,11 +12882,15 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     if (MEDIA?.addEventListener) MEDIA.addEventListener('change', scheduleSync);
     else MEDIA?.addListener?.(scheduleSync);
     SELF.addEventListener('resize', scheduleSync, { passive:true });
+    if (TOP !== SELF) TOP.addEventListener('resize', scheduleSync, { passive:true });
+    TOP.addEventListener('pmm-floating-visibility-change', scheduleSync);
     sync();
   }
 
   SELF[CLEANUP_KEY] = () => {
     endActiveDrag();
+    for (const remove of dragBindings.values()) remove();
+    dragBindings.clear();
     closeBatchDialog();
     for (const currentObserver of observers) currentObserver.disconnect();
     observers = [];
@@ -12867,6 +12899,8 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     if (MEDIA?.removeEventListener) MEDIA.removeEventListener('change', scheduleSync);
     else MEDIA?.removeListener?.(scheduleSync);
     SELF.removeEventListener('resize', scheduleSync);
+    if (TOP !== SELF) TOP.removeEventListener('resize', scheduleSync);
+    TOP.removeEventListener('pmm-floating-visibility-change', scheduleSync);
     for (const currentDocument of documents()) currentDocument.getElementById(STYLE_ID)?.remove();
     for (const currentDocument of documents()) currentDocument.querySelectorAll?.('.pmm-floating-snapshot-trigger').forEach(button => button.remove());
     for (const currentDocument of documents()) currentDocument.querySelectorAll?.('.pmm-floating-branch-hidden').forEach(section => section.classList.remove('pmm-floating-branch-hidden'));
@@ -15427,7 +15461,7 @@ import { requestSnapshotName } from './snapshot-name-dialog.js?v=2.98.0-test.32'
       return `<article class="pmm-switch-snapshot-row${isActive ? ' is-active' : ''}" data-pmm-snapshot-id="${escapeHtml(snapshot.id)}">
         <div class="pmm-switch-snapshot-copy">
           <div class="pmm-switch-snapshot-name" title="${escapeHtml(snapshot.name)}">${escapeHtml(snapshot.name)}</div>
-          <div class="pmm-switch-snapshot-meta">${snapshot.states.length} 条${groupCount ? ` · ${groupCount} 分组` : ''} · ${escapeHtml(formatSavedAt(snapshot.updatedAt || snapshot.createdAt))}</div>
+          <div class="pmm-switch-snapshot-meta">${snapshot.states.filter(state => state.enabled === true).length}/${snapshot.states.length} 条${groupCount ? ` · ${groupCount} 分组` : ''} · ${escapeHtml(formatSavedAt(snapshot.updatedAt || snapshot.createdAt))}</div>
         </div>
         <div class="pmm-switch-snapshot-controls"><div class="pmm-switch-snapshot-bindings">
           <div class="pmm-switch-snapshot-locks">
@@ -15447,7 +15481,7 @@ import { requestSnapshotName } from './snapshot-name-dialog.js?v=2.98.0-test.32'
       </article>`;
     }).join('') : `<div class="pmm-switch-snapshot-empty"><i class="fa-solid fa-camera"></i><span>当前还没有角色/聊天开关快照</span></div>`;
     const defaultMarkup = defaultSnapshot ? `<section class="pmm-switch-snapshot-default is-saved">
-      <div class="pmm-switch-snapshot-default-copy"><div><i class="fa-solid fa-house"></i>预设默认</div><small>${defaultSnapshot.states.length} 条${Array.isArray(defaultSnapshot.groupStates) && defaultSnapshot.groupStates.length ? ` · ${defaultSnapshot.groupStates.length} 分组` : ''} · ${escapeHtml(formatSavedAt(defaultSnapshot.updatedAt || defaultSnapshot.createdAt))}</small></div>
+      <div class="pmm-switch-snapshot-default-copy"><div><i class="fa-solid fa-house"></i>预设默认</div><small>${defaultSnapshot.states.filter(state => state.enabled === true).length}/${defaultSnapshot.states.length} 条${Array.isArray(defaultSnapshot.groupStates) && defaultSnapshot.groupStates.length ? ` · ${defaultSnapshot.groupStates.length} 分组` : ''} · ${escapeHtml(formatSavedAt(defaultSnapshot.updatedAt || defaultSnapshot.createdAt))}</small></div>
       <div class="pmm-switch-snapshot-default-actions"><button type="button" data-pmm-snapshot-action="apply-default" data-pmm-snapshot-id="${escapeHtml(defaultSnapshot.id)}"><i class="fa-solid fa-rotate-left"></i>恢复默认</button><button type="button" data-pmm-snapshot-action="update-default" title="${activeSnapshot ? '请先恢复预设默认' : '用当前开关更新默认'}"${activeSnapshot ? ' disabled' : ''}><i class="fa-solid fa-rotate"></i>更新默认</button><button type="button" class="pmm-switch-snapshot-reset-all" data-pmm-snapshot-action="reset-all" title="重置全部开关快照" aria-label="重置全部开关快照"><i class="fa-solid fa-trash"></i></button></div>
     </section>` : `<section class="pmm-switch-snapshot-default is-empty">
       <div class="pmm-switch-snapshot-default-copy"><div><i class="fa-solid fa-house"></i>还没有预设默认</div><small>请先保存当前原始开关；以后可一键恢复。</small></div>
