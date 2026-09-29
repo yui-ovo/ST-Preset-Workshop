@@ -1,5 +1,5 @@
 const EXTENSION_NAME = '🧩预设工坊';
-const EXTENSION_VERSION = '2.98.21';
+const EXTENSION_VERSION = '2.98.22';
 const RUNTIME_ID = 'TH-script--🧩预设工坊（GitHub 扩展）--2f53f6af-3c9e-4c71-bc52-9f635be25300';
 const LEGACY_IFRAME_PREFIX = 'TH-script--🧩预设工坊';
 const EXTENSION_FOLDER_NAME = 'ST-Preset-Workshop';
@@ -381,6 +381,7 @@ export function stopPresetWorkshop() {
   stopVersionWatcher();
   clearPendingExtensionUpdateReload();
   try { globalThis.__PMM_PRESET_CONTENT_EDITOR_V1__?.cleanup?.(); } catch (_) {}
+  try { globalThis.__PMM_PRESET_SNAPSHOT_LINKS__?.cleanup?.(); } catch (_) {}
   document.getElementById(RUNTIME_ID)?.remove();
 }
 

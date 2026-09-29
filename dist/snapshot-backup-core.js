@@ -54,6 +54,7 @@ export function validateBackup(data) {
       states: states(row.states), groupStates: states(row.groupStates || []),
       characters: bindings(row.characters || (row.character ? [row.character] : [])),
       chats: bindings(row.chats || (row.chat ? [row.chat] : [])),
+      ...(string(row.sourceSnapshotId) ? { sourceSnapshotId: row.sourceSnapshotId } : {}),
       createdAt: Number(row.createdAt) || 0, updatedAt: Number(row.updatedAt) || 0 };
   }), row => row.id);
   const groups = unique(data.world.groups.map(row => {
@@ -79,9 +80,9 @@ export function validateBackup(data) {
   for (const group of groups) assert(!group.snapshot || snapshots.some(s => s.id === group.snapshot && s.scope === 'group' && s.owner === group.id), '分组选用的快照不存在');
   return { format: data.format, version: 1, exportedAt: String(data.exportedAt || ''), preset: { snapshots: preset }, world: { snapshots, groups, defaults } };
 }
-export function planImport(stores, backup, restoreBindings = false) {
+export function planImport(stores, backup, restoreBindings = false, presetTargets = {}) {
   const data = validateBackup(backup), next = copy(stores), skipped = [], added = { preset: 0, world: 0, groups: 0, defaults: 0 };
-  const skip = (kind, row) => skipped.push(`${kind}：${row.name}`);
+  const skip = (kind, row, reason = '本地已有同标识或同名数据') => skipped.push(`${kind}：${row.name}${row.presetName ? `（预设：${row.presetName}）` : ''} — ${reason}`);
   // Existing identities and same-name plans are retained. A conflicting group keeps all of its own plans.
   const blockedGroups = new Set();
   for (const row of data.world.groups) {
@@ -89,18 +90,36 @@ export function planImport(stores, backup, restoreBindings = false) {
     else { next.world.groups.push(row); added.groups++; }
   }
   for (const row of data.preset.snapshots) {
-    if (next.preset.snapshots.some(s => s.id === row.id || (s.presetName === row.presetName && (s.name === row.name || ((s.isDefault || s.kind === 'default') && row.isDefault))))) { skip('预设快照', row); continue; }
+    const sourceName = row.presetName;
+    const target = Object.hasOwn(presetTargets, sourceName) ? presetTargets[sourceName] : sourceName;
+    assert(string(target), '请选择有效的目标预设');
+    row.presetName = target;
+    const mapped = target !== sourceName;
+    const sourceId = row.sourceSnapshotId || row.id;
+    const sameId = next.preset.snapshots.find(s => s.id === row.id);
+    const existing = next.preset.snapshots.find(s => s.presetName === target && (
+      s.id === row.id || s.id === sourceId || s.sourceSnapshotId === sourceId || s.name === row.name || (isDefault(s) && row.isDefault)
+    ));
+    if (existing) {
+      skip('预设快照', row, isDefault(existing) && row.isDefault ? '目标预设已有默认快照，保留本地默认' : '目标预设已有此快照或同名快照，保留本地数据');
+      continue;
+    }
+    if (sameId && !mapped) { skip('预设快照', row, `相同标识已保存在“${sameId.presetName}”下，可选择对应预设后再导入`); continue; }
+    if (mapped) {
+      row.sourceSnapshotId = sourceId;
+      row.id = unusedSnapshotId(next.preset.snapshots, row.id);
+    }
     row.characters = restoreBindings ? row.characters.filter(b => !next.preset.snapshots.some(s => s.presetName === row.presetName && (s.characters || (s.character ? [s.character] : [])).some(v => v.key === b.key))) : [];
     row.chats = restoreBindings ? row.chats.filter(b => !next.preset.snapshots.some(s => s.presetName === row.presetName && (s.chats || (s.chat ? [s.chat] : [])).some(v => v.key === b.key))) : [];
     next.preset.snapshots.push(row); added.preset++;
   }
   next.world.defaults ||= [];
   for (const row of data.world.defaults) {
-    if ((row.scope === 'group' && blockedGroups.has(row.owner)) || next.world.defaults.some(s => s.scope === row.scope && s.owner === row.owner)) { skip('世界书默认方案', row); continue; }
+    if ((row.scope === 'group' && blockedGroups.has(row.owner)) || next.world.defaults.some(s => s.scope === row.scope && s.owner === row.owner)) { skip('世界书默认方案', row, row.scope === 'group' && blockedGroups.has(row.owner) ? '所属分组已存在，保留本地分组及方案' : '本地已有此角色或分组的默认方案'); continue; }
     next.world.defaults.push(row); added.defaults++;
   }
   for (const row of data.world.snapshots) {
-    if ((row.scope === 'group' && blockedGroups.has(row.owner)) || next.world.snapshots.some(s => s.id === row.id || (s.name === row.name && s.scope === row.scope && s.owner === row.owner && s.book === row.book))) { skip('世界书快照', row); continue; }
+    if ((row.scope === 'group' && blockedGroups.has(row.owner)) || next.world.snapshots.some(s => s.id === row.id || (s.name === row.name && s.scope === row.scope && s.owner === row.owner && s.book === row.book))) { skip('世界书快照', row, row.scope === 'group' && blockedGroups.has(row.owner) ? '所属分组已存在，保留本地分组及方案' : '本地已有同标识或同名快照'); continue; }
     if (row.bundle) row.chat = restoreBindings && !next.world.snapshots.some(s => s.owner === row.owner && s.chat === row.chat) ? row.chat : null;
     else row.characters = restoreBindings ? row.characters.filter(key => !next.world.snapshots.some(s => s.book === row.book && s.characters?.includes(key))) : [];
     next.world.snapshots.push(row); added.world++;
@@ -110,6 +129,76 @@ export function planImport(stores, backup, restoreBindings = false) {
     if (!next.world.snapshots.some(s => s.id === group.snapshot && s.scope === 'group' && s.owner === group.id)) group.snapshot = '';
   }
   return { next, added, skipped };
+}
+
+const isDefault = row => row.isDefault === true || row.kind === 'default';
+function unusedSnapshotId(rows, preferred) {
+  let id = preferred, suffix = 1;
+  while (rows.some(row => row.id === id)) id = `${preferred.slice(0, 1950)}~copy${suffix++}`;
+  return id;
+}
+function uniqueSnapshotName(rows, preferred) {
+  const base = preferred.slice(0, 1950);
+  let name = base, suffix = 2;
+  while (rows.some(row => row.name === name)) name = `${base}（${suffix++}）`;
+  return name;
+}
+function preserveTargetBindings(row, targetRows) {
+  for (const [plural, singular] of [['characters', 'character'], ['chats', 'chat']]) {
+    const occupied = new Set(targetRows.flatMap(s => s[plural] || (s[singular] ? [s[singular]] : [])).map(b => b.key));
+    row[plural] = (row[plural] || (row[singular] ? [row[singular]] : [])).filter(b => !occupied.has(b.key));
+    delete row[singular];
+  }
+}
+
+// Rename moves identities and runtime references; recovery copies durable switches/bindings only.
+// Neither operation reads prompt bodies, applies switches, or saves a native preset.
+export function planPresetRelink(store, oldName, newName, { copySnapshots = false } = {}) {
+  assert(string(oldName) && string(newName) && oldName !== newName, '请选择不同的来源和目标预设');
+  assert(store?.version === 1 && Array.isArray(store.snapshots), '当前预设快照数据无法读取');
+  const next = copy(store), rows = next.snapshots.filter(s => s.presetName === oldName);
+  const targetRows = next.snapshots.filter(s => s.presetName === newName);
+  const changedIds = new Set(), notes = [];
+  let changed = 0, skipped = 0;
+  for (const source of rows) {
+    const sourceId = source.sourceSnapshotId || source.id;
+    if (copySnapshots && targetRows.some(s => s.id === source.id || s.id === sourceId || s.sourceSnapshotId === sourceId)) { skipped++; continue; }
+    const row = copySnapshots ? copy(source) : source;
+    if (copySnapshots) {
+      row.id = unusedSnapshotId(next.snapshots, row.id);
+      row.sourceSnapshotId = sourceId;
+    }
+    row.presetName = newName;
+    if (isDefault(row) && targetRows.some(isDefault)) {
+      row.isDefault = false; delete row.kind;
+      row.name = `${row.name}（来自 ${oldName}）`;
+      notes.push('目标已有默认，旧默认已保留为普通快照');
+    }
+    row.name = uniqueSnapshotName(targetRows, row.name);
+    preserveTargetBindings(row, targetRows);
+    if (copySnapshots) next.snapshots.push(row);
+    targetRows.push(row); changedIds.add(row.id); changed++;
+  }
+  if (!copySnapshots && changed) {
+    for (const key of ['activeSnapshots', 'homeSnapshots', 'manualSnapshots']) {
+      const map = next[key];
+      if (!object(map) || !Object.hasOwn(map, oldName)) continue;
+      if (!Object.hasOwn(map, newName) && changedIds.has(map[oldName])) {
+        Object.defineProperty(map, newName, { value: map[oldName], writable: true, enumerable: true, configurable: true });
+      }
+      delete map[oldName];
+    }
+  }
+  return { next, changed, skipped, notes: [...new Set(notes)] };
+}
+
+export function readPresetStore(storage) {
+  const store = JSON.parse(storage.getItem(PRESET_KEY) || 'null') || { version: 1, snapshots: [] };
+  assert(store.version === 1 && Array.isArray(store.snapshots), '当前预设快照数据无法读取');
+  return store;
+}
+export function commitPresetRelink(storage, plan) {
+  if (plan.changed) storage.setItem(PRESET_KEY, JSON.stringify(plan.next));
 }
 export function commitImport(storage, plan) {
   const old = [storage.getItem(PRESET_KEY), storage.getItem(WORLD_KEY)];
