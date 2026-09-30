@@ -23,7 +23,7 @@ export function openSnapshotBackup(host = window.parent || window) {
     <p>一起备份所有预设快照、角色世界书快照、全局分组及方案。</p>
     <small>只包含开关和绑定配置，不含预设、角色卡或世界书正文。新酒馆需先准备对应资料；角色和聊天标识不同的绑定需重新设置。</small>
     <div class="actions"><button data-export>导出全部快照</button><button data-choose>选择备份文件</button><input data-file type="file" accept=".json,application/json" hidden></div>
-    <details data-migration hidden><summary>迁移前的本地备份</summary><p>首次把快照迁入预设前保留的本浏览器副本，可导出后按需合并恢复。</p><button data-export-migration>导出迁移前备份</button></details>
+    <details data-migration hidden><summary>更新前的旧快照备份</summary><p>保留首次迁移前的浏览器快照，仅用于找回旧数据，不会随之后的修改更新。</p><button data-export-migration>导出旧快照备份</button></details>
     <details data-recovery><summary>恢复旧预设快照</summary>
       <p>把本浏览器旧名字下的快照复制到对应预设，保留旧记录，不改变当前开关。已有角色／聊天绑定优先；目标已有默认时，旧默认会保留为普通快照。</p>
       <label>恢复到<select data-recovery-target></select></label>
@@ -152,7 +152,7 @@ export function openSnapshotBackup(host = window.parent || window) {
       const url = host.URL.createObjectURL(new host.Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
       const link = doc.createElement('a'); link.href = url; link.download = '预设工坊-迁移前本地快照.json';
       doc.body.append(link); link.click(); link.remove(); host.setTimeout(() => host.URL.revokeObjectURL(url), 30000);
-      status('已导出迁移前备份，可通过「选择备份文件」合并恢复。');
+      status('已导出更新前的旧快照备份。可通过「选择备份文件」合并恢复；已有同名或同标识快照会保留，冲突项会跳过。');
     } catch (error) { status(error.message); }
   };
   q('[data-choose]').onclick = () => q('[data-file]').click();
