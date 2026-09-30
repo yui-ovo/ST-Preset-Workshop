@@ -161,12 +161,20 @@ export function planPresetRelink(store, oldName, newName, { copySnapshots = fals
   const changedIds = new Set(), notes = [];
   let changed = 0, skipped = 0;
   for (const source of rows) {
-    const sourceId = source.sourceSnapshotId || source.id;
-    if (copySnapshots && targetRows.some(s => s.id === source.id || s.id === sourceId || s.sourceSnapshotId === sourceId)) { skipped++; continue; }
+    const sourceId = source.sourceSnapshotId || source.embeddedId || source.id;
+    if (copySnapshots && targetRows.some(s => s.id === source.id || s.id === sourceId || s.embeddedId === sourceId || s.sourceSnapshotId === sourceId)) { skipped++; continue; }
     const row = copySnapshots ? copy(source) : source;
     if (copySnapshots) {
       row.id = unusedSnapshotId(next.snapshots, row.id);
       row.sourceSnapshotId = sourceId;
+      delete row.embeddedId;
+    } else {
+      // An old local record under the destination name may share the file's
+      // embedded identity (e.g. a previously imported copy). Preserve it with
+      // its own identity before moving the renamed preset's records alongside it.
+      for (const target of targetRows) if ((target.embeddedId || target.id) === (row.embeddedId || row.id)) {
+        target.embeddedId = unusedSnapshotId(next.snapshots.map(s => ({ id: s.embeddedId || s.id })), target.id);
+      }
     }
     row.presetName = newName;
     if (isDefault(row) && targetRows.some(isDefault)) {

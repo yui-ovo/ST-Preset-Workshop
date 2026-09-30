@@ -5,7 +5,7 @@ function section(a,b){return source.slice(source.indexOf(a),source.indexOf(b,sou
 let binding=null,active=null,home=null,chat='a';const calls=[];
 const baseline={id:'default',presetName:'current',states:[{id:'p',enabled:true}],groupStates:[],isDefault:true};
 const run=Function('readStore','boundSnapshotForContext','activeSnapshotForPreset','homeSnapshotForPreset','fallbackSnapshotForPreset','applySnapshot',`
-let autoApplySerial=0,lastAutoContextKey='';const isBranchMode=()=>false,activeBranchName=()=>'',loadedPresetName=()=>'current';
+let autoApplySerial=0,lastAutoContextKey='';const TOP={},isBranchMode=()=>false,activeBranchName=()=>'',loadedPresetName=()=>'current';
 ${section('  async function autoApplyBoundSnapshot(', '  function scheduleBoundSnapshotAutoApply(')}
 return autoApplyBoundSnapshot;
 `)(()=>({snapshots:[baseline,{id:'other',presetName:'other',chats:[{key:'a'}]}]}),()=>({snapshot:binding,chat:{key:chat}}),()=>active,()=>home,()=>home||baseline,async(id)=>{calls.push(id);active=id==='default'?null:{id};return true;});

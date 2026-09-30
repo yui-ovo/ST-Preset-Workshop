@@ -1,4 +1,4 @@
-import { readPresetStore, planPresetRelink, commitPresetRelink } from './snapshot-backup-core.js?v=2.98.22';
+import { readPresetStore, planPresetRelink, commitPresetRelink } from './snapshot-backup-core.js?v=2.98.23';
 
 const KEY = '__PMM_PRESET_SNAPSHOT_LINKS__';
 export function installPresetSnapshotLinks(host) {
@@ -11,8 +11,9 @@ export function installPresetSnapshotLinks(host) {
     let plan;
     try {
       plan = planPresetRelink(readPresetStore(host.localStorage), oldName, newName);
-      if (!plan.changed) return;
+      if (!plan.changed) { host.__PMM_PRESET_SNAPSHOT_STORAGE__?.renamed?.(oldName, newName); return; }
       commitPresetRelink(host.localStorage, plan);
+      host.__PMM_PRESET_SNAPSHOT_STORAGE__?.renamed?.(oldName, newName);
     } catch (error) {
       console.error('[预设工坊] 快照改名关联失败', error);
       host.toastr?.error?.('快照关联未更新，旧记录仍保留。可从「快照备份 → 恢复旧预设快照」找回：' + error.message);

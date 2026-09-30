@@ -13540,7 +13540,8 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
 ;(() => { console.info('[预设工坊] V2.87 已加载：手机对比分组条目时会自动展开目标分组并读取正文。'); })();
 
 import { requestSnapshotName } from './snapshot-name-dialog.js?v=2.98.0-test.32';
-import { installPresetSnapshotLinks } from './snapshot-preset-links.js?v=2.98.22';
+import { installPresetSnapshotLinks } from './snapshot-preset-links.js?v=2.98.23';
+import { installPresetSnapshotStorage } from './preset-snapshot-storage.js?v=2.98.23';
 /* ===== PMM_SWITCH_SNAPSHOTS_TEST52：完整开关快照与预设默认（测试版） ===== */
 ;(() => {
   'use strict';
@@ -13883,6 +13884,7 @@ import { installPresetSnapshotLinks } from './snapshot-preset-links.js?v=2.98.22
         manualSnapshots: store.manualSnapshots && typeof store.manualSnapshots === 'object' ? store.manualSnapshots : {},
         snapshots: store.snapshots,
       }));
+      TOP.__PMM_PRESET_SNAPSHOT_STORAGE__?.observe?.(store);
       syncChatBindingListener(store);
       return true;
     } catch (error) {
@@ -14706,6 +14708,10 @@ import { installPresetSnapshotLinks } from './snapshot-preset-links.js?v=2.98.22
 
   async function autoApplyBoundSnapshot(options = {}) {
     const serial = ++autoApplySerial;
+    if (TOP.__PMM_PRESET_SNAPSHOT_STORAGE__) {
+      await TOP.__PMM_PRESET_SNAPSHOT_STORAGE__.ensure();
+      if (serial !== autoApplySerial) return false;
+    }
     if (isBranchMode() || activeBranchName()) return false;
     const presetName = loadedPresetName();
     if (!presetName) return false;
@@ -15368,6 +15374,7 @@ import { installPresetSnapshotLinks } from './snapshot-preset-links.js?v=2.98.22
       </div>
     </section>`;
     TOP.__PMM_WORLDBOOK_SNAPSHOTS__?.decoratePreset(existing);
+    renderSnapshotStorageStatus();
   }
 
   function positionOpenSnapshotMenu(overlay) {
@@ -15429,6 +15436,27 @@ import { installPresetSnapshotLinks } from './snapshot-preset-links.js?v=2.98.22
     if (changed) return true;
     return matchGroupStates(makeGroupStates(presetName), snapshot.groupStates)
       .some(({ current, saved }) => (current.enabled !== false) !== (saved.enabled !== false));
+  }
+
+  function renderSnapshotStorageStatus() {
+    const service = TOP.__PMM_PRESET_SNAPSHOT_STORAGE__;
+    const head = DOC?.getElementById?.(OVERLAY_ID)?.querySelector?.('.pmm-switch-snapshot-head>div');
+    if (!service || !head) return;
+    let node = head.querySelector('[data-pmm-snapshot-storage]');
+    if (!node) {
+      node = DOC.createElement('p'); node.dataset.pmmSnapshotStorage = '';
+      node.setAttribute('role', 'status');
+      node.style.cssText = 'white-space:normal!important;overflow-wrap:anywhere!important;font-size:10px!important;line-height:1.4!important';
+      head.appendChild(node);
+    }
+    const value = service.state(currentPresetName());
+    node.textContent = value.message;
+    if (value.state === 'error') {
+      const retry = DOC.createElement('button'); retry.type = 'button'; retry.textContent = '重试';
+      retry.style.cssText = 'font:inherit!important;color:inherit!important;margin-left:6px!important;padding:2px 6px!important';
+      retry.onclick = event => { event.stopPropagation(); retry.disabled = true; void service.retry(); };
+      node.appendChild(retry);
+    }
   }
 
   function renderOverlay() {
@@ -15514,6 +15542,7 @@ import { installPresetSnapshotLinks } from './snapshot-preset-links.js?v=2.98.22
       ${characterPickerMarkup}
     </section>`;
     TOP.__PMM_WORLDBOOK_SNAPSHOTS__?.decoratePreset(existing);
+    renderSnapshotStorageStatus();
     if (openMenuId) positionOpenSnapshotMenu(existing);
     if (characterPicker) {
       const focus = TOP.requestAnimationFrame || SELF.requestAnimationFrame || (callback => TOP.setTimeout(callback, 0));
@@ -15545,6 +15574,10 @@ import { installPresetSnapshotLinks } from './snapshot-preset-links.js?v=2.98.22
         }
         event.preventDefault();
         const action = button.dataset.pmmSnapshotAction;
+        if (action !== 'close' && TOP.__PMM_PRESET_SNAPSHOT_STORAGE__?.state(currentPresetName()).state === 'loading') {
+          notify('info', '正在读取预设快照，请稍候');
+          return;
+        }
         const id = text(button.dataset.pmmSnapshotId);
         if (action !== 'menu') dismissOpenSnapshotMenu(overlay);
         if (action === 'close') closeOverlay();
@@ -15613,6 +15646,15 @@ import { installPresetSnapshotLinks } from './snapshot-preset-links.js?v=2.98.22
       return;
     }
     ensureOverlay();
+    if (TOP.__PMM_PRESET_SNAPSHOT_STORAGE__ && !options.storageReady) {
+      const context = overlayContext;
+      renderOverlay();
+      void TOP.__PMM_PRESET_SNAPSHOT_STORAGE__.refresh().then(() => {
+        if (overlayContext !== context || !DOC?.getElementById?.(OVERLAY_ID)) return;
+        if (!defaultSnapshotForCurrentPreset()) renderFirstDefaultPrompt(); else renderOverlay();
+      });
+      return;
+    }
     if (!defaultSnapshotForCurrentPreset()) {
       renderFirstDefaultPrompt();
       return;
@@ -15705,6 +15747,14 @@ import { installPresetSnapshotLinks } from './snapshot-preset-links.js?v=2.98.22
     if (normalizedBindings || migratedHomeSnapshot) writeStore(store);
     installStyle();
     syncChatBindingListener(store, true);
+    if (typeof installPresetSnapshotStorage === 'function') {
+      const service = installPresetSnapshotStorage(TOP, {
+        onStatus: () => renderSnapshotStorageStatus(),
+        onChange: () => { syncChatBindingListener(readStore(), false); renderOverlay(); },
+        onPresetLoaded: () => syncChatBindingListener(readStore(), true),
+      });
+      void service.ensure().then(() => syncChatBindingListener(readStore(), true));
+    }
   }
 
   TOP[API_KEY] = {
@@ -15727,6 +15777,7 @@ import { installPresetSnapshotLinks } from './snapshot-preset-links.js?v=2.98.22
     },
     cleanup() {
       uninstallChatBindingListener();
+      TOP.__PMM_PRESET_SNAPSHOT_STORAGE__?.cleanup?.();
       TOP.__PMM_PRESET_SNAPSHOT_LINKS__?.cleanup?.();
       closeOverlay();
       destroySnapshotEditor();

@@ -1,4 +1,4 @@
-import { readStores, createBackup, validateBackup, planImport, commitImport, readPresetStore, planPresetRelink, commitPresetRelink } from './snapshot-backup-core.js?v=2.98.22';
+import { readStores, createBackup, validateBackup, planImport, commitImport, readPresetStore, planPresetRelink, commitPresetRelink } from './snapshot-backup-core.js?v=2.98.23';
 
 export function openSnapshotBackup(host = window.parent || window) {
   const doc = host.document;
@@ -23,6 +23,7 @@ export function openSnapshotBackup(host = window.parent || window) {
     <p>一起备份所有预设快照、角色世界书快照、全局分组及方案。</p>
     <small>只包含开关和绑定配置，不含预设、角色卡或世界书正文。新酒馆需先准备对应资料；角色和聊天标识不同的绑定需重新设置。</small>
     <div class="actions"><button data-export>导出全部快照</button><button data-choose>选择备份文件</button><input data-file type="file" accept=".json,application/json" hidden></div>
+    <details data-migration hidden><summary>迁移前的本地备份</summary><p>首次把快照迁入预设前保留的本浏览器副本，可导出后按需合并恢复。</p><button data-export-migration>导出迁移前备份</button></details>
     <details data-recovery><summary>恢复旧预设快照</summary>
       <p>把本浏览器旧名字下的快照复制到对应预设，保留旧记录，不改变当前开关。已有角色／聊天绑定优先；目标已有默认时，旧默认会保留为普通快照。</p>
       <label>恢复到<select data-recovery-target></select></label>
@@ -121,23 +122,37 @@ export function openSnapshotBackup(host = window.parent || window) {
   q('[data-recovery]').ontoggle = () => { if (q('[data-recovery]').open) { try { renderRecovery(); } catch (error) { status(error.message); } } };
   q('[data-recovery-target]').onchange = () => { try { renderRecoverySources(); } catch (error) { status(error.message); } };
   q('[data-recovery-source]').onchange = previewRecovery;
-  q('[data-recover]').onclick = () => {
+  q('[data-recover]').onclick = async () => {
     try {
+      await host.__PMM_PRESET_SNAPSHOT_STORAGE__?.refresh?.();
       const target = q('[data-recovery-target]').value;
       if (!presetChoices().names.includes(target)) throw new Error('目标预设已改名或移除，请重新选择');
       const plan = recoveryPlan(); commitPresetRelink(host.localStorage, plan);
+      host.__PMM_PRESET_SNAPSHOT_STORAGE__?.observe?.();
       host.__PMM_SWITCH_SNAPSHOTS_TEST52__?.refreshAfterImport?.();
       status(`已复制 ${plan.changed} 个快照到“${target}”，当前开关未改变。`);
       previewRecovery(); if (backup) preview();
     } catch (error) { status('恢复失败：' + error.message); }
   };
-  q('[data-export]').onclick = () => {
+  q('[data-export]').onclick = async () => {
     try {
+      await host.__PMM_PRESET_SNAPSHOT_STORAGE__?.refresh?.();
       const data = createBackup(readStores(host.localStorage));
       const url = host.URL.createObjectURL(new host.Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
       const link = doc.createElement('a'); link.href = url; link.download = `预设工坊-全部快照-${new Date().toISOString().slice(0, 10)}.json`;
       doc.body.append(link); link.click(); link.remove(); host.setTimeout(() => host.URL.revokeObjectURL(url), 30000);
       status('已生成备份文件，请保留下载的 JSON 文件。');
+    } catch (error) { status(error.message); }
+  };
+  const migration = host.__PMM_PRESET_SNAPSHOT_STORAGE__?.migrationBackup?.();
+  q('[data-migration]').hidden = !migration?.snapshots?.length;
+  q('[data-export-migration]').onclick = () => {
+    try {
+      const data = createBackup({ preset: migration, world: { snapshots: [], groups: [], defaults: [] } });
+      const url = host.URL.createObjectURL(new host.Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+      const link = doc.createElement('a'); link.href = url; link.download = '预设工坊-迁移前本地快照.json';
+      doc.body.append(link); link.click(); link.remove(); host.setTimeout(() => host.URL.revokeObjectURL(url), 30000);
+      status('已导出迁移前备份，可通过「选择备份文件」合并恢复。');
     } catch (error) { status(error.message); }
   };
   q('[data-choose]').onclick = () => q('[data-file]').click();
@@ -152,12 +167,14 @@ export function openSnapshotBackup(host = window.parent || window) {
     } catch (error) { if (serial === fileSerial) status('无法读取备份：' + error.message); }
   };
   q('[data-bindings]').onchange = () => { try { preview(); } catch (error) { status(error.message); } };
-  q('[data-import]').onclick = () => {
+  q('[data-import]').onclick = async () => {
     try {
+      await host.__PMM_PRESET_SNAPSHOT_STORAGE__?.refresh?.();
       const names = presetChoices().names;
       for (const [source, target] of Object.entries(presetTargets)) if (source !== target && !names.includes(target)) throw new Error('目标预设已改名或移除，请重新选择备份文件和对应预设');
       const plan = preview(); if (!plan || !Object.values(plan.added).some(Boolean)) return;
       commitImport(host.localStorage, plan);
+      host.__PMM_PRESET_SNAPSHOT_STORAGE__?.observe?.();
       host.__PMM_SWITCH_SNAPSHOTS_TEST52__?.refreshAfterImport?.();
       host.__PMM_WORLDBOOK_SNAPSHOTS__?.refreshAfterImport?.();
       backup = null; q('[data-preview]').hidden = true; q('[data-import-actions]').hidden = true;
