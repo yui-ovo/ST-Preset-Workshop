@@ -1913,77 +1913,24 @@ async function ce(){
 
   function syncWandEntryMenuAppearance(entry, menu) {
     if (!entry || !menu) return;
-    const candidates = Array.from(menu.children || []).filter(node =>
-      node !== entry
-      && node?.nodeType === 1
-      && node.querySelector?.('i')
-      && String(node.textContent || '').trim()
-    );
-    const reference = candidates.find(node => node.classList?.contains('list-group-item'))
-      || candidates.find(node => node.classList?.length)
-      || candidates[0];
-    if (!reference) return;
+    // Native ST/TT rows may be inside .extension_container and use div icons.
+    // Use their public row/icon classes instead of copying a sibling container,
+    // extension-specific classes, hover colors, or computed opacity into children.
+    const rowClasses = 'list-group-item flex-container flexGap5 interactable';
+    if (entry.className !== rowClasses) entry.className = rowClasses;
+    const icon = entry.querySelector('i');
+    const iconClasses = 'fa-solid fa-sliders extensionsMenuExtensionButton';
+    if (icon && icon.className !== iconClasses) icon.className = iconClasses;
+    const label = entry.querySelector('span');
+    if (label?.className) label.className = '';
 
-    const isStateClass = name => /^(?:active|selected|disabled|hidden|displaynone|open|closed)$/i.test(name);
-    entry.className = Array.from(reference.classList || [])
-      .filter(name => !isStateClass(name))
-      .join(' ');
-
-    const entryIcon = entry.querySelector('i');
-    const referenceIcon = reference.querySelector('i');
-    if (entryIcon && referenceIcon) {
-      const sharedIconClasses = Array.from(referenceIcon.classList || [])
-        .filter(name => !/^fa(?:-|$)/i.test(name) && !isStateClass(name));
-      entryIcon.className = ['fa-solid', 'fa-sliders', ...sharedIconClasses].join(' ');
+    // Clear overrides left by an older runtime. Theme CSS owns normal/hover
+    // appearance; opacity belongs to the native row and must not be multiplied.
+    for (const node of [entry, icon, label]) {
+      for (const property of ['color', '-webkit-text-fill-color', 'opacity']) {
+        if (node?.style?.getPropertyValue(property)) node.style.removeProperty(property);
+      }
     }
-
-    const entryLabel = entry.querySelector('span');
-    const referenceLabel = reference.querySelector('span');
-    if (entryLabel && referenceLabel) {
-      entryLabel.className = Array.from(referenceLabel.classList || [])
-        .filter(name => !isStateClass(name))
-        .join(' ');
-    }
-
-    /* 某些美化不靠公共 class，而是直接给菜单项或子元素着色；同步其当前实际颜色。 */
-    try {
-      const view = entry.ownerDocument?.defaultView || window;
-      const referenceStyle = view.getComputedStyle(reference);
-      const textStyle = view.getComputedStyle(referenceLabel || reference);
-      const iconStyle = view.getComputedStyle(referenceIcon || reference);
-      const textColor = textStyle?.color;
-      const iconColor = iconStyle?.color;
-      const textFillColor = textStyle?.getPropertyValue?.('-webkit-text-fill-color');
-      const iconFillColor = iconStyle?.getPropertyValue?.('-webkit-text-fill-color');
-      const referenceOpacity = Number.parseFloat(referenceStyle?.opacity || '1');
-      const textOpacity = Number.parseFloat(textStyle?.opacity || '1');
-      const iconOpacity = Number.parseFloat(iconStyle?.opacity || '1');
-      if (textColor) {
-        entry.style.setProperty('color', textColor, 'important');
-        entryLabel?.style?.setProperty('color', textColor, 'important');
-      }
-      if (textFillColor) {
-        entry.style.setProperty('-webkit-text-fill-color', textFillColor, 'important');
-        entryLabel?.style?.setProperty('-webkit-text-fill-color', textFillColor, 'important');
-      }
-      if (entryIcon && (iconColor || textColor)) {
-        entryIcon.style.setProperty('color', iconColor || textColor, 'important');
-      }
-      if (entryIcon && (iconFillColor || textFillColor)) {
-        entryIcon.style.setProperty('-webkit-text-fill-color', iconFillColor || textFillColor, 'important');
-      }
-      if (entryLabel && Number.isFinite(textOpacity)) {
-        entryLabel.style.setProperty('opacity', String(textOpacity), 'important');
-      }
-      if (entryIcon && Number.isFinite(iconOpacity)) {
-        entryIcon.style.setProperty('opacity', String(iconOpacity), 'important');
-      }
-      entry.style.setProperty(
-        'opacity',
-        Number.isFinite(referenceOpacity) && referenceOpacity > 0 ? String(referenceOpacity) : '1',
-        'important'
-      );
-    } catch (_) {}
   }
 
   function ensureWandEntry(doc) {

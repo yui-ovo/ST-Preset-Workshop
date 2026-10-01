@@ -1,9 +1,10 @@
 {
   "name": "st-preset-workshop",
-  "version": "2.98.24",
+  "version": "2.98.25",
   "private": true,
   "type": "module",
   "scripts": {
+    "test:wand-menu-appearance": "node scripts/test-wand-menu-appearance-browser.mjs",
     "test:preset-snapshot-storage": "node --check dist/preset-snapshot-storage.js && node scripts/test-preset-snapshot-storage.mjs",
     "test:preset-snapshot-storage-browser": "node scripts/test-preset-snapshot-storage-browser.mjs",
     "test:snapshot-preset-links": "node --check dist/snapshot-backup.js && node --check dist/snapshot-preset-links.js && node scripts/test-snapshot-preset-links.mjs",
