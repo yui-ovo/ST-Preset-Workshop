@@ -14,4 +14,4 @@ assert.ok(layout.includes('.pm-panel-container--merge-mode > .preset-panel .pm-h
 assert.ok(layout.includes('--pmm-title-viewport-width:150px!important'), '常规手机标题卡片默认宽度被误改');
 assert.ok(!layout.includes('IS_ANDROID') || layout.includes('function _pmmBindAndroidRangeGestureGuard'), '标题栏保护不应依赖安卓 UA 分支');
 
-console.log('test.76 回归通过：极窄手机会为最右关闭键收回标题卡片空间，常规手机布局保持不变。');
+console.log('test.76 回归通过：保留窄手机标题宽度与主预设/缝合模式作用域；关闭键可见性由 mobile-header-fit 浏览器测试验证。');

@@ -10971,6 +10971,13 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     --pmm-native-preset-width:108px!important;
     --pmm-title-viewport-width:150px!important;
     --pmm-title-overflow-actions-width:42px!important;
+    /* 关闭键独占右上角；工具按实际可用宽度换行，不再依赖机型或屏宽猜测。 */
+    position:relative!important;
+    box-sizing:border-box!important;
+    height:auto!important;
+    min-height:46px!important;
+    padding-right:36px!important;
+    flex-wrap:wrap!important;
   }
 
   /* 外层标题视窗始终固定；默认时只让内部名称缩短，以保证搜索和铅笔可见。 */
@@ -10981,14 +10988,33 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     min-width:var(--pmm-title-viewport-width,150px)!important;
     max-width:var(--pmm-title-viewport-width,150px)!important;
   }
-  /* 固定标题框右侧的工具区吃满剩余宽度，并按实时屏宽均匀分配按钮间距。 */
+  /* 能放下时保持单行；放不下时工具组进入下一行，极窄时组内也能换行。 */
   #preset-manager-main-panel.pmm-mobile-layout-enabled .pm-panel-container > .pm-main-wrapper .pm-header > .header-right,
   #preset-manager-main-panel.pmm-mobile-layout-enabled .pm-panel-container--merge-mode > .preset-panel .pm-header > .header-right{
-    flex:1 1 0!important;
+    flex:1 1 max-content!important;
     width:auto!important;
     min-width:0!important;
+    max-width:100%!important;
+    height:auto!important;
+    min-height:36px!important;
+    position:static!important;
+    flex-wrap:wrap!important;
     justify-content:space-evenly!important;
     gap:1px!important;
+  }
+  #preset-manager-main-panel.pmm-mobile-layout-enabled .pm-panel-container > .pm-main-wrapper .pm-header > .header-right > .close-card[title="关闭"],
+  #preset-manager-main-panel.pmm-mobile-layout-enabled .pm-panel-container--merge-mode > .preset-panel .pm-header > .header-right > .close-card[title="关闭"]{
+    position:absolute!important;
+    top:7px!important;
+    right:5px!important;
+    bottom:auto!important;
+    left:auto!important;
+    width:26px!important;
+    min-width:26px!important;
+    max-width:26px!important;
+    height:30px!important;
+    margin:0!important;
+    z-index:2!important;
   }
   #preset-manager-main-panel.pmm-mobile-layout-enabled .pm-panel-container > .pm-main-wrapper .pm-header .header-left .title-card,
   #preset-manager-main-panel.pmm-mobile-layout-enabled .pm-panel-container--merge-mode > .preset-panel .pm-header .header-left .title-card{
@@ -11042,8 +11068,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     max-width:var(--pmm-title-overflow-actions-width)!important;
   }
 
-  /* 约 360 CSS 像素的窄手机（常见于安卓）放回 20px 给右侧关闭键。
-     只缩外层标题视窗，不改变名称滑杆的自定义行为，也不会影响 390px 及以上的 iPhone 布局。 */
+  /* 窄手机保留较短的标题视窗；按钮是否换行由实际宽度决定。 */
   @media (max-width:374px){
     #preset-manager-main-panel.pmm-mobile-layout-enabled .pm-panel-container > .pm-main-wrapper .pm-header,
     #preset-manager-main-panel.pmm-mobile-layout-enabled .pm-panel-container--merge-mode > .preset-panel .pm-header{
