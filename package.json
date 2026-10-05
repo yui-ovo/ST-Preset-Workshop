@@ -1,9 +1,10 @@
 {
   "name": "st-preset-workshop",
-  "version": "2.98.17-fix.1",
+  "version": "2.98.17-fix.2",
   "private": true,
   "type": "module",
   "scripts": {
+    "test:prompt-card-actions-browser": "node scripts/test-panel-startup-browser.mjs --prompt-actions",
     "test:panel-startup-browser": "node scripts/test-panel-startup-browser.mjs",
     "test:worldbook-unsaved-target": "node scripts/test-worldbook-unsaved-target.mjs",
     "test:snapshot-ui": "node scripts/test-test97-snapshot-save-ui-browser.mjs && node scripts/test-worldbook-snapshots-browser.mjs",

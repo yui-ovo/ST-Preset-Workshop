@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { verifyPromptCardActions } from './verify-prompt-card-actions.mjs';
 const playwright = await import(process.env.PMM_PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PMM_PLAYWRIGHT_MODULE).href : 'playwright');
 const assets = process.env.PMM_BROWSER_ASSET_DIR;
 assert.ok(assets, 'Set PMM_BROWSER_ASSET_DIR to the local browser dependency fixtures');
@@ -17,7 +18,7 @@ const source = (await readFile(process.env.PMM_WORKSHOP_SOURCE || new URL('../di
 const browser = await playwright[engine].launch(engine === 'chromium' ? { channel: 'msedge', headless: true } : { headless: true });
 try {
   for (const paused of ['none', 'runtime', 'all']) {
-    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.route('**/*', async route => {
@@ -33,6 +34,7 @@ try {
     await page.addScriptTag({ content: await asset('jquery.min.js') });
     await page.evaluate(() => {
       const prompts = Array.from({ length: 326 }, (_, i) => ({ id: `p${i}`, name: `Prompt ${i}`, enabled: true, content: 'Fixture content', role: 'system', position: { type: 'relative' } }));
+      prompts[0].name = '测试条目名称：这里是原本被隐藏按钮挡住的后半段';
       let variables = {};
       window.fixtureLoads = 0;
       const context = { getPresetManager: () => ({ readPresetExtensionField: () => null, getSelectedPresetName: () => 'First', getCompletionPresetByName: () => ({ prompts }) }), characters: [], chat: [], eventTypes: {}, eventSource: { on() {}, off() {}, emit() {}, removeListener() {} } };
@@ -89,6 +91,7 @@ try {
       return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0.9 && rect.width > 100 && rect.height > 100;
     });
     assert.ok(visible, `${paused}: panel must be painted, not merely present in the DOM`);
+    if (paused === 'none' && (process.argv.includes('--prompt-actions') || process.env.PMM_CHECK_PROMPT_ACTIONS === '1')) await verifyPromptCardActions(page);
     // Exercise real native select and close button with normal frame delivery.
     // Browser actionability checks themselves need frames, so use DOM events in the fault cases.
     if (paused === 'none') await page.locator('.preset-panel .title-select').first().selectOption('Second');
