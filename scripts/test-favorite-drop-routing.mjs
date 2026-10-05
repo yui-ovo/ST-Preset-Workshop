@@ -44,7 +44,7 @@ async function fixture(data) {
     },
   });
   vm.runInContext(
-    between('function ee(e,n){', 'function ne()') +
+    between('function ee(e,n,', 'function ne()') +
     "async function me(e){await ee('favorites',e)}" +
     between('function Ie(){', 'function Ne(') +
     between('function Te(e){', 'function rn()') +
