@@ -28,7 +28,7 @@ body{margin:0;font:14px sans-serif}.floating-panel-root{position:fixed;left:45%;
 #preset-manager-main-panel{position:absolute;left:20px;top:70px;width:350px}.theme-switch-card{display:flex;gap:8px}
 </style><button id="native-entry">预设工坊（原生入口）</button>
 <div id="preset-manager-floating-panel"><div class="floating-panel-root floating-mode">
-<div class="panel-wrapper" style="display:none"><div class="panel-header"><div class="panel-section"><i class="fa-sliders"></i><select class="panel-select panel-select--preset"><option>测试预设</option></select></div><button class="panel-action"><i class="fa-edit"></i>编辑</button><button class="panel-collapse">收起</button></div></div>
+<div class="panel-wrapper" style="display:none"><div class="panel-header"><div class="panel-section"><i class="fa-solid fa-sliders section-icon"></i><select class="panel-select panel-select--preset"><option>测试预设</option></select></div><button class="panel-action"><i class="fa-edit"></i>编辑</button><button class="panel-collapse">收起</button></div></div>
 <div class="edge-tab"><i class="fa-chevron-left">❮</i></div></div></div>
 <iframe id="runtime" style="display:none"></iframe><script>
 function workshop(){if(document.querySelector('#preset-manager-main-panel'))return;const el=document.createElement('div');el.id='preset-manager-main-panel';el.innerHTML='<div class="pm-panel-container"><div class="theme-switch-card"><button class="theme-btn" title="白色模式">白</button><button class="theme-btn" title="黑色模式">黑</button></div></div>';document.body.append(el);window.refreshControls?.();}
@@ -78,6 +78,11 @@ try {
   assert.ok((await rect(page)).x>790,'Wide iPad starts at right edge despite narrow runtime iframe');
   assert.equal(await page.locator('.pmm-mobile-fab-toggle').count(),1);
   assert.equal(await page.locator('.theme-btn[title="白色模式"]').isVisible(),true,'Tablet retains desktop theme controls');
+  // Include the real batch trigger: without section-icon the fixture skipped its
+  // binding, hiding a class mutation that continuously rescheduled this observer.
+  assert.equal(await page.locator('.section-icon').getAttribute('role'),'button');
+  assert.equal(await page.locator('.section-icon').getAttribute('tabindex'),'0');
+  assert.equal(await page.locator('.section-icon').getAttribute('aria-label'),'批量管理预设');
   await idle(page);
   // Real browser touch sequence (also emits pointer events) catches double binding / compatibility click issues.
   const client=await page.context().newCDPSession(page);

@@ -12786,11 +12786,12 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   function bindBatchTrigger(root) {
     const icon = root?.querySelector('.panel-section .fa-sliders.section-icon');
     if (!icon) return;
-    icon.classList.add('pmm-preset-batch-trigger');
-    icon.setAttribute('role', 'button');
-    icon.setAttribute('tabindex', '0');
-    icon.setAttribute('title', '批量管理预设');
-    icon.setAttribute('aria-label', '批量管理预设');
+    // This module observes class changes itself. Re-adding an existing class
+    // still emits a mutation and keeps sync() running every animation frame.
+    icon.classList.toggle('pmm-preset-batch-trigger', true);
+    for (const [name, value] of Object.entries({ role: 'button', tabindex: '0', title: '批量管理预设', 'aria-label': '批量管理预设' })) {
+      if (icon.getAttribute(name) !== value) icon.setAttribute(name, value);
+    }
     if (icon.dataset.pmmBatchBound === '1') return;
     icon.dataset.pmmBatchBound = '1';
     const open = event => {
