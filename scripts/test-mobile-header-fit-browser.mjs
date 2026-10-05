@@ -21,6 +21,10 @@ assert.ok(nativeCss.includes('.header-right[data-v-71128760]'), 'Missing native 
 const baseCss = templateAfter('  const CSS = `');
 const layoutCss = templateAfter('    style.textContent = `', source.indexOf('/* ===== PMM_MOBILE_LAYOUT_TUNER_V1'));
 const desktopCss = templateAfter('    style.textContent = `', source.indexOf("const API_KEY = '__PMM_DESKTOP_FOUR_CORNER_RESIZE__';"));
+const syncStart = source.indexOf('  function refreshHeaderWrapping()');
+const syncEnd = source.indexOf('  function applyState(', syncStart);
+assert.ok(syncStart > 0 && syncEnd > syncStart);
+const syncCode = source.slice(syncStart, syncEnd);
 const actions = ['平铺', '取消分组', '比对', '多选', '搜索', '撤销', '保存'];
 function header(id) {
   return `<header class="pm-header" id="${id}">
@@ -58,12 +62,19 @@ try {
     </div></div><script>
       document.querySelectorAll('.pm-header,.pm-header *').forEach(node=>node.setAttribute('data-v-71128760',''));
       window.clicks=[];document.querySelectorAll('button').forEach(button=>button.addEventListener('click',()=>window.clicks.push(button.closest('header').id+':'+button.title)));
+      const root=document.querySelector('#preset-manager-main-panel');
+      const isMobile=()=>matchMedia('(max-width:768px)').matches;
+      ${syncCode}
+      window.syncHeaders=refreshHeaderWrapping;
+      syncHeaders();
     </script>`;
   await page.setContent(html);
   async function inspect(label) {
+    await page.evaluate(() => { for(let i=0;i<3;i++) syncHeaders(); });
     const results = await page.evaluate(() => [...document.querySelectorAll('.pm-header')].map(header => {
       const rect = header.getBoundingClientRect();
-      const close = header.querySelector('.close-card');
+      const close = header.querySelector(':scope > .pmm-mobile-header-close');
+      if (header.querySelectorAll('.pmm-mobile-header-close').length !== 1) throw new Error('Duplicate or missing mobile close');
       const closeRect = close.getBoundingClientRect();
       const leftRect = header.querySelector('.header-left').getBoundingClientRect();
       const rightRect = header.querySelector('.header-right').getBoundingClientRect();
@@ -89,10 +100,12 @@ try {
       const expectedHeight = await page.evaluate(() => 46 * Number(getComputedStyle(document.querySelector('#preset-manager-main-panel')).zoom));
       assert.ok(Math.abs(result.height - expectedHeight) <= 1, `${label}/${result.id}: header must remain one row high`);
       for (const button of result.controls) assert.ok(button.visible && button.clickable && !button.overlapsClose, `${label}/${result.id}: ${JSON.stringify(button)}`);
-      await page.locator(`#${result.id} .close-card`).tap();
+      const countBefore = await page.evaluate(id => window.clicks.filter(value=>value===id+':关闭').length, result.id);
+      await page.locator(`#${result.id} > .pmm-mobile-header-close`).tap();
+      assert.equal(await page.evaluate(id => window.clicks.filter(value=>value===id+':关闭').length, result.id), countBefore+1, 'Proxy must invoke the native close exactly once');
       // Every offscreen tool must be reachable, while close remains visible and stationary.
       const toolbar = page.locator(`#${result.id} .header-right`);
-      const closeBefore = await page.locator(`#${result.id} .close-card`).boundingBox();
+      const closeBefore = await page.locator(`#${result.id} > .pmm-mobile-header-close`).boundingBox();
       const buttons = toolbar.locator('button:not(.close-card)');
       for (let i = 0; i < await buttons.count(); i++) {
         const button = buttons.nth(i);
@@ -111,9 +124,9 @@ try {
         assert.ok(reachable, `${label}/${result.id}: tool ${i} must be reachable by scrolling`);
         await button.tap();
       }
-      const closeAfter = await page.locator(`#${result.id} .close-card`).boundingBox();
+      const closeAfter = await page.locator(`#${result.id} > .pmm-mobile-header-close`).boundingBox();
       assert.ok(Math.abs(closeAfter.x - closeBefore.x) < 1 && Math.abs(closeAfter.y - closeBefore.y) < 1, 'Scrolling must not move close');
-      await page.locator(`#${result.id} .close-card`).tap();
+      await page.locator(`#${result.id} > .pmm-mobile-header-close`).tap();
       await toolbar.evaluate(node => { node.scrollLeft = 0; });
     }
     return results;
@@ -126,6 +139,11 @@ try {
     if ([320, 390, 461].includes(width)) await page.screenshot({ path: fileURLToPath(new URL(`${width}.png`, output)) });
   }
   await page.setViewportSize({ width: 390, height: 1100 });
+  // Reproduce toolbar clipping even in Chromium: the close must not depend on
+  // an absolutely positioned descendant escaping a scrolling/composited layer.
+  await page.addStyleTag({content:'.header-right{transform:translateZ(0)!important;contain:paint!important}'});
+  await inspect('composited and clipped toolbar');
+  await page.screenshot({path:fileURLToPath(new URL('independent-close.png',output))});
   // Enlarge the rendered UI within the same viewport, including a wider theme button group.
   await page.evaluate(() => {
     document.querySelector('#preset-manager-main-panel').style.zoom = '1.25';
@@ -144,8 +162,13 @@ try {
   await page.evaluate(() => { document.querySelector('.pm-panel-container').classList.remove('pm-panel-container--merge-mode'); document.querySelector('.preset-panel').remove(); });
   await inspect('single mode');
   await page.setViewportSize({ width: 1280, height: 1000 });
+  await page.evaluate(() => syncHeaders());
+  assert.equal(await page.locator('.pmm-mobile-header-close').count(), 0, 'Desktop must remove mobile controls');
+  assert.equal(await page.locator('.close-card').isVisible(), true, 'Desktop must restore original close');
   const desktopClose = await page.locator('.close-card').evaluate(node => getComputedStyle(node).position);
   assert.notEqual(desktopClose, 'absolute', 'Mobile close positioning must not leak into desktop');
+  await page.setViewportSize({ width: 390, height: 1100 });
+  await inspect('return to mobile');
   assert.ok((await page.evaluate(() => window.clicks)).length >= 18, 'Close controls must accept taps');
   console.log('Mobile header browser regression passed: narrow/wide viewports, enlarged UI, custom title, merge/single modes, close hit targets and desktop isolation.');
 } finally {

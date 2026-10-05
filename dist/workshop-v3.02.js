@@ -10157,6 +10157,38 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       header.classList.remove('pmm-layout-wrap-priority', 'pmm-layout-wrap-all');
       header.querySelector(':scope > .pmm-header-overflow-row')?.remove();
       delete header.dataset.pmmLayoutWrapStage;
+      const nativeClose = header.querySelector(':scope > .header-right > .close-card[title="关闭"]');
+      let close = header.querySelector(':scope > .pmm-mobile-header-close');
+      const supported = isMobile() && nativeClose && header.matches(
+        '.pm-panel-container > .pm-main-wrapper .pm-header,.pm-panel-container--merge-mode > .preset-panel .pm-header',
+      );
+      if (!supported) {
+        close?.remove();
+        header.classList.remove('pmm-mobile-close-ready');
+        continue;
+      }
+      if (!close) {
+        // Keep Vue's original button in place. A sibling forwards to its current
+        // handler, outside the scrolling/composited toolbar (including iOS).
+        close = header.ownerDocument.createElement('button');
+        close.type = 'button';
+        close.className = 'header-card close-card pmm-mobile-header-close';
+        close.title = '关闭';
+        close.setAttribute('aria-label', '关闭');
+        close.textContent = '×';
+        for (const attribute of nativeClose.attributes) {
+          if (attribute.name.startsWith('data-v-')) close.setAttribute(attribute.name, attribute.value);
+        }
+        close.addEventListener('click', event => {
+          event.preventDefault();
+          event.stopPropagation();
+          const current = header.querySelector(':scope > .header-right > .close-card[title="关闭"]');
+          if (current && !current.disabled) current.click();
+        });
+        header.appendChild(close);
+      }
+      if (close.disabled !== nativeClose.disabled) close.disabled = nativeClose.disabled;
+      header.classList.add('pmm-mobile-close-ready');
     }
   }
 
@@ -10988,7 +11020,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     min-width:var(--pmm-title-viewport-width,150px)!important;
     max-width:var(--pmm-title-viewport-width,150px)!important;
   }
-  /* 不移动 Vue 节点；关闭键相对 header 定位，避开工具滚动区的裁剪。 */
+  /* 工具栏可以单独形成滚动/合成层；可见关闭键是它的兄弟节点。 */
   #preset-manager-main-panel.pmm-mobile-layout-enabled .pm-panel-container > .pm-main-wrapper .pm-header > .header-right,
   #preset-manager-main-panel.pmm-mobile-layout-enabled .pm-panel-container--merge-mode > .preset-panel .pm-header > .header-right{
     flex:1 1 0!important;
@@ -11013,8 +11045,19 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     display:none!important;
     height:0!important;
   }
-  #preset-manager-main-panel.pmm-mobile-layout-enabled .pm-panel-container > .pm-main-wrapper .pm-header > .header-right > .close-card[title="关闭"],
-  #preset-manager-main-panel.pmm-mobile-layout-enabled .pm-panel-container--merge-mode > .preset-panel .pm-header > .header-right > .close-card[title="关闭"]{
+  #preset-manager-main-panel.pmm-mobile-layout-enabled .pm-header.pmm-mobile-close-ready > .header-right > .close-card[title="关闭"]{
+    display:none!important;
+  }
+  #preset-manager-main-panel.pmm-mobile-layout-enabled .pm-header > .pmm-mobile-header-close{
+    display:flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    padding:0!important;
+    color:var(--pm-text-primary,inherit)!important;
+    font:20px/1 sans-serif!important;
+    visibility:visible!important;
+    opacity:1!important;
+    pointer-events:auto!important;
     position:absolute!important;
     top:7px!important;
     right:5px!important;
@@ -11774,6 +11817,8 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       delete node.dataset.pmmLayoutWrapStage;
     });
     DOC.querySelectorAll('.pm-header').forEach(header => {
+      header.querySelector(':scope > .pmm-mobile-header-close')?.remove();
+      header.classList.remove('pmm-mobile-close-ready');
       header.style.removeProperty('--pmm-title-viewport-width');
       header.style.removeProperty('--pmm-native-preset-width');
       header.style.removeProperty('--pmm-branch-title-viewport-width');
