@@ -105,7 +105,8 @@
     const selected = aggregate(group, children, 'selectedCount');
     const all = total > 0 && selected >= total;
     const partial = selected > 0 && !all;
-    button.querySelector('i').className = 'fa-solid fa-check-double';
+    const icon = button.querySelector('i');
+    if (icon.className !== 'fa-solid fa-check-double') icon.className = 'fa-solid fa-check-double';
     button.classList.toggle('pmm-section-select-all--checked', all);
     button.classList.toggle('pmm-section-select-all--partial', partial);
     button.title = all
@@ -228,7 +229,7 @@
     let slot = findSlot(host, groupId(child));
     if (!content || parent.classList.contains('section-group--collapsed')) {
       slot?.remove();
-      child.classList.add('pmm-nested-section--hidden');
+      child.classList.toggle('pmm-nested-section--hidden', true);
       return;
     }
 
@@ -236,8 +237,8 @@
     const before = promptItemById(content, String(child.dataset.parentBeforeItemId || ''));
     if (slot.parentElement !== content || slot.nextElementSibling !== before) content.insertBefore(slot, before);
 
-    child.classList.remove('pmm-nested-section--hidden');
-    child.classList.add('pmm-nested-section--visual');
+    child.classList.toggle('pmm-nested-section--hidden', false);
+    child.classList.toggle('pmm-nested-section--visual', true);
     slot.style.height = `${Math.max(52, child.getBoundingClientRect().height || 0) + 8}px`;
 
     const slotRect = slot.getBoundingClientRect();
@@ -254,6 +255,8 @@
   }
 
   function layoutNesting(allGroups) {
+    // This module observes class changes. Forced toggle is a no-op when the
+    // class already matches; unconditional add/remove re-queues every frame.
     const byId = new Map(allGroups.map(group => [groupId(group), group]));
     const hosts = new Set(allGroups.map(group => group.parentElement).filter(Boolean));
     const liveChildIds = new Set();
@@ -263,14 +266,15 @@
       const parent = byId.get(parentId);
       const host = child.parentElement;
       if (!parentId || !parent || !host || parent.parentElement !== host) {
-        child.classList.remove('pmm-nested-section--visual', 'pmm-nested-section--hidden');
+        child.classList.toggle('pmm-nested-section--visual', false);
+        child.classList.toggle('pmm-nested-section--hidden', false);
         child.style.removeProperty('--pmm-nested-top');
         child.style.removeProperty('--pmm-nested-left');
         child.style.removeProperty('--pmm-nested-width');
         continue;
       }
       liveChildIds.add(groupId(child));
-      host.classList.add('pmm-nested-section-layout');
+      host.classList.toggle('pmm-nested-section-layout', true);
       layoutNestedGroup(child, parent, host);
     }
     for (const host of hosts) clearStaleSlots(host, liveChildIds);

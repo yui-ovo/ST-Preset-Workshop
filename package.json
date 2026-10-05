@@ -1,9 +1,10 @@
 {
   "name": "st-preset-workshop",
-  "version": "2.98.28",
+  "version": "2.98.29",
   "private": true,
   "type": "module",
   "scripts": {
+    "test:workshop-idle": "node scripts/test-workshop-idle-browser.mjs",
     "test:mobile-header-fit": "node scripts/test-mobile-header-fit-browser.mjs",
     "test:wand-menu-appearance": "node scripts/test-wand-menu-appearance-browser.mjs",
     "test:preset-snapshot-storage": "node --check dist/preset-snapshot-storage.js && node scripts/test-preset-snapshot-storage.mjs",

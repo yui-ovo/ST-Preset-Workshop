@@ -9823,6 +9823,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   const ResizeObserverCtor = TOP.ResizeObserver || globalThis.ResizeObserver;
 
   const DEFAULTS = Object.freeze({
+    toolbarGap: 1,
     groupFont: 13,
     groupHeight: 54,
     itemFont: 10,
@@ -9836,6 +9837,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   });
   const DESKTOP_DEFAULT_SPLIT_RATIO = 52;
   const LIMITS = Object.freeze({
+    toolbarGap: [0, 16],
     groupFont: [10, 16],
     groupHeight: [28, 54],
     itemFont: [8, 14],
@@ -9848,6 +9850,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     splitRatio: [28, 72],
   });
   const CUSTOM_CLASSES = Object.freeze({
+    toolbarGap: 'pmm-layout-custom-toolbar-gap',
     groupFont: 'pmm-layout-custom-group-font',
     groupHeight: 'pmm-layout-custom-group-height',
     itemFont: 'pmm-layout-custom-item-font',
@@ -9860,6 +9863,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     splitRatio: 'pmm-layout-custom-split-ratio',
   });
   const CONTROLS = [
+    { key:'toolbarGap', label:'顶部按钮间距', unit:'px', step:1 },
     { key:'groupFont', label:'分组文字大小', unit:'px', step:.5 },
     { key:'groupHeight', label:'分组框高度', unit:'px', step:1 },
     { key:'itemFont', label:'条目文字大小', unit:'px', step:.5 },
@@ -9959,7 +9963,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   }
 
   function currentControls() {
-    return isMobile() ? CONTROLS : CONTROLS.filter(control => !['presetWidth', 'branchWidth', 'floatingWidth'].includes(control.key));
+    return isMobile() ? CONTROLS : CONTROLS.filter(control => !['toolbarGap', 'presetWidth', 'branchWidth', 'floatingWidth'].includes(control.key));
   }
 
   function dragCompatEnabled() {
@@ -9989,7 +9993,9 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     button.title = enabled
       ? '已开启：当前浏览器使用轻量长按拖拽，点击关闭'
       : '仅在当前浏览器长按无法拖动时开启';
-    button.querySelector('[data-pmm-dnd-state]').textContent = enabled ? '开' : '关';
+    const label = button.querySelector('[data-pmm-dnd-state]');
+    const nextText = enabled ? '开' : '关';
+    if (label.textContent !== nextText) label.textContent = nextText;
   }
 
   function setTopNotificationsEnabled(nextEnabled) {
@@ -10006,7 +10012,9 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     button.title = enabled
       ? '当前会显示预设工坊的顶部小通知，点击全部关闭'
       : '预设工坊的顶部小通知已关闭，点击恢复';
-    button.querySelector('[data-pmm-notice-state]').textContent = enabled ? '开' : '关';
+    const label = button.querySelector('[data-pmm-notice-state]');
+    const nextText = enabled ? '开' : '关';
+    if (label.textContent !== nextText) label.textContent = nextText;
   }
 
   function onDragCompatChange() {
@@ -10031,6 +10039,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   function setVariables(target) {
     if (!target) return;
     const current = currentState();
+    target.style.setProperty('--pmm-user-toolbar-gap', `${current.values.toolbarGap}px`);
     target.style.setProperty('--pmm-user-group-font', `${current.values.groupFont}px`);
     target.style.setProperty('--pmm-user-group-height', `${current.values.groupHeight}px`);
     target.style.setProperty('--pmm-user-item-font', `${current.values.itemFont}px`);
@@ -10076,7 +10085,8 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       if (plus) plus.disabled = current.values[control.key] >= range[1];
       if (output) {
         const customized = current.customized[control.key] === true;
-        output.textContent = customized ? '恢复默认' : '默认';
+        const nextText = customized ? '恢复默认' : '默认';
+        if (output.textContent !== nextText) output.textContent = nextText;
         output.disabled = !customized;
         output.title = customized
           ? `当前 ${current.values[control.key]}${control.unit}，点击仅恢复这一项`
@@ -10154,7 +10164,8 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   function refreshHeaderWrapping() {
     if (!root) return;
     for (const header of root.querySelectorAll('.pm-header')) {
-      header.classList.remove('pmm-layout-wrap-priority', 'pmm-layout-wrap-all');
+      header.classList.toggle('pmm-layout-wrap-priority', false);
+      header.classList.toggle('pmm-layout-wrap-all', false);
       header.querySelector(':scope > .pmm-header-overflow-row')?.remove();
       delete header.dataset.pmmLayoutWrapStage;
       const nativeClose = header.querySelector(':scope > .header-right > .close-card[title="关闭"]');
@@ -10164,7 +10175,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
       );
       if (!supported) {
         close?.remove();
-        header.classList.remove('pmm-mobile-close-ready');
+        header.classList.toggle('pmm-mobile-close-ready', false);
         continue;
       }
       if (!close) {
@@ -10188,14 +10199,14 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
         header.appendChild(close);
       }
       if (close.disabled !== nativeClose.disabled) close.disabled = nativeClose.disabled;
-      header.classList.add('pmm-mobile-close-ready');
+      header.classList.toggle('pmm-mobile-close-ready', true);
     }
   }
 
   function applyState(save = false) {
     if (!root) return;
     setVariables(root);
-    root.classList.add('pmm-mobile-layout-enabled');
+    root.classList.toggle('pmm-mobile-layout-enabled', true);
     updateOutputs();
     VIEW.requestAnimationFrame?.(refreshHeaderWrapping);
     if (save) persistSoon();
@@ -11032,7 +11043,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     position:static!important;
     flex-wrap:nowrap!important;
     justify-content:flex-start!important;
-    gap:1px!important;
+    gap:var(--pmm-user-toolbar-gap,1px)!important;
     overflow-x:auto!important;
     overflow-y:hidden!important;
     overscroll-behavior-x:contain!important;
@@ -11054,7 +11065,13 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     justify-content:center!important;
     padding:0!important;
     color:var(--pm-text-primary,inherit)!important;
-    font:20px/1 sans-serif!important;
+    font:14px/1 sans-serif!important;
+    border:0!important;
+    background:transparent!important;
+    box-shadow:none!important;
+    border-radius:0!important;
+    transform:none!important;
+    -webkit-tap-highlight-color:transparent!important;
     visibility:visible!important;
     opacity:1!important;
     pointer-events:auto!important;
@@ -11069,6 +11086,10 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     height:30px!important;
     margin:0!important;
     z-index:2!important;
+  }
+  #preset-manager-main-panel.pmm-mobile-layout-enabled .pm-header > .pmm-mobile-header-close::before,
+  #preset-manager-main-panel.pmm-mobile-layout-enabled .pm-header > .pmm-mobile-header-close::after{
+    content:none!important;
   }
   #preset-manager-main-panel.pmm-mobile-layout-enabled .pm-panel-container > .pm-main-wrapper .pm-header .header-left .title-card,
   #preset-manager-main-panel.pmm-mobile-layout-enabled .pm-panel-container--merge-mode > .preset-panel .pm-header .header-left .title-card{
@@ -16366,7 +16387,8 @@ html.pmm-tauri-dnd-active #preset-manager-main-panel { user-select: none !import
     const selected = aggregate(group, children, 'selectedCount');
     const all = total > 0 && selected >= total;
     const partial = selected > 0 && !all;
-    button.querySelector('i').className = 'fa-solid fa-check-double';
+    const icon = button.querySelector('i');
+    if (icon.className !== 'fa-solid fa-check-double') icon.className = 'fa-solid fa-check-double';
     button.classList.toggle('pmm-section-select-all--checked', all);
     button.classList.toggle('pmm-section-select-all--partial', partial);
     button.title = all
@@ -16489,7 +16511,7 @@ html.pmm-tauri-dnd-active #preset-manager-main-panel { user-select: none !import
     let slot = findSlot(host, groupId(child));
     if (!content || parent.classList.contains('section-group--collapsed')) {
       slot?.remove();
-      child.classList.add('pmm-nested-section--hidden');
+      child.classList.toggle('pmm-nested-section--hidden', true);
       return;
     }
 
@@ -16497,8 +16519,8 @@ html.pmm-tauri-dnd-active #preset-manager-main-panel { user-select: none !import
     const before = promptItemById(content, String(child.dataset.parentBeforeItemId || ''));
     if (slot.parentElement !== content || slot.nextElementSibling !== before) content.insertBefore(slot, before);
 
-    child.classList.remove('pmm-nested-section--hidden');
-    child.classList.add('pmm-nested-section--visual');
+    child.classList.toggle('pmm-nested-section--hidden', false);
+    child.classList.toggle('pmm-nested-section--visual', true);
     slot.style.height = `${Math.max(52, child.getBoundingClientRect().height || 0) + 8}px`;
 
     const slotRect = slot.getBoundingClientRect();
@@ -16515,6 +16537,8 @@ html.pmm-tauri-dnd-active #preset-manager-main-panel { user-select: none !import
   }
 
   function layoutNesting(allGroups) {
+    // This module observes class changes. Forced toggle is a no-op when the
+    // class already matches; unconditional add/remove re-queues every frame.
     const byId = new Map(allGroups.map(group => [groupId(group), group]));
     const hosts = new Set(allGroups.map(group => group.parentElement).filter(Boolean));
     const liveChildIds = new Set();
@@ -16524,14 +16548,15 @@ html.pmm-tauri-dnd-active #preset-manager-main-panel { user-select: none !import
       const parent = byId.get(parentId);
       const host = child.parentElement;
       if (!parentId || !parent || !host || parent.parentElement !== host) {
-        child.classList.remove('pmm-nested-section--visual', 'pmm-nested-section--hidden');
+        child.classList.toggle('pmm-nested-section--visual', false);
+        child.classList.toggle('pmm-nested-section--hidden', false);
         child.style.removeProperty('--pmm-nested-top');
         child.style.removeProperty('--pmm-nested-left');
         child.style.removeProperty('--pmm-nested-width');
         continue;
       }
       liveChildIds.add(groupId(child));
-      host.classList.add('pmm-nested-section-layout');
+      host.classList.toggle('pmm-nested-section-layout', true);
       layoutNestedGroup(child, parent, host);
     }
     for (const host of hosts) clearStaleSlots(host, liveChildIds);

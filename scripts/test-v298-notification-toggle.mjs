@@ -24,7 +24,9 @@ for (const snippet of [
   '顶部通知：<span data-pmm-notice-state>开</span>',
   'setTopNotificationsEnabled(!pmmTopNotificationsEnabled())',
   'setTopNotificationsEnabled(true)',
-  "button.querySelector('[data-pmm-notice-state]').textContent = enabled ? '开' : '关'",
+  "const label = button.querySelector('[data-pmm-notice-state]')",
+  "const nextText = enabled ? '开' : '关'",
+  'if (label.textContent !== nextText) label.textContent = nextText',
   'grid-template-columns:1.15fr 1fr 1fr auto!important',
   '.pmm-layout-notice-btn.pmm-layout-notice-btn--active',
 ]) {

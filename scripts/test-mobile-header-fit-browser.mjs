@@ -34,8 +34,7 @@ function header(id) {
     </div></div></div>
     <div class="header-right">
       ${actions.slice(0, 2).map((title, i) => `<button class="header-card action-card" title="${title}"><span class="card-icon">${['☷', '▣'][i]}</span></button>`).join('')}
-      <div class="header-card theme-switch-card"><button class="theme-btn" title="主题">☼</button></div>
-      <button class="fixture-toggle" title="开关">◉</button>
+      <div class="header-card theme-switch-card"><button class="theme-btn" title="主题">☼</button><button class="fixture-toggle pmm-mobile-fab-toggle" title="开关">◉</button></div>
       ${actions.slice(2).map((title, i) => `<button class="header-card action-card" title="${title}"><span class="card-icon">${['⇄', '✓', '⌕', '↶', '▣'][i]}</span></button>`).join('')}
       <button class="header-card close-card" title="关闭">×</button>
     </div>
@@ -143,6 +142,10 @@ try {
   // an absolutely positioned descendant escaping a scrolling/composited layer.
   await page.addStyleTag({content:'.header-right{transform:translateZ(0)!important;contain:paint!important}'});
   await inspect('composited and clipped toolbar');
+  const closeStyle=await page.locator('#primary > .pmm-mobile-header-close').evaluate(node=>{
+    const style=getComputedStyle(node);return {border:style.borderTopWidth,shadow:style.boxShadow,fontSize:style.fontSize,background:style.backgroundColor};
+  });
+  assert.deepEqual(closeStyle,{border:'0px',shadow:'none',fontSize:'14px',background:'rgba(0, 0, 0, 0)'});
   await page.screenshot({path:fileURLToPath(new URL('independent-close.png',output))});
   // Enlarge the rendered UI within the same viewport, including a wider theme button group.
   await page.evaluate(() => {
