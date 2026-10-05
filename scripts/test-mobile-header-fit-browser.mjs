@@ -71,7 +71,7 @@ try {
         id: header.id, width: rect.width, height: rect.height, inViewport: rect.left >= 0 && rect.right <= innerWidth + 1, overflow: header.scrollWidth - header.clientWidth,
         wrapped: rightRect.top >= leftRect.bottom,
         closeAtTop: Math.abs(closeRect.top - rect.top - 7 * Number(getComputedStyle(document.querySelector('#preset-manager-main-panel')).zoom)) < 1,
-        controls: [...header.querySelectorAll('.header-right button')].map(button => {
+        controls: [close].map(button => {
           const r = button.getBoundingClientRect();
           const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
           return { title: button.title, visible: r.width > 0 && r.left >= rect.left && r.right <= rect.right + 1 && r.top >= rect.top && r.bottom <= rect.bottom + 1,
@@ -85,15 +85,43 @@ try {
       assert.ok(result.overflow <= 1, `${label}/${result.id}: header overflow ${JSON.stringify(result)}`);
       assert.ok(result.inViewport, `${label}/${result.id}: fixture must fit in viewport`);
       assert.ok(result.closeAtTop, `${label}/${result.id}: close button must stay at top right`);
+      assert.ok(!result.wrapped, `${label}/${result.id}: tools must stay on the title row`);
+      const expectedHeight = await page.evaluate(() => 46 * Number(getComputedStyle(document.querySelector('#preset-manager-main-panel')).zoom));
+      assert.ok(Math.abs(result.height - expectedHeight) <= 1, `${label}/${result.id}: header must remain one row high`);
       for (const button of result.controls) assert.ok(button.visible && button.clickable && !button.overlapsClose, `${label}/${result.id}: ${JSON.stringify(button)}`);
       await page.locator(`#${result.id} .close-card`).tap();
+      // Every offscreen tool must be reachable, while close remains visible and stationary.
+      const toolbar = page.locator(`#${result.id} .header-right`);
+      const closeBefore = await page.locator(`#${result.id} .close-card`).boundingBox();
+      const buttons = toolbar.locator('button:not(.close-card)');
+      for (let i = 0; i < await buttons.count(); i++) {
+        const button = buttons.nth(i);
+        await button.evaluate(node => {
+          const group = node.closest('.header-right');
+          const rect = node.getBoundingClientRect();
+          const bounds = group.getBoundingClientRect();
+          const zoom = Number(getComputedStyle(document.querySelector('#preset-manager-main-panel')).zoom);
+          group.scrollLeft += (rect.x + rect.width / 2 - bounds.x - bounds.width / 2) / zoom;
+        });
+        const reachable = await button.evaluate(node => {
+          const r = node.getBoundingClientRect();
+          const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+          return hit === node || node.contains(hit);
+        });
+        assert.ok(reachable, `${label}/${result.id}: tool ${i} must be reachable by scrolling`);
+        await button.tap();
+      }
+      const closeAfter = await page.locator(`#${result.id} .close-card`).boundingBox();
+      assert.ok(Math.abs(closeAfter.x - closeBefore.x) < 1 && Math.abs(closeAfter.y - closeBefore.y) < 1, 'Scrolling must not move close');
+      await page.locator(`#${result.id} .close-card`).tap();
+      await toolbar.evaluate(node => { node.scrollLeft = 0; });
     }
     return results;
   }
   for (const width of [280, 320, 360, 375, 390, 461, 600, 768]) {
     await page.setViewportSize({ width, height: 1100 });
     const result = await inspect(`viewport ${width}`);
-    if (width === 320) assert.ok(result.every(item => item.wrapped), 'Narrow header must wrap tools instead of clipping');
+    if (width === 320) assert.ok(result.every(item => !item.wrapped), 'Narrow header must scroll tools without wrapping');
     if (width === 600) assert.ok(result.every(item => !item.wrapped), 'Wide mobile header must stay single row');
     if ([320, 390, 461].includes(width)) await page.screenshot({ path: fileURLToPath(new URL(`${width}.png`, output)) });
   }

@@ -10971,13 +10971,13 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     --pmm-native-preset-width:108px!important;
     --pmm-title-viewport-width:150px!important;
     --pmm-title-overflow-actions-width:42px!important;
-    /* 关闭键独占右上角；工具按实际可用宽度换行，不再依赖机型或屏宽猜测。 */
+    /* 始终保留单行和独立关闭键；工具区不足时横向滑动。 */
     position:relative!important;
     box-sizing:border-box!important;
-    height:auto!important;
+    height:46px!important;
     min-height:46px!important;
     padding-right:36px!important;
-    flex-wrap:wrap!important;
+    flex-wrap:nowrap!important;
   }
 
   /* 外层标题视窗始终固定；默认时只让内部名称缩短，以保证搜索和铅笔可见。 */
@@ -10988,19 +10988,30 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     min-width:var(--pmm-title-viewport-width,150px)!important;
     max-width:var(--pmm-title-viewport-width,150px)!important;
   }
-  /* 能放下时保持单行；放不下时工具组进入下一行，极窄时组内也能换行。 */
+  /* 不移动 Vue 节点；关闭键相对 header 定位，避开工具滚动区的裁剪。 */
   #preset-manager-main-panel.pmm-mobile-layout-enabled .pm-panel-container > .pm-main-wrapper .pm-header > .header-right,
   #preset-manager-main-panel.pmm-mobile-layout-enabled .pm-panel-container--merge-mode > .preset-panel .pm-header > .header-right{
-    flex:1 1 max-content!important;
+    flex:1 1 0!important;
     width:auto!important;
     min-width:0!important;
     max-width:100%!important;
-    height:auto!important;
+    height:36px!important;
     min-height:36px!important;
     position:static!important;
-    flex-wrap:wrap!important;
-    justify-content:space-evenly!important;
+    flex-wrap:nowrap!important;
+    justify-content:flex-start!important;
     gap:1px!important;
+    overflow-x:auto!important;
+    overflow-y:hidden!important;
+    overscroll-behavior-x:contain!important;
+    touch-action:pan-x!important;
+    -webkit-overflow-scrolling:touch!important;
+    scrollbar-width:none!important;
+  }
+  #preset-manager-main-panel.pmm-mobile-layout-enabled .pm-panel-container > .pm-main-wrapper .pm-header > .header-right::-webkit-scrollbar,
+  #preset-manager-main-panel.pmm-mobile-layout-enabled .pm-panel-container--merge-mode > .preset-panel .pm-header > .header-right::-webkit-scrollbar{
+    display:none!important;
+    height:0!important;
   }
   #preset-manager-main-panel.pmm-mobile-layout-enabled .pm-panel-container > .pm-main-wrapper .pm-header > .header-right > .close-card[title="关闭"],
   #preset-manager-main-panel.pmm-mobile-layout-enabled .pm-panel-container--merge-mode > .preset-panel .pm-header > .header-right > .close-card[title="关闭"]{
@@ -11068,7 +11079,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     max-width:var(--pmm-title-overflow-actions-width)!important;
   }
 
-  /* 窄手机保留较短的标题视窗；按钮是否换行由实际宽度决定。 */
+  /* 窄手机保留较短的标题视窗，给工具滑动区多留一些空间。 */
   @media (max-width:374px){
     #preset-manager-main-panel.pmm-mobile-layout-enabled .pm-panel-container > .pm-main-wrapper .pm-header,
     #preset-manager-main-panel.pmm-mobile-layout-enabled .pm-panel-container--merge-mode > .preset-panel .pm-header{
