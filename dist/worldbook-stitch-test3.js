@@ -68,6 +68,19 @@
   let worldMultiDragGhost = null;
   let worldMultiDragFrame = 0;
   let worldMultiDragPoint = null;
+  let favoriteIndex = new Map();
+
+  function refreshFavoriteIndex() {
+    const api = TOP.__PMM_SHARED_FAVORITES__, store = TOP.__PMM_FAVORITE_STORE__;
+    favoriteIndex = api && store ? api.index(store.read().items) : new Map();
+  }
+
+  function onFavoritesChanged() {
+    // Explicit library writes only; no storage reads in per-card rendering.
+    if (!state.open) return;
+    refreshFavoriteIndex();
+    renderPanels();
+  }
 
   function topNotificationsEnabled() {
     try { return (TOP.localStorage || SELF.localStorage)?.getItem(TOP_NOTIFICATION_STORAGE_KEY) !== '0'; }
@@ -1555,6 +1568,7 @@
 
   function renderEntry(sideName, side, entry, search = null) {
     const key = entryKey(entry);
+    const favorited = favoriteIndex.has(JSON.stringify([String(side.name), key]));
     const expanded = side.expanded.has(key);
     const selected = side.selected.has(key);
     const enabled = entry.disable !== true;
@@ -1572,9 +1586,11 @@
         <button class="pmm-wb-entry-title" data-wb-action="expand" data-wb-side="${sideName}" data-wb-key="${safeId(key)}">${title}</button>
         ${entryMatches.length ? `<span class="pmm-wb-search-hit" title="找到 ${entryMatches.length} 处">${entryMatches.length}</span>` : ''}
         ${expanded ? `<span class="pmm-wb-entry-actions" aria-label="条目操作">
+          ${favorited ? `<button type="button" class="pmm-wb-entry-action" data-wb-action="update-favorite" data-wb-side="${sideName}" data-wb-key="${safeId(key)}" title="覆盖收藏副本" aria-label="覆盖收藏副本"><i class="fa-solid fa-arrows-rotate"></i></button>` : ''}
           <button type="button" class="pmm-wb-entry-action" data-wb-action="duplicate-entry" data-wb-side="${sideName}" data-wb-key="${safeId(key)}" title="复制条目" aria-label="复制条目"><i class="fa-solid fa-copy"></i></button>
           <button type="button" class="pmm-wb-entry-action" data-wb-action="delete-entry" data-wb-side="${sideName}" data-wb-key="${safeId(key)}" title="删除条目" aria-label="删除条目"><i class="fa-solid fa-trash"></i></button>
         </span>` : ''}
+        <button type="button" class="pmm-wb-entry-action" data-wb-action="favorite" data-wb-side="${sideName}" data-wb-key="${safeId(key)}" title="${favorited ? '取消收藏' : '收藏到收藏库'}" aria-label="${favorited ? '取消收藏' : '收藏到收藏库'}" aria-pressed="${favorited}"><i class="fa-${favorited ? 'solid' : 'regular'} fa-star"></i></button>
         <button class="pmm-wb-toggle${enabled ? ' is-on' : ''}" data-wb-action="toggle" data-wb-side="${sideName}" data-wb-key="${safeId(key)}" title="${enabled ? '已启用' : '已停用'}"><span></span></button>
       </div>
       ${expanded ? renderDetails(sideName, entry, key, search) : ''}
@@ -2191,6 +2207,17 @@
     if (!entry) return;
     if (action === 'duplicate-entry') return duplicateWorldEntry(sideName, key);
     if (action === 'delete-entry') return deleteWorldEntry(sideName, key);
+    if (action === 'favorite' || action === 'update-favorite') {
+      button.disabled = true;
+      try {
+        const api = TOP.__PMM_SHARED_FAVORITES__;
+        if (!api) throw new Error('收藏功能尚未就绪，请刷新后重试');
+        const message = await api.saveWorld(side.name, entry, action === 'update-favorite');
+        notify('success', message);
+      } catch (error) { notify('error', `收藏失败：${error.message || error}`); }
+      finally { button.disabled = false; }
+      return;
+    }
     if (action === 'select') {
       side.selected.has(key) ? side.selected.delete(key) : side.selected.add(key);
       return renderPanels();
@@ -2769,6 +2796,7 @@
       await refreshWorldNames();
       await loadWorldSide(state.bottom);
       if (state.topType === 'world') await loadWorldSide(state.top);
+      refreshFavoriteIndex();
       setStatus('已同步');
       renderPanels();
     } catch (error) {
@@ -2847,6 +2875,7 @@
     DOC.removeEventListener('dragover', onDragOver, true);
     DOC.removeEventListener('drop', onDrop, true);
     DOC.removeEventListener('dragend', clearDrag, true);
+    DOC.removeEventListener('pmm-favorites-changed', onFavoritesChanged);
     try { if (TOP[API_KEY]?.cleanup === cleanup) delete TOP[API_KEY]; } catch (_) {}
   }
 
@@ -2871,7 +2900,41 @@
   DOC.addEventListener('dragover', onDragOver, true);
   DOC.addEventListener('drop', onDrop, true);
   DOC.addEventListener('dragend', clearDrag, true);
+  DOC.addEventListener('pmm-favorites-changed', onFavoritesChanged);
   TOP[API_KEY] = { open, close, cleanup, state,
+    async favoriteTargets() {
+      context = getContext();
+      if (!context?.loadWorldInfo || !context?.saveWorldInfo) throw new Error('当前酒馆没有提供世界书读写接口');
+      return [...(await getWorldInfoNamesCompatible() || [])].map(String);
+    },
+    async insertFavorite(name, item) {
+      if (!name) throw new Error('请选择目标世界书');
+      const task = async () => {
+        context = getContext();
+        if (!context?.loadWorldInfo || !context?.saveWorldInfo) throw new Error('当前酒馆没有提供世界书读写接口');
+        const api = TOP.__PMM_SHARED_FAVORITES__;
+        const world = api.asWorld(item);
+        const side = state.open && [state.topType === 'world' && state.top, state.bottom].find(side => side && side.name === name);
+        if (side?.data) {
+          pushUndo(side, '从收藏库添加条目', { worldSides:[side] });
+          insertWorldEntries(side, world ? 'world' : 'preset', [world || api.asPrompt(item)]);
+          markWorldDraftDirty(side);
+          renderPanels();
+          return { draft: true };
+        }
+        // Read the selected book only, and work on a clone until saving succeeds.
+        const data = await context.loadWorldInfo(name);
+        if (!data?.entries || typeof data.entries !== 'object') throw new Error('世界书不存在或无法读取，请重新选择');
+        const target = emptyWorldSide(); target.name = name; applyWorldData(target, data);
+        insertWorldEntries(target, world ? 'world' : 'preset', [world || api.asPrompt(item)]);
+        await context.saveWorldInfo(name, clone(target.data), true);
+        await reloadOpenNativeWorldbook(name);
+        return { draft: false };
+      };
+      const next = operationTail.then(task);
+      operationTail = next.catch(() => {});
+      return next;
+    },
     async refreshSnapshotBook(name, data, skipNative = false) {
       if (!state.open) return;
       saveScrolls();
