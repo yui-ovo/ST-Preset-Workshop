@@ -1,9 +1,10 @@
 {
   "name": "st-preset-workshop",
-  "version": "2.98.33",
+  "version": "2.98.34",
   "private": true,
   "type": "module",
   "scripts": {
+    "test:prompt-layout-browser": "node scripts/test-prompt-layout-browser.mjs",
     "test:glass-effects-browser": "node scripts/test-glass-effects-browser.mjs",
     "test:workshop-idle": "node scripts/test-workshop-idle-browser.mjs",
     "test:mobile-header-fit": "node scripts/test-mobile-header-fit-browser.mjs",
