@@ -8145,6 +8145,12 @@ export{xo as mountMainPanel,fo as toggleMainPanel,bo as unmountMainPanel};
   }
 
   async function openManager(doc) {
+    if (typeof window.__PMM_LOAD_REGEX_MANAGER__ === 'function') {
+      const root = findMainRoot();
+      const api = await window.__PMM_LOAD_REGEX_MANAGER__();
+      if (root && !root.isConnected) return;
+      return api.open({ host: topWin || window.parent, root });
+    }
     /* 1.3.17：正则窗口直接挂进当前 #preset-manager-main-panel，
        与主面板同 document、同 stacking context。 */
     const mainRoot = findMainRoot();

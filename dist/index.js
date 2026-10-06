@@ -1,5 +1,5 @@
 const EXTENSION_NAME = '🧩预设工坊';
-const EXTENSION_VERSION = '2.98.39';
+const EXTENSION_VERSION = '2.98.40';
 const RUNTIME_ID = 'TH-script--🧩预设工坊（GitHub 扩展）--2f53f6af-3c9e-4c71-bc52-9f635be25300';
 const LEGACY_IFRAME_PREFIX = 'TH-script--🧩预设工坊';
 const EXTENSION_FOLDER_NAME = 'ST-Preset-Workshop';
@@ -283,6 +283,7 @@ function buildRuntimeDocument() {
   const sharedFavoritesUrl = appendRuntimeVersion(new URL('./shared-favorites.js', import.meta.url).href);
   const worldbookSnapshotsUrl = appendRuntimeVersion(new URL('./worldbook-snapshots.js', import.meta.url).href);
   const worldbookLoaderKey = '__PMM_LOAD_WORLDBOOK_STITCH__';
+  const regexManagerUrl = appendRuntimeVersion(new URL('./regex-manager.js', import.meta.url).href);
 
   return `<!DOCTYPE html>
 <html>
@@ -296,6 +297,10 @@ function buildRuntimeDocument() {
 </head>
 <body>
 <script>
+(() => {
+  let loading;
+  window.__PMM_LOAD_REGEX_MANAGER__ = () => loading ||= import(${JSON.stringify(regexManagerUrl)}).catch(error => { loading = null; throw error; });
+})();
 (() => {
   const source = ${JSON.stringify(worldbookStitchUrl)};
   const loaderKey = ${JSON.stringify(worldbookLoaderKey)};
