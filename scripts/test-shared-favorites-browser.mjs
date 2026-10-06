@@ -7,6 +7,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { verifySharedFavorites } from './verify-shared-favorites.mjs';
+import { verifyPanelHeight } from './verify-panel-height.mjs';
 
 const playwright = await import(process.env.PMM_PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PMM_PLAYWRIGHT_MODULE).href : 'playwright');
 const assets = process.env.PMM_BROWSER_ASSET_DIR;
@@ -101,6 +102,7 @@ try {
       return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0.9 && rect.width > 100 && rect.height > 100;
     });
     assert.ok(visible, 'Panel must be painted, not merely present in the DOM');
+    await verifyPanelHeight(page, frame);
     await verifySharedFavorites(page, frame, engine);
     // Preset selection and closing still work after changing appearance.
     await page.locator('.preset-panel .title-select').first().selectOption('Second');

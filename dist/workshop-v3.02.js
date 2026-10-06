@@ -10044,6 +10044,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   const ResizeObserverCtor = TOP.ResizeObserver || globalThis.ResizeObserver;
 
   const DEFAULTS = Object.freeze({
+    panelHeight: 100,
     toolbarGap: 1,
     groupFont: 13,
     groupHeight: 54,
@@ -10058,6 +10059,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   });
   const DESKTOP_DEFAULT_SPLIT_RATIO = 52;
   const LIMITS = Object.freeze({
+    panelHeight: [50, 100],
     toolbarGap: [0, 16],
     groupFont: [10, 16],
     groupHeight: [28, 54],
@@ -10071,6 +10073,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     splitRatio: [28, 72],
   });
   const CUSTOM_CLASSES = Object.freeze({
+    panelHeight: 'pmm-layout-custom-panel-height',
     toolbarGap: 'pmm-layout-custom-toolbar-gap',
     groupFont: 'pmm-layout-custom-group-font',
     groupHeight: 'pmm-layout-custom-group-height',
@@ -10084,6 +10087,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     splitRatio: 'pmm-layout-custom-split-ratio',
   });
   const CONTROLS = [
+    { key:'panelHeight', label:'工坊高度', unit:'%', step:1 },
     { key:'toolbarGap', label:'顶部按钮间距', unit:'px', step:1 },
     { key:'groupFont', label:'分组文字大小', unit:'px', step:.5 },
     { key:'groupHeight', label:'分组框高度', unit:'px', step:1 },
@@ -10184,7 +10188,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   }
 
   function currentControls() {
-    return isMobile() ? CONTROLS : CONTROLS.filter(control => !['toolbarGap', 'presetWidth', 'branchWidth', 'floatingWidth'].includes(control.key));
+    return isMobile() ? CONTROLS : CONTROLS.filter(control => !['panelHeight', 'toolbarGap', 'presetWidth', 'branchWidth', 'floatingWidth'].includes(control.key));
   }
 
   function dragCompatEnabled() {
@@ -10271,6 +10275,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   function setVariables(target) {
     if (!target) return;
     const current = currentState();
+    target.style.setProperty('--pmm-user-panel-height', `${current.values.panelHeight}%`);
     target.style.setProperty('--pmm-user-toolbar-gap', `${current.values.toolbarGap}px`);
     target.style.setProperty('--pmm-user-group-font', `${current.values.groupFont}px`);
     target.style.setProperty('--pmm-user-group-height', `${current.values.groupHeight}px`);
@@ -11089,6 +11094,14 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
     const style = DOC.createElement('style');
     style.id = STYLE_ID;
     style.textContent = `
+/* Shrink the complete mobile workspace inside its existing safe area.
+   Automatic margins keep both toolbars reachable without moving the overlay. */
+#preset-manager-main-panel.pmm-mobile-layout-enabled.pmm-layout-custom-panel-height .pm-panel-container{
+  height:var(--pmm-user-panel-height,100%)!important;
+  min-height:0!important;
+  margin-top:auto!important;
+  margin-bottom:auto!important;
+}
 @media screen and (max-width:768px){
   #preset-manager-main-panel.pmm-mobile-layout-enabled{
     --pmm-user-group-font:13px;
