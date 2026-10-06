@@ -490,6 +490,11 @@ export{xo as mountMainPanel,fo as toggleMainPanel,bo as unmountMainPanel};
   const docs = parentDoc === document ? [document] : [document, parentDoc];
 
   const CSS = `
+#preset-manager-main-panel .pmm-mobile-theme-toggle > i::before {
+  color: inherit !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
 /* 桌面 / 手机共用：防止酒馆美化隐藏悬浮面板左侧的“打开编辑面板”。 */
 #preset-manager-floating-panel .panel-header > .panel-action[title="打开编辑面板"] {
   display: flex !important;
@@ -2087,6 +2092,7 @@ export{xo as mountMainPanel,fo as toggleMainPanel,bo as unmountMainPanel};
 
   function setRuntimeButtonVisual(button, iconClass, title, active) {
     if (!button) return;
+    const followsTheme = iconClass.includes('fa-wand-magic-sparkles');
     button.title = title;
     button.setAttribute('aria-label', title);
     button.classList.toggle('active', !!active);
@@ -2095,14 +2101,19 @@ export{xo as mountMainPanel,fo as toggleMainPanel,bo as unmountMainPanel};
     button.style.setProperty('justify-content', 'center', 'important');
     button.style.setProperty('border', 'none', 'important');
     button.style.setProperty('cursor', 'pointer', 'important');
-    button.style.setProperty('background', active ? 'var(--pm-accent)' : 'transparent', 'important');
-    button.style.setProperty('color', active ? '#fff' : 'var(--pm-text-secondary)', 'important');
+    // Theme accent colors can be white. The follow-theme wand uses toolbar ink
+    // on a clear background instead of assuming white ink contrasts with accent.
+    button.style.setProperty('background', active && !followsTheme ? 'var(--pm-accent)' : 'transparent', 'important');
+    button.style.setProperty('color', followsTheme ? 'var(--pm-text-primary)' : active ? '#fff' : 'var(--pm-text-secondary)', 'important');
+    button.style.setProperty('-webkit-text-fill-color', 'currentColor', 'important');
     let icon = button.querySelector('i');
     if (!icon) {
       icon = button.ownerDocument.createElement('i');
       button.appendChild(icon);
     }
     if (icon.className !== iconClass) icon.className = iconClass;
+    icon.style.setProperty('color', 'inherit', 'important');
+    icon.style.setProperty('-webkit-text-fill-color', 'currentColor', 'important');
   }
 
   function setFabSwitchVisual(button, enabled) {
