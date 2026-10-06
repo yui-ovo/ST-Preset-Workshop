@@ -5,11 +5,11 @@ export async function verifySharedFavorites(page, frame, engine) {
   const read = () => page.evaluate(() => __PMM_FAVORITE_STORE__.read());
   await frame.evaluate(async () => { await (await __PMM_LOAD_WORLDBOOK_STITCH__()).open(); });
   const worldStar = page.locator('[data-wb-action="favorite"][data-wb-side="bottom"]').first();
+  await page.locator('[data-wb-action="expand"][data-wb-side="bottom"]').first().click();
   await worldStar.click();
   await page.waitForFunction(() => __PMM_FAVORITE_STORE__.read().items.length === 1);
   assert.equal(await worldStar.getAttribute('aria-pressed'), 'true');
   assert.equal(await page.evaluate(() => fixtureWorldWrites), 0, 'Favoriting must not save the source book');
-  await page.locator('[data-wb-action="expand"][data-wb-side="bottom"]').first().click();
   await page.evaluate(() => { const side = __PMM_WORLDBOOK_STITCH_TEST3__.state.bottom; side.entries[0].content = 'unsaved world content'; side.dirty = true; });
   await page.locator('[data-wb-action="update-favorite"]').click();
   await page.waitForFunction(() => __PMM_FAVORITE_STORE__.read().items[0].content === 'unsaved world content');

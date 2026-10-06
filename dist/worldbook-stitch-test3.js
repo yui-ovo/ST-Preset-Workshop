@@ -1587,10 +1587,10 @@
         ${entryMatches.length ? `<span class="pmm-wb-search-hit" title="找到 ${entryMatches.length} 处">${entryMatches.length}</span>` : ''}
         ${expanded ? `<span class="pmm-wb-entry-actions" aria-label="条目操作">
           ${favorited ? `<button type="button" class="pmm-wb-entry-action" data-wb-action="update-favorite" data-wb-side="${sideName}" data-wb-key="${safeId(key)}" title="覆盖收藏副本" aria-label="覆盖收藏副本"><i class="fa-solid fa-arrows-rotate"></i></button>` : ''}
+          <button type="button" class="pmm-wb-entry-action" data-wb-action="favorite" data-wb-side="${sideName}" data-wb-key="${safeId(key)}" title="${favorited ? '取消收藏' : '收藏到收藏库'}" aria-label="${favorited ? '取消收藏' : '收藏到收藏库'}" aria-pressed="${favorited}"><i class="fa-${favorited ? 'solid' : 'regular'} fa-star"></i></button>
           <button type="button" class="pmm-wb-entry-action" data-wb-action="duplicate-entry" data-wb-side="${sideName}" data-wb-key="${safeId(key)}" title="复制条目" aria-label="复制条目"><i class="fa-solid fa-copy"></i></button>
           <button type="button" class="pmm-wb-entry-action" data-wb-action="delete-entry" data-wb-side="${sideName}" data-wb-key="${safeId(key)}" title="删除条目" aria-label="删除条目"><i class="fa-solid fa-trash"></i></button>
         </span>` : ''}
-        <button type="button" class="pmm-wb-entry-action" data-wb-action="favorite" data-wb-side="${sideName}" data-wb-key="${safeId(key)}" title="${favorited ? '取消收藏' : '收藏到收藏库'}" aria-label="${favorited ? '取消收藏' : '收藏到收藏库'}" aria-pressed="${favorited}"><i class="fa-${favorited ? 'solid' : 'regular'} fa-star"></i></button>
         <button class="pmm-wb-toggle${enabled ? ' is-on' : ''}" data-wb-action="toggle" data-wb-side="${sideName}" data-wb-key="${safeId(key)}" title="${enabled ? '已启用' : '已停用'}"><span></span></button>
       </div>
       ${expanded ? renderDetails(sideName, entry, key, search) : ''}
