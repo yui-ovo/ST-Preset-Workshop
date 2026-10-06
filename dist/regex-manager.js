@@ -1,4 +1,4 @@
-import { clone, equal, sourceKey, createTransactions, createHostAdapter } from './regex-manager-core.js';
+import { clone, equal, sourceKey, createTransactions, createHostAdapter, duplicateInPlace } from './regex-manager-core.js?pmm-version=2.98.41';
 
 const ID = 'pmm-regex-manager';
 const SCOPES = { 0: '旧版显示', 1: '用户输入', 2: 'AI 输出', 3: '快捷命令', 4: '旧版发送', 5: '世界信息', 6: '推理' };
@@ -71,7 +71,29 @@ const CSS = `
 #${ID} .rx-picker-list button{justify-content:flex-start;text-align:left;white-space:normal;overflow-wrap:anywhere}
 #${ID}[data-busy=true] .rx-panes{pointer-events:none;opacity:.7}
 @media(min-width:850px){#${ID} .rx-panes{flex-direction:row}#${ID} .rx-shell{height:85%;max-height:900px}}
-@media(max-width:849px){#${ID} .rx-search,#${ID} select{font-size:16px!important}}
+#${ID}{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+#${ID} .rx-shell{padding:10px;gap:7px;border-radius:18px}
+#${ID} .rx-title{font-size:14px;line-height:1.4}
+#${ID} .rx-title small{font-size:10px}
+#${ID} .rx-panes{gap:8px}
+#${ID} .rx-pane-head{padding:5px 7px;gap:3px}
+#${ID} .rx-row{min-height:46px;padding:4px 5px;gap:5px;margin-bottom:3px}
+#${ID} .rx-name,#${ID} .rx-detail .rx-full-name{font-size:12px}
+#${ID} .rx-scope{font-size:9px}
+#${ID} .rx-detail{padding:3px 3px 1px 26px;gap:4px}
+#${ID} .rx-detail pre{font-size:10px;line-height:1.4}
+#${ID} .rx-count,#${ID} .rx-status{font-size:10px}
+#${ID} button{font-size:12px!important;border-radius:12px;padding:3px 6px}
+#${ID} input[type=checkbox]{width:15px!important;height:15px!important;min-width:15px}
+#${ID} .rx-source-name:disabled{display:none}
+#${ID} .rx-source-box{display:block;width:104px;max-width:48%;height:28px;flex-shrink:0;overflow:hidden}
+#${ID} .rx-search-box{display:block;flex:1;min-width:30px;height:27px;overflow:hidden}
+/* Keep the actual input font at 16px to avoid iOS focus zoom, while matching
+   the compact visual size of the other controls. */
+#${ID} .rx-search-box .rx-search,#${ID} .rx-source-box select{display:block;font-size:16px!important;width:123.076923%;max-width:none;height:33px;margin:0;transform:scale(.8125);transform-origin:left top}
+#${ID} .rx-picker .rx-search{font-size:16px!important}
+#${ID} .rx-icon{appearance:none!important;-webkit-appearance:none!important;width:32px;height:32px;padding:8px;border-radius:50%;background:transparent}
+#${ID} .rx-icon svg{width:14px!important;height:14px!important;display:block;fill:none!important;stroke:currentColor!important;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
 `;
 
 export async function open({ host = window.parent, root = host.document.getElementById('preset-manager-main-panel'), adapter } = {}) {
@@ -82,6 +104,14 @@ export async function open({ host = window.parent, root = host.document.getEleme
   const on = (node, type, handler, options = {}) => node.addEventListener(type, handler, node === doc || node === host ? { ...options, signal: abort.signal } : options);
   const el = (tag, className, text) => { const node = doc.createElement(tag); if (className) node.className = className; if (text != null) node.textContent = text; return node; };
   const button = (text, title, fn, cls = '') => { const b = el('button', cls, text); b.type = 'button'; b.title = title; b.setAttribute('aria-label', title); on(b, 'click', fn); return b; };
+  const iconButton = (kind, title, fn) => {
+    const b = button('', title, fn, 'rx-icon');
+    const svg = doc.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true');
+    const path = doc.createElementNS(svg.namespaceURI, 'path');
+    path.setAttribute('d', kind === 'close' ? 'M6 6l12 12M6 18L18 6' : 'M3 4v6h6M3 10a9 9 0 1 1 2.7 8.4');
+    if (kind === 'refresh') path.setAttribute('transform', 'translate(24 0) scale(-1 1)');
+    svg.append(path); b.append(svg); return b;
+  };
   if (!doc.getElementById(`${ID}-style`)) { const style = el('style'); style.id = `${ID}-style`; style.textContent = CSS; doc.head.append(style); }
   const overlay = el('div'); overlay.id = ID;
   const shell = el('section', 'rx-shell'); shell.setAttribute('role', 'dialog'); shell.setAttribute('aria-label', '正则整理');
@@ -120,9 +150,9 @@ export async function open({ host = window.parent, root = host.document.getEleme
       if (type && ctx.eventSource?.emit) Promise.resolve(ctx.eventSource.emit(type, { apiId: ctx.getPresetManager?.()?.apiId, name: ctx.getPresetManager?.()?.getSelectedPresetName?.() })).catch(error => console.warn('[预设工坊][正则] 原生列表刷新失败', error));
     }
   }
-  const undo = button('↶', '撤销上一步', () => run(() => transaction.undo(), '已撤销'));
-  const refresh = button('⟳', '刷新两栏列表', () => run(async () => {}, '已刷新'));
-  heading.append(title, undo, refresh, button('×', '关闭正则整理', close));
+  const undo = iconButton('undo', '撤销上一步', () => run(() => transaction.undo(), '已撤销'));
+  const refresh = iconButton('refresh', '刷新两栏列表', () => run(async () => {}, '已刷新'));
+  heading.append(title, undo, refresh, iconButton('close', '关闭正则整理', close));
   const panesNode = el('div', 'rx-panes'); shell.append(heading, panesNode, status); overlay.append(shell); (root || doc.body).append(overlay);
   // Observe only the direct parent for removal, not the page subtree.
   const lifecycle = new host.MutationObserver(() => { if (!overlay.isConnected) { closed = true; stopDrag(); abort.abort(); observer.disconnect(); lifecycle.disconnect(); } });
@@ -202,9 +232,9 @@ export async function open({ host = window.parent, root = host.document.getEleme
     if (pane.expanded === index) {
       const detail = el('div', 'rx-detail'); detail.append(el('div', 'rx-full-name', record.scriptName || '未命名正则'));
       detail.append(el('pre', '', `查找：${record.findRegex || ''}\n替换：${record.replaceString || ''}`));
-      const actions = el('div', 'rx-actions'); const target = () => panes.find(p => p !== pane);
+      const actions = el('div', 'rx-actions');
       if (pane.source.type !== 'favorites') actions.append(button('☆', '收藏选中的正则', () => run(async () => { const to = { type: 'favorites' }; const data = adapter.read(to); await transaction.transfer(pane.source, to, pane.data, data, selectedFor(pane, index), data.length); }, '已加入正则收藏')));
-      actions.append(button('⧉', '复制到另一栏末尾', () => transfer(pane, target(), selectedFor(pane, index), target().data.length)), button('移动', '移动到另一栏末尾', () => transfer(pane, target(), selectedFor(pane, index), target().data.length, true)), button('删除', '删除选中的正则', () => {
+      actions.append(button('⧉', '复制：在原条目下方生成副本', () => run(() => transaction.edit(pane.source, pane.data, duplicateInPlace(pane.data, selectedFor(pane, index)), '复制正则'), '已在原条目下方生成副本')), button('删除', '删除选中的正则', () => {
         const indices = selectedFor(pane, index);
         if (host.confirm(`删除 ${indices.length} 条正则？本次关闭前可撤销。`)) run(() => transaction.edit(pane.source, pane.data, pane.data.filter((_, i) => !indices.includes(i)), '删除正则'), '已删除，可撤销');
       }));
@@ -239,7 +269,9 @@ export async function open({ host = window.parent, root = host.document.getEleme
     on(search, 'input', () => { pane.query = search.value; pane.limit = 80; pane.expanded = -1; renderRows(pane); pane.list.scrollTop = 0; });
     // Incremental DOM construction, only while the user scrolls this list.
     on(list, 'scroll', () => { if (!drag && list.scrollHeight - list.scrollTop - list.clientHeight < 120 && visibleIndices(pane).length > pane.limit) { pane.limit += 80; renderRows(pane); } }, { passive: true });
-    tools.append(search, count, all); head.append(type, name, tools); wrapper.append(head, list); panesNode.append(wrapper); panes.push(pane); changeSource(pane, source);
+    const sourceBox = el('span', 'rx-source-box'); sourceBox.append(type);
+    const searchBox = el('span', 'rx-search-box'); searchBox.append(search);
+    tools.append(searchBox, count, all); head.append(sourceBox, name, tools); wrapper.append(head, list); panesNode.append(wrapper); panes.push(pane); changeSource(pane, source);
   }
   function stopDrag() {
     if (frame) host.cancelAnimationFrame(frame); frame = 0;

@@ -1,8 +1,14 @@
 import assert from 'node:assert/strict';
-import { clone, createTransactions, planTransfer, createHostAdapter } from '../dist/regex-manager-core.js';
+import { clone, createTransactions, planTransfer, createHostAdapter, duplicateInPlace } from '../dist/regex-manager-core.js';
 
 const raw = { id: 'a', scriptName: '完整正则', findRegex: '/(x)/g', replaceString: '$1', placement: [1, 5], trimStrings: ['x'], substituteRegex: 2, minDepth: 1, maxDepth: 9, markdownOnly: false, promptOnly: true, runOnEdit: true, disabled: false, unknown: { preserved: [4] } };
 const records = [raw, { ...raw, id: 'b' }, { ...raw, id: 'c' }, { ...raw, id: 'd' }];
+const duplicated = duplicateInPlace(records, [2, 0]);
+assert.deepEqual(duplicated.filter(x => records.some(r => r.id === x.id)), records, 'Copy leaves originals in their original order');
+assert.equal(duplicated[0].id, 'a'); assert.equal(duplicated[2].id, 'b'); assert.equal(duplicated[3].id, 'c');
+assert.deepEqual({ ...duplicated[1], id: 'a' }, raw, 'Adjacent copy preserves all raw fields');
+assert.deepEqual({ ...duplicated[4], id: 'c' }, records[2]);
+assert.equal(new Set(duplicated.map(x => x.id)).size, 6);
 const reorder = planTransfer(records, records, [2, 0], 4, true, false);
 assert.deepEqual(reorder.target.map(x => x.id), ['b', 'd', 'a', 'c']);
 assert.deepEqual(planTransfer(records, records, [0, 1], 1, true).target, records, 'Drop inside own block does not reorder');

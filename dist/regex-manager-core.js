@@ -5,6 +5,19 @@ export const equal = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 export const sourceKey = source => JSON.stringify([source.type, source.apiId || '', source.name || '', source.avatar || '']);
 export const freshId = () => globalThis.crypto?.randomUUID?.() || `pmrx-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
+// The row copy action duplicates locally, immediately after each original.
+// This is separate from a drag onto the same source, which remains a reorder.
+export function duplicateInPlace(records, indices, uuid = freshId) {
+  const selected = new Set(indices), used = new Set(records.map(r => r.id));
+  return records.flatMap((record, index) => {
+    if (!selected.has(index)) return [clone(record)];
+    let id;
+    do { id = uuid(); } while (used.has(id));
+    used.add(id);
+    return [clone(record), { ...clone(record), id }];
+  });
+}
+
 export function planTransfer(source, target, indices, position, same, move, uuid = freshId) {
   const selected = new Set(indices);
   const chosen = source.filter((_, i) => selected.has(i));

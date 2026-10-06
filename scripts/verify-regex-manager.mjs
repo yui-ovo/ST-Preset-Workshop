@@ -22,6 +22,11 @@ export async function verifyRegexManager(page, frame, engine) {
   const a = root.locator('.rx-pane[data-side=a]'), b = root.locator('.rx-pane[data-side=b]');
   const row = (pane, i) => pane.locator('.rx-row').nth(i);
   const settle = () => page.waitForFunction(() => document.querySelector('#pmm-regex-manager')?.dataset.busy !== 'true');
+  const dragAcross = async (from, to) => {
+    const grip = await row(from, 0).locator('.rx-grip').boundingBox(); const box = await to.locator('.rx-list').boundingBox();
+    await page.mouse.move(grip.x + 10, grip.y + 10); await page.mouse.down();
+    await page.mouse.move(box.x + 90, box.y + 12, { steps: 8 }); await page.mouse.up(); await settle();
+  };
   assert.equal(await a.locator('.rx-row').count(), 3); assert.equal(await b.locator('.rx-row').count(), 1);
   await a.locator('.rx-source-name').click();
   const beforePicker = await page.evaluate(() => rxReads);
@@ -52,6 +57,14 @@ export async function verifyRegexManager(page, frame, engine) {
   await row(a, 0).locator('.rx-row-title').click();
   const order = await a.locator('.rx-actions button').evaluateAll(nodes => nodes.map(n => n.title));
   assert.ok(order[0].startsWith('收藏') && order[1].startsWith('复制'));
+  assert.ok(!order.some(label => label.includes('移动')));
+  await a.getByRole('button', { name: '复制：在原条目下方生成副本', exact: true }).click(); await settle();
+  const copies = await page.evaluate(() => structuredClone(rxData.First));
+  assert.deepEqual(copies.map(r => r.scriptName), ['添加标签', '添加标签', '移除思维链', '保留正文']);
+  assert.equal(copies[0].id, 'a'); assert.notEqual(copies[1].id, 'a');
+  assert.equal(await b.locator('.rx-row').count(), 1, 'Copy button does not transfer into other pane');
+  await root.getByRole('button', { name: '撤销上一步', exact: true }).click(); await settle();
+  await row(a, 0).locator('.rx-row-title').click();
   await a.getByRole('button', { name: '收藏选中的正则', exact: true }).click(); await settle();
   assert.equal(await page.evaluate(() => rxSettingsWrites), 1, 'Native settings module runs in host realm');
   await b.locator('select').selectOption('favorites'); assert.equal(await b.locator('.rx-row').count(), 1);
@@ -64,12 +77,21 @@ export async function verifyRegexManager(page, frame, engine) {
     document.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 31, pointerType: 'touch', clientX: target.x, clientY: target.y }));
   }, await a.locator('.rx-list').evaluate(n => { const r = n.getBoundingClientRect(); return { x: r.x + 80, y: r.y + 45 }; }));
   await settle(); assert.equal(await a.locator('.rx-row').count(), 1);
+  // Both panes showing globals must duplicate, not move the original to the end.
+  await b.locator('select').selectOption('global');
+  await row(a, 0).locator('.rx-row-title').click();
+  const originalGlobalId = await page.evaluate(() => SillyTavern.getContext().extensionSettings.regex[0].id);
+  await a.getByRole('button', { name: '复制：在原条目下方生成副本', exact: true }).click(); await settle();
+  assert.equal(await a.locator('.rx-row').count(), 2); assert.equal(await b.locator('.rx-row').count(), 2);
+  assert.equal(await page.evaluate(() => SillyTavern.getContext().extensionSettings.regex[0].id), originalGlobalId);
+  await root.getByRole('button', { name: '撤销上一步', exact: true }).click(); await settle();
+  await b.locator('select').selectOption('favorites');
   await a.locator('select').selectOption('character');
-  await row(b, 0).locator('.rx-row-title').click(); await b.getByRole('button', { name: '复制到另一栏末尾', exact: true }).click(); await settle();
+  await dragAcross(b, a);
   assert.equal(await page.evaluate(() => rxCharacterWrite.avatar), 'a.png'); assert.equal(await a.locator('.rx-row').count(), 1);
   // Storage failure must preserve both lists and show a useful error.
   await a.locator('select').selectOption('preset'); await page.evaluate(() => { rxFail = true; });
-  await row(b, 0).locator('.rx-row-title').click(); await b.getByRole('button', { name: '移动到另一栏末尾', exact: true }).click(); await settle();
+  await dragAcross(b, a);
   assert.equal(await b.locator('.rx-row').count(), 1); assert.equal(await a.locator('.rx-row').count(), 3);
   assert.match(await root.locator('.rx-status').innerText(), /保存测试失败/); await page.evaluate(() => { rxFail = false; });
   await a.getByRole('button', { name: '全选当前搜索结果', exact: true }).click(); assert.match(await a.locator('.rx-count').innerText(), /已选 3/);
@@ -87,6 +109,9 @@ export async function verifyRegexManager(page, frame, engine) {
   assert.equal(await page.evaluate(() => rxWrites), writesBeforeCancel, 'Dropping outside cancels without saving');
   await page.evaluate(() => { rxData.First = rxShortRows; });
   await root.getByRole('button', { name: '刷新两栏列表', exact: true }).click(); await settle();
+  assert.ok(await row(a, 0).evaluate(n => n.getBoundingClientRect().height) < 52, 'Rows are compact');
+  assert.equal(await a.locator('.rx-source-box').evaluate(n => n.getBoundingClientRect().height), 28);
+  assert.equal(await root.getByRole('button', { name: '撤销上一步', exact: true }).locator('svg').count(), 1);
   await page.screenshot({ path: resolve('../../outputs', `regex-manager-${engine}.png`) });
   const contrast = () => a.locator('select').evaluate(n => { const s = getComputedStyle(n); return { text: s.color, bg: s.backgroundColor }; });
   let colors = await contrast(); assert.notEqual(colors.text, colors.bg, 'Dark source selector remains readable');
