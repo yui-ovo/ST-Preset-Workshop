@@ -44,6 +44,7 @@
 
   const state = {
     open: false,
+    favoriteMode: false,
     busy: false,
     status: '已同步',
     topType: 'preset',
@@ -730,9 +731,10 @@
     const insertionIndex = worldInsertionIndex(ordered, placement);
     const added = [];
     for (const entry of entries) {
+      const favoriteWorld = sourceKind === 'favorite' ? TOP.__PMM_SHARED_FAVORITES__.asWorld(entry) : null;
       const addition = sourceKind === 'world'
         ? worldToWorld(entry, target.data)
-        : presetToWorld(entry, target.data);
+        : favoriteWorld ? worldToWorld(favoriteWorld, target.data) : presetToWorld(entry, target.data);
       target.data.entries[addition.uid] = addition;
       added.push(addition);
     }
@@ -1774,8 +1776,10 @@
       state.topCard = createCard('top', state.top);
       state.mainWrapper.insertBefore(state.topCard, state.mainWrapper.querySelector('.side-panel-root'));
     }
-    state.bottomCard = createCard('bottom', state.bottom);
-    state.container.append(state.bottomCard);
+    if (!state.favoriteMode) {
+      state.bottomCard = createCard('bottom', state.bottom);
+      state.container.append(state.bottomCard);
+    }
     placeThemeToolbarButton(themeToggle);
     markWorldbookButton();
     restoreScrolls();
@@ -1794,7 +1798,7 @@
 
   function markWorldbookButton() {
     state.host?.querySelectorAll?.('.panel-btn').forEach(button => {
-      button.classList.toggle('panel-btn--active', button.matches('[data-pmm-worldbook-placeholder="1"]'));
+      button.classList.toggle('panel-btn--active', state.favoriteMode ? button.title === '收藏' : button.matches('[data-pmm-worldbook-placeholder="1"]'));
     });
   }
 
@@ -2128,12 +2132,14 @@
     if (kind === 'world') {
       await enqueue('切换到世界书', async () => {
         await refreshWorldNames();
-        await loadWorldSide(state.top);
+        if (!state.favoriteMode || !state.top.data) await loadWorldSide(state.top);
         renderPanels();
       });
     } else {
-      discardWorldDraft(state.top);
-      resetSide(state.top, true);
+      if (!state.favoriteMode) {
+        discardWorldDraft(state.top);
+        resetSide(state.top, true);
+      }
       renderPanels();
     }
   }
@@ -2525,6 +2531,14 @@
 
   function onDragStart(event) {
     if (!state.open) return;
+    if (state.favoriteMode && event.target.closest?.('.preset-panel') !== state.nativeTop && !event.target.closest?.('[data-pmm-wb-panel]')) {
+      const id = nativePromptIdFromDrag(event.target);
+      if (id) {
+        const entries = TOP.__PMM_FAVORITE_STORE__?.dragItems(id) || [];
+        if (entries.length) dragPayload = { from: 'favorite', keys: entries.map(entry => entry.id), entries };
+        return;
+      }
+    }
     const custom = event.target.closest?.('[data-wb-drag-side][data-wb-drag-key]');
     if (custom) {
       const sideName = custom.dataset.wbDragSide;
@@ -2553,6 +2567,7 @@
     const customPanel = event.target.closest?.('[data-pmm-wb-panel]');
     const nativeList = state.topType === 'preset' && event.target.closest?.('.pm-main-wrapper > .preset-panel .prompt-panel__list');
     const targetSide = customList?.dataset.wbList || customPanel?.dataset.pmmWbPanel || (nativeList ? 'top' : '');
+    if (dragPayload.from === 'favorite' && !customPanel) return; // Native favorite sorting / preset drop owns its own indicators.
     const sameWorldbookList = Boolean(customList && targetSide === dragPayload.from && state[targetSide]?.data?.entries);
     if (sameWorldbookList) {
       event.preventDefault();
@@ -2590,6 +2605,14 @@
     const customPanel = event.target.closest?.('[data-pmm-wb-panel]');
     const nativeList = state.topType === 'preset' && event.target.closest?.('.pm-main-wrapper > .preset-panel .prompt-panel__list');
     const targetSide = customList?.dataset.wbList || customPanel?.dataset.pmmWbPanel || (nativeList ? 'top' : '');
+    if (dragPayload.from === 'favorite') {
+      if (!customPanel) return; // Keep native preset placement and library category routing.
+      event.preventDefault(); event.stopPropagation();
+      const payload = dragPayload, placement = worldDropPlacement(event, targetSide);
+      clearDrag(); endNativePresetDragState();
+      void dropFavorites(targetSide, payload.entries, placement).catch(error => notify('error', `添加失败：${error.message || error}`));
+      return;
+    }
     const sameWorldbookList = Boolean(customList && targetSide === dragPayload.from && state[targetSide]?.data?.entries);
     if (sameWorldbookList) {
       event.preventDefault();
@@ -2634,6 +2657,7 @@
     if (!state.open) return;
     const modeButton = event.target.closest?.('.side-panel-root .panel-btn');
     if (modeButton && !modeButton.matches('[data-pmm-worldbook-placeholder="1"]')) {
+      if (modeButton.title === '收藏' && !state.favoriteMode) return;
       close();
       return;
     }
@@ -2767,7 +2791,55 @@
     return false;
   }
 
+  async function dropFavorites(sideName, entries, placement = null) {
+    const target = state[sideName], data = target?.data;
+    const copies = clone(entries || []);
+    const task = async () => {
+      if (!state.open || !state.favoriteMode || !data?.entries || target.data !== data) throw new Error('目标世界书已切换，请重新拖入');
+      if (!copies.length) return;
+      pushUndo(target, '从收藏库拖入条目', { worldSides:[target] });
+      insertWorldEntries(target, 'favorite', copies, placement);
+      markWorldDraftDirty(target);
+      renderPanels();
+      notify('success', `已添加 ${copies.length} 条，点击世界书保存按钮可保存`);
+    };
+    const next = operationTail.then(task);
+    operationTail = next.catch(() => {});
+    return next;
+  }
+
+  async function openFavorites() {
+    const host = DOC.getElementById('preset-manager-main-panel');
+    const container = host?.querySelector('.pm-panel-container');
+    const mainWrapper = container?.querySelector(':scope > .pm-main-wrapper');
+    const nativeTop = mainWrapper?.querySelector(':scope > .preset-panel');
+    if (!host || !container || !nativeTop || !TOP.__PMM_FAVORITE_STORE__?.isOpen()) return;
+    if (!state.open) state.topType = 'preset';
+    else if (!state.favoriteMode && state.topType === 'preset') {
+      // Switching from worldbook tools to favorites keeps the visible book/draft.
+      [state.top, state.bottom] = [state.bottom, state.top];
+      state.topType = 'world';
+    }
+    installStyle();
+    Object.assign(state, { open:true, favoriteMode:true, host, container, mainWrapper, nativeTop });
+    host.classList.add('pmm-worldbook-mode');
+    container.classList.remove('pm-panel-container--merge-mode');
+    refreshFavoriteIndex();
+    renderPanels();
+    hostObserver?.disconnect();
+    hostObserver = new MutationObserver(() => {
+      if (!state.host?.isConnected) return resetClosedState();
+      scheduleDecorate();
+    });
+    hostObserver.observe(host, { childList:true, subtree:true });
+  }
+
   async function open() {
+    if (state.favoriteMode) {
+      TOP.__PMM_FAVORITE_STORE__?.exitMode();
+      // exitMode closes the favorite view before normal worldbook initialization.
+      await wait(0); // Let Vue remove the favorite-mode class before inspecting it.
+    }
     if (state.open) return close();
     const host = DOC.getElementById('preset-manager-main-panel');
     const container = host?.querySelector('.pm-panel-container');
@@ -2820,6 +2892,7 @@
     clearNativeDropIndicators();
     clearWorldDropIndicators();
     state.open = false;
+    state.favoriteMode = false;
     state.busy = false;
     state.status = '已同步';
     state.host = null;
@@ -2901,40 +2974,7 @@
   DOC.addEventListener('drop', onDrop, true);
   DOC.addEventListener('dragend', clearDrag, true);
   DOC.addEventListener('pmm-favorites-changed', onFavoritesChanged);
-  TOP[API_KEY] = { open, close, cleanup, state,
-    async favoriteTargets() {
-      context = getContext();
-      if (!context?.loadWorldInfo || !context?.saveWorldInfo) throw new Error('当前酒馆没有提供世界书读写接口');
-      return [...(await getWorldInfoNamesCompatible() || [])].map(String);
-    },
-    async insertFavorite(name, item) {
-      if (!name) throw new Error('请选择目标世界书');
-      const task = async () => {
-        context = getContext();
-        if (!context?.loadWorldInfo || !context?.saveWorldInfo) throw new Error('当前酒馆没有提供世界书读写接口');
-        const api = TOP.__PMM_SHARED_FAVORITES__;
-        const world = api.asWorld(item);
-        const side = state.open && [state.topType === 'world' && state.top, state.bottom].find(side => side && side.name === name);
-        if (side?.data) {
-          pushUndo(side, '从收藏库添加条目', { worldSides:[side] });
-          insertWorldEntries(side, world ? 'world' : 'preset', [world || api.asPrompt(item)]);
-          markWorldDraftDirty(side);
-          renderPanels();
-          return { draft: true };
-        }
-        // Read the selected book only, and work on a clone until saving succeeds.
-        const data = await context.loadWorldInfo(name);
-        if (!data?.entries || typeof data.entries !== 'object') throw new Error('世界书不存在或无法读取，请重新选择');
-        const target = emptyWorldSide(); target.name = name; applyWorldData(target, data);
-        insertWorldEntries(target, world ? 'world' : 'preset', [world || api.asPrompt(item)]);
-        await context.saveWorldInfo(name, clone(target.data), true);
-        await reloadOpenNativeWorldbook(name);
-        return { draft: false };
-      };
-      const next = operationTail.then(task);
-      operationTail = next.catch(() => {});
-      return next;
-    },
+  TOP[API_KEY] = { open, close, cleanup, state, openFavorites, dropFavorites,
     async refreshSnapshotBook(name, data, skipNative = false) {
       if (!state.open) return;
       saveScrolls();

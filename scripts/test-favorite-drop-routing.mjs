@@ -27,6 +27,7 @@ async function fixture(data) {
   const context = vm.createContext({
     i, t: clone, H: Promise.resolve(),
     h: { info() {}, error() {} }, toastr: { error() {} },
+    pmmOpenFavoriteWorldView: async () => {}, pmmCloseFavoriteWorldView() {},
     getVariables: () => clone(persisted),
     replaceVariables: async next => {
       await new Promise(resolve => setTimeout(resolve, 2));
