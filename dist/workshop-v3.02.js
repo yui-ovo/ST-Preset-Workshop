@@ -13871,7 +13871,7 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
 
 import { requestSnapshotName } from './snapshot-name-dialog.js?v=2.98.0-test.32';
 import { installPresetSnapshotLinks } from './snapshot-preset-links.js?v=2.98.23';
-import { installPresetSnapshotStorage } from './preset-snapshot-storage.js?v=2.98.23';
+import { installPresetSnapshotStorage } from './preset-snapshot-storage.js?v=2.98.42';
 /* ===== PMM_SWITCH_SNAPSHOTS_TEST52：完整开关快照与预设默认（测试版） ===== */
 ;(() => {
   'use strict';

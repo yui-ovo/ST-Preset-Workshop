@@ -307,7 +307,11 @@ export function installPresetSnapshotStorage(host, options = {}) {
     // Hosts also emit PRESET_CHANGED to repaint an existing preset. A repaint or
     // temporary toggle needs neither a disk read nor a snapshot write.
     if (name === loadedName && revision === (records.get(name)?.revision || null)) return;
-    loadedName = name; contextChanged = true; wantsRefresh = true; schedule();
+    // A new snapshot revision only requests metadata hydration. It is NOT a
+    // new preset context: replaying bindings here can undo manual adjustments
+    // immediately after "overwrite" and activate a different bound snapshot.
+    if (name !== loadedName) contextChanged = true;
+    loadedName = name; wantsRefresh = true; schedule();
   };
   for (const name of new Set(readPresetStore(storage).snapshots.map(s => s.presetName))) seen.set(name, localRows(name));
   const api = { observe, renamed, refresh: run, retry: run, ensure: () => ready,

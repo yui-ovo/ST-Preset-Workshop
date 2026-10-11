@@ -2,9 +2,11 @@ import assert from 'node:assert/strict';
 import { readFile, mkdir } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { pathToFileURL, fileURLToPath } from 'node:url';
-const { chromium } = await import(process.env.PMM_PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PMM_PLAYWRIGHT_MODULE).href : 'playwright');
+const playwright = await import(process.env.PMM_PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PMM_PLAYWRIGHT_MODULE).href : 'playwright');
+const engine = process.env.PMM_BROWSER_ENGINE || 'chromium';
 const names = ['snapshot-name-dialog.js', 'snapshot-preset-links.js', 'snapshot-backup-core.js', 'snapshot-backup.js', 'preset-snapshot-storage.js'];
 const files = Object.fromEntries(await Promise.all(names.map(async n => [n, await readFile(new URL(`../dist/${n}`, import.meta.url), 'utf8')])));
+if (process.env.PMM_SNAPSHOT_STORAGE_SOURCE) files['preset-snapshot-storage.js'] = await readFile(process.env.PMM_SNAPSHOT_STORAGE_SOURCE, 'utf8');
 const bundle = await readFile(new URL('../dist/workshop-v3.02.js', import.meta.url), 'utf8');
 files['preset.js'] = "import {requestSnapshotName} from './snapshot-name-dialog.js';\nimport {installPresetSnapshotLinks} from './snapshot-preset-links.js';\nimport {installPresetSnapshotStorage} from './preset-snapshot-storage.js';\n" + bundle.slice(bundle.indexOf('/* ===== PMM_SWITCH_SNAPSHOTS_TEST52'), bundle.indexOf('/* ===== PMM_THEMED_COMPARE_DRAG_LINE_V289'));
 files['scripts/openai.js'] = 'export const promptManager={render(){}};';
@@ -18,8 +20,8 @@ body.light{color:#333;background:#eee;--SmartThemeBodyColor:#333;--SmartThemeBlu
 const presetName='当前测试预设';
 window.fixture={prompts:Array.from({length:3},(_,i)=>({id:'p'+i,name:'条目'+i,enabled:true,content:'UNSAVED BODY'})),live:{temperature:1.7,extensions:{}},cached:{extensions:{}},listeners:new Map(),writes:0,intervals:0,toasts:[]};
 const events={on(t,fn){if(!fixture.listeners.has(t))fixture.listeners.set(t,new Set());fixture.listeners.get(t).add(fn)},off(t,fn){fixture.listeners.get(t)?.delete(fn)},async emit(t,v){for(const fn of fixture.listeners.get(t)||[])await fn(v)}};
-window.SillyTavern={getContext:()=>({characters:[],getRequestHeaders:()=>({'Content-Type':'application/json','X-CSRF-Token':'test'}),eventSource:events,eventTypes:{PRESET_RENAMED:'renamed',PRESET_CHANGED:'changed',CHAT_CHANGED:'chat'},getPresetManager:()=>({getSelectedPresetName:()=>presetName,getAllPresets:()=>[presetName],getCompletionPresetByName:()=>fixture.cached,getPresetList:()=>({settings:fixture.live})})})};
-window.getLoadedPresetName=()=>presetName;window.getPreset=()=>({prompts:structuredClone(fixture.prompts)});window.setPreset=()=>fixture.writes++;
+window.SillyTavern={getContext:()=>({characters:[],...fixture.chatContext,getRequestHeaders:()=>({'Content-Type':'application/json','X-CSRF-Token':'test'}),eventSource:events,eventTypes:{PRESET_RENAMED:'renamed',PRESET_CHANGED:'changed',CHAT_CHANGED:'chat'},getPresetManager:()=>({getSelectedPresetName:()=>presetName,getAllPresets:()=>[presetName],getCompletionPresetByName:()=>fixture.cached,getPresetList:()=>({settings:fixture.live})})})};
+window.getLoadedPresetName=()=>presetName;window.getPreset=()=>({prompts:structuredClone(fixture.prompts)});window.setPreset=(name,data)=>{fixture.writes++;if(fixture.applyWrites&&name==='in_use')fixture.prompts=structuredClone(data.prompts)};
 window.toastr={success:m=>fixture.toasts.push(m),info:m=>fixture.toasts.push(m),warning:m=>fixture.toasts.push(m),error:m=>fixture.toasts.push(m)};
 const oldInterval=window.setInterval;window.setInterval=(...args)=>{fixture.intervals++;return oldInterval(...args)};
 if(location.search.includes('seed'))localStorage.setItem('pmm.switch-snapshots.v1',JSON.stringify({version:1,snapshots:[{id:'default',name:'预设默认',isDefault:true,presetName,states:[{id:'p0',name:'条目0',enabled:false}]},{id:'role',name:'日常',presetName,states:[{id:'p0',name:'条目0',enabled:true}]}]}));
@@ -45,8 +47,8 @@ const server = createServer(async (req, res) => {
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const url = `http://127.0.0.1:${server.address().port}`;
-const browser = await chromium.launch({ channel: 'msedge', headless: true });
-const output = new URL('../../outputs/preset-snapshot-storage/', import.meta.url); await mkdir(output, { recursive: true });
+const browser = await playwright[engine].launch(engine === 'chromium' ? { channel: 'msedge', headless: true } : { headless: true });
+const output = new URL(`../../outputs/preset-snapshot-storage/${engine}/`, import.meta.url); await mkdir(output, { recursive: true });
 const status = page => page.locator('[data-pmm-snapshot-storage]');
 async function settled(page) { await page.waitForFunction(() => __PMM_PRESET_SNAPSHOT_STORAGE__.state('当前测试预设').state === 'saved'); }
 try {
@@ -102,5 +104,71 @@ try {
     assert.equal(await page.evaluate(() => fixture.intervals), 0); assert.deepEqual(errors, []);
     await context.close();
   }
-  console.log('Embedded snapshot browser passed: real UI create/overwrite, failure/retry, isolated-browser restore, migration backup, unsaved-body isolation, 390/820/1280 layout and cleanup.');
+  // Imported bindings must wait for an actual context change, not take over a
+  // manual snapshot when the same preset reports its newly saved revision.
+  for (const inChat of [false, true]) {
+    saved = original(); writes = []; reads = 0; fail = false;
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    const page = await context.newPage(), errors = []; page.on('pageerror', e => errors.push(e.message));
+    page.on('dialog', dialog => dialog.accept());
+    await page.goto(url + '?seed'); await page.waitForFunction(() => window.ready); await settled(page);
+    await page.evaluate(inChat => {
+      fixture.applyWrites = true;
+      fixture.chatContext = inChat ? { characterId: 0, characters: [{ avatar: 'role.png', name: '测试角色' }], chatId: 'chat-1' } : {};
+    }, inChat);
+    await page.click('#open');
+    const first = page.locator('.pmm-switch-snapshot-row[data-pmm-snapshot-id="role"]');
+    await first.locator('[data-pmm-snapshot-action="apply"]').click();
+    await page.waitForFunction(() => __PMM_SWITCH_SNAPSHOTS_TEST52__.activeForPreset('当前测试预设')?.id === 'role');
+    await page.evaluate(async () => {
+      const store = JSON.parse(localStorage.getItem('pmm.switch-snapshots.v1'));
+      store.snapshots.push({ id: 'second', name: '快照②', presetName: '当前测试预设',
+        states: fixture.prompts.map(p => ({ id: p.id, name: p.name, enabled: true })),
+        characters: [{ key: 'role.png', name: '测试角色' }], chats: [] });
+      localStorage.setItem('pmm.switch-snapshots.v1', JSON.stringify(store));
+      __PMM_PRESET_SNAPSHOT_STORAGE__.observe();
+      __PMM_SWITCH_SNAPSHOTS_TEST52__.refreshAfterImport();
+      await __PMM_PRESET_SNAPSHOT_STORAGE__.refresh();
+      fixture.prompts[0].enabled = false;
+      __PMM_SWITCH_SNAPSHOTS_TEST52__.refreshAfterImport();
+      const fetchNative = window.fetch.bind(window);
+      window.fetch = async (input, init) => {
+        const response = await fetchNative(input, init);
+        if (String(input).endsWith('/api/presets/save') && response.ok) {
+          fixture.cached.extensions.pmm_switch_snapshots = JSON.parse(init.body).preset.extensions.pmm_switch_snapshots;
+          await SillyTavern.getContext().eventSource.emit('changed', { apiId: 'openai', name: '当前测试预设' });
+        }
+        return response;
+      };
+    });
+    assert.match(await first.innerText(), /已调整|恢复此快照/);
+    const appliedWrites = await page.evaluate(() => fixture.writes);
+    await first.locator('[data-pmm-snapshot-action="menu"]').click();
+    await page.locator('[data-pmm-snapshot-action="overwrite"]').click();
+    await settled(page);
+    // Include both the 260 ms binding timer and the queued metadata refresh.
+    await page.waitForTimeout(900);
+    assert.equal(await page.evaluate(() => __PMM_SWITCH_SNAPSHOTS_TEST52__.activeForPreset('当前测试预设')?.id), 'role', 'Overwrite does not switch to snapshot #2');
+    assert.deepEqual(await page.evaluate(() => fixture.prompts.map(p => p.enabled)), [false, false, false]);
+    assert.equal(await page.evaluate(() => fixture.writes), appliedWrites, 'Overwrite never reapplies live prompt switches');
+    const markers = await page.evaluate(() => {
+      const store = JSON.parse(localStorage.getItem('pmm.switch-snapshots.v1'));
+      return { manual: store.manualSnapshots?.['当前测试预设'], home: store.homeSnapshots?.['当前测试预设'] };
+    });
+    assert.equal(markers.manual, 'role');
+    assert.equal(markers.home, inChat ? undefined : 'role', 'Overwrite preserves the home snapshot');
+    assert.equal(saved.extensions.pmm_switch_snapshots.snapshots.find(s => s.id === 'role').states[0].enabled, false);
+    assert(saved.extensions.pmm_switch_snapshots.snapshots.find(s => s.id === 'second').states.every(s => s.enabled));
+    const plain = structuredClone(saved); delete plain.extensions.pmm_switch_snapshots;
+    assert.deepEqual(plain, original(), 'Metadata save preserves the saved preset body');
+    await page.evaluate(async () => {
+      fixture.chatContext = { characterId: 0, characters: [{ avatar: 'role.png', name: '测试角色' }], chatId: 'chat-2' };
+      await SillyTavern.getContext().eventSource.emit('chat');
+    });
+    await page.waitForFunction(() => __PMM_SWITCH_SNAPSHOTS_TEST52__.activeForPreset('当前测试预设')?.id === 'second');
+    assert.deepEqual(await page.evaluate(() => fixture.prompts.map(p => p.enabled)), [true, true, true], 'Actual chat changes still apply the character binding');
+    await page.evaluate(() => __PMM_SWITCH_SNAPSHOTS_TEST52__.cleanup());
+    assert.deepEqual(errors, []); await context.close();
+  }
+  console.log(`Embedded snapshot browser passed (${engine}): real UI create/overwrite, no binding replay on same-preset save, real chat binding, failure/retry, isolated-browser restore, migration backup, unsaved-body isolation, 390/820/1280 layout and cleanup.`);
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }

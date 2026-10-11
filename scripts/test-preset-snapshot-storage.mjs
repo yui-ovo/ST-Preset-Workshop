@@ -19,7 +19,7 @@ function fixture({ storage = memory(), files = new Map([['A', raw()]]), mode = '
   const cached = new Map([...files].map(([n, p]) => [n, clone(p)]));
   const live = { ...raw(), temperature: 1.7, prompts: [{ identifier: 'p', content: 'UNSAVED BODY' }] };
   const calls = [], toasts = [], listeners = new Map();
-  const f = { files, cached, storage, live, calls, selected: 'A', failSave: false, failRead: false, loseReply: false, changes: 0 };
+  const f = { files, cached, storage, live, calls, selected: 'A', failSave: false, failRead: false, loseReply: false, changes: 0, loaded: 0 };
   const manager = { getSelectedPresetName: () => f.selected, getCompletionPresetByName: n => cached.get(n), getPresetList: () => ({ settings: live }) };
   const host = { localStorage: storage, setTimeout, clearTimeout, crypto: { randomUUID },
     toastr: { warning: v => toasts.push(v), info: v => toasts.push(v) },
@@ -47,7 +47,7 @@ function fixture({ storage = memory(), files = new Map([['A', raw()]]), mode = '
     },
   };
   f.host = host; f.toasts = toasts; f.listeners = listeners;
-  f.install = () => f.api = installPresetSnapshotStorage(host, { delay, onChange: () => f.changes++ });
+  f.install = () => f.api = installPresetSnapshotStorage(host, { delay, onChange: () => f.changes++, onPresetLoaded: () => { f.loaded++; f.onPresetLoaded?.(); } });
   f.read = () => JSON.parse(storage.getItem(PRESET_KEY) || '{"version":1,"snapshots":[]}');
   f.edit = edit => { const store = f.read(); edit(store); storage.setItem(PRESET_KEY, JSON.stringify(store)); f.api.observe(store); };
   f.saves = () => calls.filter(v => v.path === '/api/presets/save');
@@ -195,6 +195,41 @@ for (const mode of ['ST', 'TT']) {
   assert.equal(f.api.state('Renamed').state, 'saved'); assert(!f.files.has('A'));
   assert.equal(f.read().snapshots.filter(s => s.presetName === 'Renamed').length, 1);
   f.api.cleanup();
+}
+// A metadata refresh of the SAME preset is not entering a different preset.
+// Some hosts/extensions notify PRESET_CHANGED after their cache adopts a saved
+// extension revision, including while an overwrite is being confirmed.
+for (const mode of ['ST', 'TT']) {
+  const first = { ...row('first', false), characters: [] };
+  const second = { ...row('second', false), states: [{ id: 'p', name: 'Prompt', enabled: true }] };
+  const f = fixture({ seed: [row(), first, second], mode }); await f.api.ensure();
+  f.edit(s => { s.activeSnapshots = { A: 'first' }; s.manualSnapshots = { A: 'first' }; s.homeSnapshots = { A: 'first' }; });
+  f.live.prompt_order[0].order[0].enabled = false;
+  f.edit(s => { s.snapshots.find(r => r.id === 'first').states[0].enabled = false; });
+  // A false re-entry notification can schedule the character binding for #2.
+  f.onPresetLoaded = () => { f.live.prompt_order[0].order[0].enabled = true; };
+  f.beforeSave = async data => {
+    f.cached.get('A').extensions[FIELD] = clone(data.preset.extensions[FIELD]);
+    f.listeners.get('changed')({ apiId: 'openai', name: 'A' });
+  };
+  try {
+    await f.api.refresh();
+    assert.equal(f.loaded, 0, 'Snapshot overwrite must not signal preset re-entry');
+    assert.equal(f.live.prompt_order[0].order[0].enabled, false, 'Save keeps manual live adjustments');
+    assert.equal(f.read().activeSnapshots.A, 'first');
+    assert.equal(f.read().manualSnapshots.A, 'first');
+    assert.equal(f.files.get('A').extensions[FIELD].snapshots.find(r => r.id === 'first').states[0].enabled, false);
+    f.beforeSave = null;
+    const remote = clone(f.files.get('A')); remote.extensions[FIELD].revision = randomUUID();
+    remote.extensions[FIELD].snapshots.find(r => r.id === 'second').name = 'Remote rename';
+    f.files.set('A', remote); f.cached.set('A', clone(remote));
+    f.listeners.get('changed')({ apiId: 'openai', name: 'A' }); await f.api.refresh();
+    assert.equal(f.loaded, 0, 'Remote metadata adoption also leaves live switches alone');
+    assert.equal(f.read().snapshots.find(r => r.id === 'second').name, 'Remote rename', 'Metadata still refreshes');
+    f.files.set('B', raw()); f.cached.set('B', raw()); f.selected = 'B';
+    f.listeners.get('changed')({ apiId: 'openai', name: 'B' }); await f.api.refresh();
+    assert.equal(f.loaded, 1, 'A genuine preset switch still notifies the binding layer');
+  } finally { f.api.cleanup(); }
 }
 // Unknown future format and failed reads are never silently replaced by local data.
 {
