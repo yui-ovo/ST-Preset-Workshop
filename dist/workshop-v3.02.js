@@ -14409,7 +14409,7 @@ import { installPresetSnapshotStorage } from './preset-snapshot-storage.js?v=2.9
 
   function defaultSnapshotName() {
     const character = currentCharacter();
-    return character ? `${character.name} 开关` : `${currentPresetName() || '当前预设'} 开关`;
+    return character ? character.name : currentPresetName() || '当前预设';
   }
 
   function isDefaultSnapshot(snapshot) {

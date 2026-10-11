@@ -777,7 +777,7 @@ async function beginNewSnapshot() {
     const captured=await engine.captureBundle(scope,owner);
     const label=page==='character'?character().name:engine.read().groups.find(g=>g.id===owner)?.name;
     if(!label)throw new Error('分组已不存在');
-    draft={...captured,scope,owner,name:`${label} 开关`,expanded:Object.fromEntries(Object.keys(captured.data).map(name=>[name,Object.keys(captured.data).length===1])),queries:{},previews:{}};
+    draft={...captured,scope,owner,name:label,expanded:Object.fromEntries(Object.keys(captured.data).map(name=>[name,Object.keys(captured.data).length===1])),queries:{},previews:{}};
     say('');
   } catch(error) { engine.setCapturing(false); await engine.transition(); throw error; }
 }
