@@ -54,9 +54,9 @@ assert.ok(saveAction.includes('if (!side?.dirty) return;'), '无草稿时保存�
 assert.ok(saveAction.includes('await saveWorldSide(side);'), '点击高亮保存按钮没有写入草稿');
 
 const saveSide = section('async function saveWorldSide(side)', 'async function savePresetEntries');
-assert.ok(saveSide.includes('await context.saveWorldInfo(side.name, clone(side.data), true);'), '保存没有写入工坊草稿');
-assert.ok(saveSide.includes('side.savedData = clone(side.data);'), '保存后没有更新已保存快照');
-assert.ok(saveSide.includes('side.dirty = false;'), '保存后没有清除高亮状态');
+assert.ok(saveSide.includes('const saved = clone(side.data);') && saveSide.includes('await context.saveWorldInfo(side.name, saved, true)'), '保存没有写入点击时的工坊草稿');
+assert.ok(saveSide.includes('side.savedData = saved;'), '保存后没有更新已保存快照');
+assert.ok(saveSide.includes('side.dirty = worldDraftChanged(side);'), '保存后应重新检查期间是否又有修改');
 assert.ok(saveSide.includes('await reloadOpenNativeWorldbook(side.name);'), '保存后没有刷新当前同名原生世界书');
 
 const nativeSelection = section('function nativeWorldEditorSelectedName()', 'function watchNativeWorldRename(oldName)');
@@ -68,7 +68,7 @@ assert.ok(nativeReload.includes("DOC.querySelector('#world_editor_select')"), '�
 assert.ok(nativeReload.includes("jQuery(select).trigger('change')"), '保存后没有复用原生世界书的 change 重载路径');
 assert.ok(nativeReload.includes("select.dispatchEvent(new TOP.Event('change'"), '无 jQuery 时没有原生 change 重载兜底');
 
-const close = section('function close()', 'function cleanup()');
+const close = section('function close(force = false)', 'function cleanup()');
 assert.ok(!close.includes('saveWorldSide('), '关闭工坊时不应自动保存草稿');
 
 const sourceChange = section('function onDocumentChange(event)', 'function onDocumentInput(event)');

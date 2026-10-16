@@ -681,9 +681,10 @@
 
   async function saveWorldSide(side) {
     if (!side.data?.entries) throw new Error('世界书数据尚未载入');
-    await context.saveWorldInfo(side.name, clone(side.data), true);
-    side.savedData = clone(side.data);
-    side.dirty = false;
+    const saved = clone(side.data);
+    if (await context.saveWorldInfo(side.name, saved, true) === false) throw new Error('世界书保存失败');
+    side.savedData = saved;
+    side.dirty = worldDraftChanged(side);
     mirrorSameWorldDraft(side);
     await reloadOpenNativeWorldbook(side.name);
     syncWorldSaveButton(worldSideName(side));
@@ -2200,8 +2201,8 @@
     if (action === 'exit') return close();
     if (action === 'close-main') {
       const nativeClose = state.nativeTop?.querySelector('.header-right .fa-xmark')?.closest('button');
-      close();
-      nativeClose?.click();
+      if (TOP.__PMM_WORKSHOP_EDITING__?.closeMain) return TOP.__PMM_WORKSHOP_EDITING__.closeMain();
+      close(); nativeClose?.click();
       return;
     }
     if (action === 'more') {
@@ -2658,6 +2659,11 @@
     const modeButton = event.target.closest?.('.side-panel-root .panel-btn');
     if (modeButton && !modeButton.matches('[data-pmm-worldbook-placeholder="1"]')) {
       if (modeButton.title === '收藏' && !state.favoriteMode) return;
+      if (hasWorldDraftChanges() && TOP.__PMM_WORKSHOP_EDITING__?.guard) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        TOP.__PMM_WORKSHOP_EDITING__.guard(dirtyDrafts, () => { close(true); modeButton.click(); });
+        return;
+      }
       close();
       return;
     }
@@ -2910,8 +2916,23 @@
     hostObserver = null;
   }
 
-  function close() {
+  function dirtyDrafts() {
+    if (!state.open) return [];
+    return [state.top, state.bottom].filter(side => side.name && refreshWorldDraftState(side)).map(side => ({
+      label: '世界书 · ' + side.name, name: side.name, destination: 'world:' + side.name,
+      read: () => side.data, dirty: () => refreshWorldDraftState(side),
+      save: async () => {
+        await operationTail;
+        state.busy = true;
+        try { await saveWorldSide(side); renderPanels(); } finally { state.busy = false; }
+      },
+      discard: () => discardWorldDraft(side),
+    }));
+  }
+
+  function close(force = false) {
     if (!state.open) return;
+    if (!force && TOP.__PMM_WORKSHOP_EDITING__?.guard) return TOP.__PMM_WORKSHOP_EDITING__.guard(dirtyDrafts, () => close(true));
     endNativePresetDragState();
     clearDrag();
     if (renderFrame) TOP.cancelAnimationFrame(renderFrame);
@@ -2934,7 +2955,7 @@
   }
 
   function cleanup() {
-    close();
+    close(true);
     DOC.querySelector('#preset-manager-main-panel .pmm-wb-editor-overlay')?.remove();
     DOC.getElementById(STYLE_ID)?.remove();
     DOC.removeEventListener('click', onPresetExpandClick, true);
@@ -2974,7 +2995,7 @@
   DOC.addEventListener('drop', onDrop, true);
   DOC.addEventListener('dragend', clearDrag, true);
   DOC.addEventListener('pmm-favorites-changed', onFavoritesChanged);
-  TOP[API_KEY] = { open, close, cleanup, state, openFavorites, dropFavorites,
+  TOP[API_KEY] = { open, close, cleanup, state, openFavorites, dropFavorites, dirtyDrafts,
     async refreshSnapshotBook(name, data, skipNative = false) {
       if (!state.open) return;
       saveScrolls();

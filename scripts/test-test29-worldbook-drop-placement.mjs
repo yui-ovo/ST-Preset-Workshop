@@ -37,10 +37,12 @@ for (const marker of [
   '.finally(scheduleDropIndicatorCleanup)',
   'state.nativeTop = nativeTop;\n    endNativePresetDragState();',
   'function resetClosedState() {\n    endNativePresetDragState();',
-  'function close() {\n    if (!state.open) return;\n    endNativePresetDragState();',
+  'function close(force = false) {\n    if (!state.open) return;',
 ]) {
   assert.ok(source.includes(marker), `test.29 缺少拖拽结束后的蓝线清理：${marker}`);
 }
+const closeBody = source.slice(source.indexOf('function close(force = false)'), source.indexOf('function cleanup()'));
+assert.ok(closeBody.includes('endNativePresetDragState();'), '确认关闭后仍应清理拖拽状态');
 
 const helperStart = source.indexOf('  function entriesFromWorld(data)');
 const helperEnd = source.indexOf('  function setStatus(text)', helperStart);

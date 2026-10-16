@@ -45,7 +45,7 @@ if (!entry.includes('worldbook-stitch-test3.js')
   throw new Error('世界书工具栏入口尚未接通 test.3 内嵌模式');
 }
 
-const closedState = source.slice(source.indexOf('function resetClosedState()'), source.indexOf('function close()'));
+const closedState = source.slice(source.indexOf('function resetClosedState()'), source.indexOf('function dirtyDrafts()'));
 if (!closedState.includes('resetSide(state.top, true)')
   || !closedState.includes('resetSide(state.bottom, true)')
   || closedState.includes('state.topType =')) {

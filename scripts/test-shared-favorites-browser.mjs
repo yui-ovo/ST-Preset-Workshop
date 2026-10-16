@@ -9,6 +9,7 @@ import { pathToFileURL } from 'node:url';
 import { verifySharedFavorites } from './verify-shared-favorites.mjs';
 import { verifyPanelHeight } from './verify-panel-height.mjs';
 import { verifyRegexManager } from './verify-regex-manager.mjs';
+import { verifyWorkshopEditing } from './verify-workshop-editing.mjs';
 
 const playwright = await import(process.env.PMM_PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PMM_PLAYWRIGHT_MODULE).href : 'playwright');
 const assets = process.env.PMM_BROWSER_ASSET_DIR;
@@ -17,7 +18,7 @@ const asset = name => readFile(resolve(assets, name), 'utf8');
 const engine = process.env.PMM_BROWSER_ENGINE || 'chromium';
 const source = (await readFile(process.env.PMM_WORKSHOP_SOURCE || new URL('../dist/workshop-v3.02.js', import.meta.url), 'utf8'))
   .replace(/import\{createPinia[^;]+;import\{klona[^;]+;/, 'const e=Pinia.createPinia,n=Pinia.defineStore,t=_.cloneDeep;')
-  .replace('export{xo as mountMainPanel,fo as toggleMainPanel,bo as unmountMainPanel};', 'window.testOpen=fo;window.testClose=bo;');
+  .replace('export{xo as mountMainPanel,fo as toggleMainPanel,bo as unmountMainPanel};', 'window.testOpen=fo;window.testClose=bo;window.testStores=()=>({main:Je(),merge:mn(),branch:je(),diff:Cn()});');
 const browser = await playwright[engine].launch(engine === 'chromium' ? { channel: 'msedge', headless: true } : { headless: true });
 try {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
@@ -103,6 +104,12 @@ try {
       return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0.9 && rect.width > 100 && rect.height > 100;
     });
     assert.ok(visible, 'Panel must be painted, not merely present in the DOM');
+    if (process.env.PMM_TEST_EDITING) {
+      try { await verifyWorkshopEditing(page, frame, engine); } catch (error) { console.error(errors); await page.screenshot({path: assets + "/editing-failure.png"}); throw error; }
+      assert.deepEqual(errors, []);
+      console.log(`${engine}: switch transfer, undo and unsaved close passed`);
+      continue;
+    }
     await verifyPanelHeight(page, frame);
     await verifySharedFavorites(page, frame, engine);
     if (process.env.PMM_TEST_REGEX) await verifyRegexManager(page, frame, engine);
