@@ -1,29 +1,49 @@
-import { planSwitchTransfer, transferSwitches, draftSignature, saveDirtyDrafts } from './workshop-editing-core.js?v=2.98.45';
+import { planSwitchTransfer, transferSwitches, draftSignature, saveDirtyDrafts } from './workshop-editing-core.js?v=2.98.46';
 
 const dialogs = new WeakMap();
 function dialog(host, title, onCancel) {
-  const doc = host.ownerDocument, prior = doc.activeElement, wasInert = host.inert;
+  const doc = host.ownerDocument, win = doc.defaultView, prior = doc.activeElement, wasInert = host.inert;
   const layer = doc.createElement('div'); layer.dataset.pmmEditingDialog = '1';
-  layer.style.cssText = 'position:fixed;inset:0;z-index:2147483645;';
-  const theme = doc.defaultView.getComputedStyle(host.querySelector('.preset-panel') || host);
-  for (const name of ['--pm-panel-bg', '--pm-text-primary', '--pm-border', '--pm-quote-color']) layer.style.setProperty(name, theme.getPropertyValue(name));
+  const theme = win.getComputedStyle(host.querySelector('.preset-panel') || host);
+  for (const name of ['--pm-panel-bg', '--pm-text-primary', '--pm-border', '--pm-quote-color', '--pmm-safe-top', '--pmm-safe-bottom', '--tt-inset-top', '--tt-inset-bottom']) layer.style.setProperty(name, theme.getPropertyValue(name));
   // Make the dialog opaque even when the surrounding theme uses translucent panels.
   const rgb = theme.getPropertyValue('--pm-panel-bg').match(/rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/i);
   if (rgb) layer.style.setProperty('--pm-panel-bg', `rgb(${rgb.slice(1, 4).join(',')})`);
   const root = layer.attachShadow({ mode: 'open' });
   root.innerHTML = `<style>
     :host{font-family:system-ui,sans-serif;color:var(--pm-text-primary,#e5e7eb)}*{box-sizing:border-box}
-    .veil{height:100%;display:flex;align-items:center;justify-content:center;padding: max(16px,env(safe-area-inset-top)) 16px max(16px,env(safe-area-inset-bottom));background:#0009}
-    section{width:min(440px,100%);max-height:82dvh;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--pm-border,#555);border-radius:18px;background:var(--pm-panel-bg,#20252e);box-shadow:0 16px 48px #0006;background-color:var(--pm-panel-bg,#20252e)}
-    h2{font-size:16px;margin:0;padding:18px 18px 10px}main{padding:0 18px;overflow:auto;min-height:0;overscroll-behavior:contain}p,li,label{font-size:13px;line-height:1.6;overflow-wrap:anywhere}ul{padding-left:20px}.status{font-size:12px;min-height:1.6em;white-space:pre-wrap}.error{color:#ef8f8f}
-    footer{display:flex;gap:8px;flex-wrap:wrap;padding:14px 18px}button,select{font:inherit;font-size:13px;color:inherit;border:1px solid var(--pm-border,#666);background:rgba(127,127,127,.12);border-radius:10px;padding:10px 12px;cursor:pointer}button:disabled{opacity:.45;cursor:default}button.primary{background:color-mix(in srgb,var(--pm-quote-color,#889bc9) 24%,transparent)}button.danger{color:#e68c8c}button:focus-visible,select:focus-visible{outline:2px solid var(--pm-quote-color,#90a5e0);outline-offset:2px}select{max-width:100%;font-size:16px}option{color:#111;background:#fff}
+    .veil{height:100%;display:flex;align-items:center;justify-content:center;padding:max(16px,var(--pmm-safe-top,0px),var(--tt-inset-top,0px),env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,var(--pmm-safe-bottom,0px),var(--tt-inset-bottom,0px),env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));background:#0009}
+    section{width:min(440px,100%);min-height:0;max-height:min(82vh,100%);max-height:min(82dvh,100%);display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--pm-border,#555);border-radius:18px;background:var(--pm-panel-bg,#20252e);box-shadow:0 16px 48px #0006;background-color:var(--pm-panel-bg,#20252e)}
+    h2{flex:none;font-size:16px;margin:0;padding:18px 18px 10px}main{padding:0 18px;overflow:auto;min-height:0;overscroll-behavior:contain}p,li,label{font-size:13px;line-height:1.6;overflow-wrap:anywhere}ul{padding-left:20px}.status{font-size:12px;min-height:1.6em;white-space:pre-wrap}.error{color:#ef8f8f}
+    footer{flex:none;display:flex;gap:8px;flex-wrap:wrap;padding:14px 18px}button,select{font:inherit;font-size:13px;color:inherit;border:1px solid var(--pm-border,#666);background:rgba(127,127,127,.12);border-radius:10px;padding:10px 12px;cursor:pointer}button:disabled{opacity:.45;cursor:default}button.primary{background:color-mix(in srgb,var(--pm-quote-color,#889bc9) 24%,transparent)}button.danger{color:#e68c8c}button:focus-visible,select:focus-visible{outline:2px solid var(--pm-quote-color,#90a5e0);outline-offset:2px}select{max-width:100%;font-size:16px}option{color:#111;background:#fff}
     .direction{padding:12px;border-radius:12px;background:rgba(127,127,127,.1);font-size:13px;overflow-wrap:anywhere}.direction strong{display:block;margin:5px 0;line-height:1.5}.preset-role{font-size:12px;opacity:.8}.swap{display:block;margin:10px auto}details{font-size:13px;margin:12px 0}summary{cursor:pointer}.row{padding:10px 0;border-bottom:1px solid var(--pm-border,#555)}.row label{display:block;margin-bottom:6px}.row select{width:100%}.note{opacity:.7;font-size:12px}footer button{flex:1 1 auto}.transfer-actions .primary{flex:1 1 100%}
     @media(max-width:480px){footer.close-actions button{width:100%}}
   </style><div class="veil"><section role="dialog" aria-modal="true" aria-labelledby="heading"><h2 id="heading"></h2><main></main><footer></footer></section></div>`;
   root.querySelector('h2').textContent = title;
   host.inert = true; doc.body.append(layer);
-  let busy = false;
-  const finish = () => { layer.remove(); host.inert = wasInert; dialogs.delete(doc); if (prior?.isConnected) prior.focus?.({ preventScroll: true }); };
+  const viewport = win.visualViewport;
+  let busy = false, frame = 0, finished = false;
+  function updateViewport() {
+    frame = 0;
+    // Shadow DOM protects the contents, but host themes can still style this outer div.
+    // Use the owning window's visible viewport, not the helper iframe or either preset pane.
+    const values = { position: 'fixed', inset: 'auto', left: `${viewport?.offsetLeft || 0}px`, top: `${viewport?.offsetTop || 0}px`,
+      right: 'auto', bottom: 'auto', width: `${Math.max(1, viewport?.width || win.innerWidth)}px`, height: `${Math.max(1, viewport?.height || win.innerHeight)}px`,
+      'min-width': '0', 'max-width': 'none', 'min-height': '0', 'max-height': 'none', 'box-sizing': 'border-box',
+      display: 'block', margin: '0', padding: '0', border: '0', transform: 'none', translate: 'none', scale: 'none', rotate: 'none',
+      animation: 'none', transition: 'none', overflow: 'hidden', 'z-index': '2147483645' };
+    for (const [key, value] of Object.entries(values)) layer.style.setProperty(key, value, 'important');
+  }
+  function scheduleViewport() { if (!frame && !finished) frame = win.requestAnimationFrame(updateViewport); }
+  const viewportEvents = [[win, 'resize'], [win, 'orientationchange'], [viewport, 'resize'], [viewport, 'scroll']];
+  updateViewport();
+  for (const [target, type] of viewportEvents) target?.addEventListener(type, scheduleViewport, { passive: true });
+  const finish = () => {
+    if (finished) return; finished = true;
+    for (const [target, type] of viewportEvents) target?.removeEventListener(type, scheduleViewport);
+    if (frame) win.cancelAnimationFrame(frame);
+    layer.remove(); host.inert = wasInert; dialogs.delete(doc); if (prior?.isConnected) prior.focus?.({ preventScroll: true });
+  };
   root.addEventListener('keydown', event => {
     if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); if (!busy) onCancel(); }
     if (event.key !== 'Tab') return;
@@ -70,7 +90,7 @@ export function confirmWorkshopClose(host, getEntries, close) {
   };
   button(view.footer, '保存并关闭', () => act(true), 'primary');
   button(view.footer, '不保存关闭', () => act(false), 'danger');
-  cancel.focus(); return result;
+  cancel.focus({ preventScroll: true }); return result;
 }
 
 export function openSwitchTransfer(host, adapter) {
@@ -125,7 +145,7 @@ export function openSwitchTransfer(host, adapter) {
     }
     const status = element(view.main, 'p', '', 'status');
     view.footer.className = 'transfer-actions';
-    button(view.footer, '取消', () => view.finish()).focus();
+    const cancel = button(view.footer, '取消', () => view.finish());
     button(view.footer, '新预设沿用旧预设开关', async () => {
       view.busy(true);
       try {
@@ -136,6 +156,7 @@ export function openSwitchTransfer(host, adapter) {
         view.finish(); adapter.notice(`已沿用 ${result.changed} 条开关，请保存目标预设；可用目标面板的撤销按钮撤销。`);
       } catch (error) { status.textContent = error.message || String(error); status.className = 'status error'; view.busy(false); }
     }, 'primary');
+    cancel.focus({ preventScroll: true });
   }
   render();
 }
