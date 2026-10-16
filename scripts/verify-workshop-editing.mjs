@@ -36,29 +36,56 @@ export async function verifyWorkshopEditing(page, frame, engine) {
     await page.locator('.preset-panel .title-select').nth(1).selectOption('Second');
     await page.waitForFunction(() => [...document.querySelectorAll('.preset-panel .title-select')][1]?.value === 'Second');
   };
-  const openTransfer = async () => {
-    await page.locator('.preset-panel').nth(1).getByTitle('比对',{exact:true}).click();
-    await page.getByTitle('查看详细比对结果',{exact:true}).click();
-    const entry = page.viewportSize().width <= 768 ? '#pmm-diff-detail-portal [data-pmm-switch-transfer]' : '[data-pmm-switch-transfer]:visible';
-    await page.locator(entry).click();
-    await modal.getByRole('heading', {name:'沿用旧版开关'}).waitFor();
+  const openTransfer = async (side = 0) => {
+    await page.locator('.preset-panel').nth(side).getByRole('button',{name:'沿用开关',exact:true}).click();
+    await modal.getByRole('heading', {name:'沿用开关',exact:true}).waitFor();
   };
+  assert.equal(await page.locator('[data-pmm-switch-transfer-entry]').count(),0,'Single preset has no transfer entry');
   await openMerge();
   const original = await read();
   assert.deepEqual(original.dirty,[false,false]);
-  assert.equal(await page.locator('[data-pmm-switch-transfer]').count(),0,'No new main toolbar button');
+  assert.equal(await page.locator('[data-pmm-switch-transfer-entry]').count(),2,'Both merge panes have the same entry');
+  for (const width of [320,390,768,1280]) {
+    await page.setViewportSize({width,height:844});
+    await page.waitForTimeout(150);
+    const controls = await page.locator('[data-pmm-switch-transfer-entry]').evaluateAll(nodes=>nodes.map(node=>{
+      const previous=node.previousElementSibling, a=previous.getBoundingClientRect(), b=node.getBoundingClientRect();
+      const header=node.closest('.pm-header').getBoundingClientRect(),hit=document.elementFromPoint(b.x+b.width/2,b.y+b.height/2);
+      return {nextToPencil:previous.title==='编辑预设名',fits:b.x>=a.right-1&&b.right<=header.right&&b.y>=header.y&&b.bottom<=header.bottom,
+        clickable:hit===node||node.contains(hit)};
+    }));
+    assert.ok(controls.every(c=>c.nextToPencil&&c.fits&&c.clickable),`Title entry ${width}: ${JSON.stringify(controls)}`);
+  }
+  await page.setViewportSize({width:390,height:844});
+  // Increasing title width must keep the new entry separate from import/export.
+  await page.locator('.pmm-layout-trigger').click();
+  const titleWidth=page.locator('[data-pmm-layout-input="presetWidth"]');
+  await titleWidth.fill(await titleWidth.getAttribute('max'));
+  await page.locator('[data-pmm-layout-done]').click();
+  await openTransfer();
+  await modal.getByRole('button',{name:'取消',exact:true}).click();
+  assert.deepEqual(await read(),original,'Opening and cancelling must not modify either preset');
+  await page.locator('.pmm-layout-trigger').click();
+  await page.locator('[data-pmm-layout-output="presetWidth"]').click();
+  await page.locator('[data-pmm-layout-done]').click();
+  await page.locator('[data-pmm-layout-done]').waitFor({state:'hidden'});
+  await page.locator('.preset-panel .title-card').evaluateAll(nodes=>nodes.forEach(node=>node.scrollLeft=0));
+  await page.screenshot({path:process.env.PMM_BROWSER_ASSET_DIR + '/switch-transfer-entry-' + engine + '.png'});
   await openTransfer();
   assert.match(await modal.locator('section').textContent(),/已对应 2 条 · 将调整 2 条 · 保持新版 2 条/);
-  await modal.getByRole('button',{name:'交换方向'}).click();
+  assert.deepEqual(await modal.locator('.preset-role').allTextContents(),['旧预设 · 提供开关','新预设 · 接收开关']);
+  assert.deepEqual(await modal.locator('.direction strong').allTextContents(),['First','Second']);
+  await modal.getByRole('button',{name:'反转新旧'}).click();
   assert.deepEqual(await modal.locator('.direction strong').allTextContents(),['Second','First']);
-  await modal.getByRole('button',{name:'交换方向'}).click();
+  assert.deepEqual(await read(),original,'Reversing the labels is only a preview');
+  await modal.getByRole('button',{name:'反转新旧'}).click();
   await modal.locator('summary').click();
   const choice = modal.getByLabel('重命名待确认');
   await choice.focus();
   await choice.selectOption('2');
   assert.match(await modal.locator('section').textContent(),/已对应 3 条 · 将调整 3 条 · 保持新版 1 条/);
   await page.screenshot({path:process.env.PMM_BROWSER_ASSET_DIR + '/switch-transfer-' + engine + '.png'});
-  await modal.getByRole('button',{name:'应用已对应开关'}).click();
+  await modal.getByRole('button',{name:'新预设沿用旧预设开关',exact:true}).click();
   await modal.waitFor({state:'detached'});
   let after = await read();
   assert.deepEqual(after.right.map(p=>p.enabled),[false,true,false,false]);
@@ -71,14 +98,21 @@ export async function verifyWorkshopEditing(page, frame, engine) {
 
   // The reverse direction applies to the main panel and its own undo stack.
   await page.setViewportSize({width:1280,height:844});
-  await openTransfer();
-  await modal.getByRole('button',{name:'交换方向'}).click();
-  await modal.getByRole('button',{name:'应用已对应开关'}).click();
+  await openTransfer(1);
+  await modal.getByRole('button',{name:'反转新旧'}).click();
+  await modal.getByRole('button',{name:'新预设沿用旧预设开关',exact:true}).click();
   await modal.waitFor({state:'detached'});
   assert.deepEqual((await read()).main.slice(0,2).map(p=>p.enabled),[true,false]);
   await page.locator('.preset-panel').first().getByTitle('撤销：沿用旧版开关',{exact:true}).click();
   assert.deepEqual((await read()).main,original.main);
   await page.setViewportSize({width:390,height:844});
+  // The previous comparison entry remains available as a secondary route.
+  await page.locator('.preset-panel').nth(1).getByTitle('比对',{exact:true}).click();
+  await page.getByTitle('查看详细比对结果',{exact:true}).click();
+  await page.locator('#pmm-diff-detail-portal [data-pmm-switch-transfer]').click();
+  await modal.getByRole('heading',{name:'沿用开关',exact:true}).waitFor();
+  await modal.getByRole('button',{name:'取消',exact:true}).click();
+  await page.locator('#pmm-diff-detail-portal').getByRole('button',{name:'关闭',exact:true}).click();
   // Selection and expansion alone don't trigger an unsaved prompt.
   await frame.evaluate(() => { const {main}=testStores(); main.selectedIds.add(main.prompts[0].id); main.expandedIds.add(main.prompts[0].id); });
   await clickClose(); await closed(); assert.equal(await modal.count(),0);
@@ -129,6 +163,7 @@ export async function verifyWorkshopEditing(page, frame, engine) {
 
   // Branch names/roles also count as unsaved, not just content and toggles.
   await frame.evaluate(async()=>{const {branch}=testStores();await branch.enterBranchMode();await branch.createNewBranch('测试分支');branch.rightPrompts[0].name='尚未保存的分支名称';});
+  assert.equal(await page.locator('[data-pmm-switch-transfer-entry]').count(),0,'No transfer control in branch mode');
   await clickClose();
   assert.deepEqual(await modal.locator('li').allTextContents(),['分支 · 测试分支']);
   await modal.getByRole('button',{name:'继续编辑'}).click();

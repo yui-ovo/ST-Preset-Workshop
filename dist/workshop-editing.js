@@ -1,4 +1,4 @@
-import { planSwitchTransfer, transferSwitches, draftSignature, saveDirtyDrafts } from './workshop-editing-core.js?v=2.98.44';
+import { planSwitchTransfer, transferSwitches, draftSignature, saveDirtyDrafts } from './workshop-editing-core.js?v=2.98.45';
 
 const dialogs = new WeakMap();
 function dialog(host, title, onCancel) {
@@ -17,7 +17,7 @@ function dialog(host, title, onCancel) {
     section{width:min(440px,100%);max-height:82dvh;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--pm-border,#555);border-radius:18px;background:var(--pm-panel-bg,#20252e);box-shadow:0 16px 48px #0006;background-color:var(--pm-panel-bg,#20252e)}
     h2{font-size:16px;margin:0;padding:18px 18px 10px}main{padding:0 18px;overflow:auto;min-height:0;overscroll-behavior:contain}p,li,label{font-size:13px;line-height:1.6;overflow-wrap:anywhere}ul{padding-left:20px}.status{font-size:12px;min-height:1.6em;white-space:pre-wrap}.error{color:#ef8f8f}
     footer{display:flex;gap:8px;flex-wrap:wrap;padding:14px 18px}button,select{font:inherit;font-size:13px;color:inherit;border:1px solid var(--pm-border,#666);background:rgba(127,127,127,.12);border-radius:10px;padding:10px 12px;cursor:pointer}button:disabled{opacity:.45;cursor:default}button.primary{background:color-mix(in srgb,var(--pm-quote-color,#889bc9) 24%,transparent)}button.danger{color:#e68c8c}button:focus-visible,select:focus-visible{outline:2px solid var(--pm-quote-color,#90a5e0);outline-offset:2px}select{max-width:100%;font-size:16px}option{color:#111;background:#fff}
-    .direction{padding:10px;border-radius:12px;background:rgba(127,127,127,.1);font-size:13px;overflow-wrap:anywhere}.direction strong{display:block;margin:5px 0}.swap{margin-top:8px}details{font-size:13px;margin:12px 0}summary{cursor:pointer}.row{padding:10px 0;border-bottom:1px solid var(--pm-border,#555)}.row label{display:block;margin-bottom:6px}.row select{width:100%}.note{opacity:.7;font-size:12px}footer button{flex:1 1 auto}
+    .direction{padding:12px;border-radius:12px;background:rgba(127,127,127,.1);font-size:13px;overflow-wrap:anywhere}.direction strong{display:block;margin:5px 0;line-height:1.5}.preset-role{font-size:12px;opacity:.8}.swap{display:block;margin:10px auto}details{font-size:13px;margin:12px 0}summary{cursor:pointer}.row{padding:10px 0;border-bottom:1px solid var(--pm-border,#555)}.row label{display:block;margin-bottom:6px}.row select{width:100%}.note{opacity:.7;font-size:12px}footer button{flex:1 1 auto}.transfer-actions .primary{flex:1 1 100%}
     @media(max-width:480px){footer.close-actions button{width:100%}}
   </style><div class="veil"><section role="dialog" aria-modal="true" aria-labelledby="heading"><h2 id="heading"></h2><main></main><footer></footer></section></div>`;
   root.querySelector('h2').textContent = title;
@@ -77,17 +77,18 @@ export function openSwitchTransfer(host, adapter) {
   if (!host?.isConnected || dialogs.has(host.ownerDocument)) return;
   let sides = adapter.read();
   if (!sides || sides[0].name === sides[1].name) return adapter.notice('请先选择旧版和新版两份不同的预设');
-  const original = draftSignature(sides), view = dialog(host, '沿用旧版开关', () => view.finish());
+  const original = draftSignature(sides), view = dialog(host, '沿用开关', () => view.finish());
   dialogs.set(host.ownerDocument, true);
   let direction = 0, plan, selections, shown;
   function render() {
     view.main.replaceChildren(); view.footer.replaceChildren();
     const source = sides[direction], target = sides[1 - direction];
     plan = planSwitchTransfer(source.prompts, target.prompts); selections = new Map(plan.matches); shown = 0;
+    element(view.main, 'p', '请确认新旧预设标记，放反了可反转。这里不会自动判断版本。', 'note');
     const directionBox = element(view.main, 'div', '', 'direction');
-    element(directionBox, 'span', '从旧版'); element(directionBox, 'strong', source.name);
-    element(directionBox, 'span', '↓ 沿用到新版'); element(directionBox, 'strong', target.name);
-    button(directionBox, '交换方向', () => { direction = 1 - direction; render(); }, 'swap');
+    element(directionBox, 'span', '旧预设 · 提供开关', 'preset-role'); element(directionBox, 'strong', source.name);
+    button(directionBox, '⇅ 反转新旧', () => { direction = 1 - direction; render(); }, 'swap');
+    element(directionBox, 'span', '新预设 · 接收开关', 'preset-role'); element(directionBox, 'strong', target.name);
     const summary = element(view.main, 'p', '');
     const refresh = () => { const changed = transferSwitches(source.prompts, target.prompts, selections).changed; summary.textContent = `已对应 ${selections.size} 条 · 将调整 ${changed} 条 · 保持新版 ${target.prompts.length - selections.size} 条`; };
     refresh();
@@ -123,11 +124,12 @@ export function openSwitchTransfer(host, adapter) {
       details.addEventListener('toggle', () => { if (details.open && !shown) addRows(); });
     }
     const status = element(view.main, 'p', '', 'status');
+    view.footer.className = 'transfer-actions';
     button(view.footer, '取消', () => view.finish()).focus();
-    button(view.footer, '应用已对应开关', async () => {
+    button(view.footer, '新预设沿用旧预设开关', async () => {
       view.busy(true);
       try {
-        if (draftSignature(adapter.read()) !== original) throw Error('两侧预设已发生变化，请关闭后重新对比');
+        if (draftSignature(adapter.read()) !== original) throw Error('两侧预设已发生变化，请关闭后重新打开沿用开关');
         const result = transferSwitches(source.prompts, target.prompts, selections);
         if (!result.changed) { status.textContent = '对应条目的开关已经一致，无需修改。'; view.busy(false); return; }
         await adapter.apply(1 - direction, result.prompts);
