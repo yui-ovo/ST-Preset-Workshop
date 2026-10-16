@@ -82,9 +82,6 @@ try {
     // Apply interference only after opening so the old implementation's displacement is measurable.
     await page.evaluate(() => document.body.classList.add('interference'));
     await check();
-    await overlay.locator('details').evaluate(el => el.open = true);
-    await overlay.locator('.row').first().waitFor();
-    await check();
     await page.screenshot({ path: fileURLToPath(new URL(`${engine}-${width}.png`, output)) });
     await change(width - 20, 360, 150, 10);
     assert.ok((await check()).main.scroll > (await check()).main.client, 'Long content scrolls internally');

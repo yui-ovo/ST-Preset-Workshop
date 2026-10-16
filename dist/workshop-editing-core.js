@@ -20,13 +20,7 @@ export function planSwitchTransfer(source, target) {
       }
     });
   }
-  // Exact content only suggests a renamed entry; the user must confirm it.
-  const contents = indexBy(source, p => text(p.content));
-  const unresolved = target.flatMap((row, targetIndex) => matches.has(targetIndex) ? [] : [{
-    targetIndex,
-    candidates: [...new Set([...(names.get(text(row.name)) || []), ...(contents.get(text(row.content)) || [])])].filter(i => !used.has(i)),
-  }]);
-  return { matches, unresolved };
+  return { matches };
 }
 
 export function transferSwitches(source, target, matches) {

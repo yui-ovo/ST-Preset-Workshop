@@ -1,4 +1,4 @@
-import { planSwitchTransfer, transferSwitches, draftSignature, saveDirtyDrafts } from './workshop-editing-core.js?v=2.98.46';
+import { planSwitchTransfer, transferSwitches, draftSignature, saveDirtyDrafts } from './workshop-editing-core.js?v=2.98.47';
 
 const dialogs = new WeakMap();
 function dialog(host, title, onCancel) {
@@ -14,9 +14,9 @@ function dialog(host, title, onCancel) {
     :host{font-family:system-ui,sans-serif;color:var(--pm-text-primary,#e5e7eb)}*{box-sizing:border-box}
     .veil{height:100%;display:flex;align-items:center;justify-content:center;padding:max(16px,var(--pmm-safe-top,0px),var(--tt-inset-top,0px),env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,var(--pmm-safe-bottom,0px),var(--tt-inset-bottom,0px),env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));background:#0009}
     section{width:min(440px,100%);min-height:0;max-height:min(82vh,100%);max-height:min(82dvh,100%);display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--pm-border,#555);border-radius:18px;background:var(--pm-panel-bg,#20252e);box-shadow:0 16px 48px #0006;background-color:var(--pm-panel-bg,#20252e)}
-    h2{flex:none;font-size:16px;margin:0;padding:18px 18px 10px}main{padding:0 18px;overflow:auto;min-height:0;overscroll-behavior:contain}p,li,label{font-size:13px;line-height:1.6;overflow-wrap:anywhere}ul{padding-left:20px}.status{font-size:12px;min-height:1.6em;white-space:pre-wrap}.error{color:#ef8f8f}
-    footer{flex:none;display:flex;gap:8px;flex-wrap:wrap;padding:14px 18px}button,select{font:inherit;font-size:13px;color:inherit;border:1px solid var(--pm-border,#666);background:rgba(127,127,127,.12);border-radius:10px;padding:10px 12px;cursor:pointer}button:disabled{opacity:.45;cursor:default}button.primary{background:color-mix(in srgb,var(--pm-quote-color,#889bc9) 24%,transparent)}button.danger{color:#e68c8c}button:focus-visible,select:focus-visible{outline:2px solid var(--pm-quote-color,#90a5e0);outline-offset:2px}select{max-width:100%;font-size:16px}option{color:#111;background:#fff}
-    .direction{padding:12px;border-radius:12px;background:rgba(127,127,127,.1);font-size:13px;overflow-wrap:anywhere}.direction strong{display:block;margin:5px 0;line-height:1.5}.preset-role{font-size:12px;opacity:.8}.swap{display:block;margin:10px auto}details{font-size:13px;margin:12px 0}summary{cursor:pointer}.row{padding:10px 0;border-bottom:1px solid var(--pm-border,#555)}.row label{display:block;margin-bottom:6px}.row select{width:100%}.note{opacity:.7;font-size:12px}footer button{flex:1 1 auto}.transfer-actions .primary{flex:1 1 100%}
+    h2{flex:none;font-size:16px;margin:0;padding:18px 18px 10px}main{padding:0 18px;overflow:auto;min-height:0;overscroll-behavior:contain}p,li{font-size:13px;line-height:1.6;overflow-wrap:anywhere}ul{padding-left:20px}.status{font-size:12px;min-height:1.6em;white-space:pre-wrap}.error{color:#ef8f8f}
+    footer{flex:none;display:flex;gap:8px;flex-wrap:wrap;padding:14px 18px}button{font:inherit;font-size:13px;color:inherit;border:1px solid var(--pm-border,#666);background:rgba(127,127,127,.12);border-radius:10px;padding:10px 12px;cursor:pointer}button:disabled{opacity:.45;cursor:default}button.primary{background:color-mix(in srgb,var(--pm-quote-color,#889bc9) 24%,transparent)}button.danger{color:#e68c8c}button:focus-visible{outline:2px solid var(--pm-quote-color,#90a5e0);outline-offset:2px}
+    .direction{padding:12px;border-radius:12px;background:rgba(127,127,127,.1);font-size:13px;overflow-wrap:anywhere}.direction strong{display:block;margin:5px 0;line-height:1.5}.preset-role{font-size:12px;opacity:.8}.swap{display:block;margin:10px auto}.note{opacity:.7;font-size:12px}footer button{flex:1 1 auto}.transfer-actions .primary{flex:1 1 100%}
     @media(max-width:480px){footer.close-actions button{width:100%}}
   </style><div class="veil"><section role="dialog" aria-modal="true" aria-labelledby="heading"><h2 id="heading"></h2><main></main><footer></footer></section></div>`;
   root.querySelector('h2').textContent = title;
@@ -47,14 +47,14 @@ function dialog(host, title, onCancel) {
   root.addEventListener('keydown', event => {
     if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); if (!busy) onCancel(); }
     if (event.key !== 'Tab') return;
-    const controls = [...root.querySelectorAll('button:not(:disabled),select:not(:disabled),summary')].filter(n => n.getClientRects().length);
+    const controls = [...root.querySelectorAll('button:not(:disabled)')].filter(n => n.getClientRects().length);
     if (!controls.length) return;
     event.preventDefault(); const at = controls.indexOf(root.activeElement);
     controls[(at + (event.shiftKey ? -1 : 1) + controls.length) % controls.length].focus();
   });
   for (const type of ['click', 'pointerdown', 'touchstart', 'keydown']) layer.addEventListener(type, e => e.stopPropagation());
   return { root, main: root.querySelector('main'), footer: root.querySelector('footer'), finish,
-    busy(value) { busy = value; root.querySelectorAll('button,select').forEach(n => n.disabled = value); } };
+    busy(value) { busy = value; root.querySelectorAll('button').forEach(n => n.disabled = value); } };
 }
 function element(parent, tag, value, className = '') {
   const node = parent.ownerDocument.createElement(tag); node.textContent = value; if (className) node.className = className; parent.append(node); return node;
@@ -95,54 +95,23 @@ export function confirmWorkshopClose(host, getEntries, close) {
 
 export function openSwitchTransfer(host, adapter) {
   if (!host?.isConnected || dialogs.has(host.ownerDocument)) return;
-  let sides = adapter.read();
+  const sides = adapter.read();
   if (!sides || sides[0].name === sides[1].name) return adapter.notice('请先选择旧版和新版两份不同的预设');
   const original = draftSignature(sides), view = dialog(host, '沿用开关', () => view.finish());
   dialogs.set(host.ownerDocument, true);
-  let direction = 0, plan, selections, shown;
+  let direction = 0;
   function render() {
     view.main.replaceChildren(); view.footer.replaceChildren();
     const source = sides[direction], target = sides[1 - direction];
-    plan = planSwitchTransfer(source.prompts, target.prompts); selections = new Map(plan.matches); shown = 0;
+    const { matches } = planSwitchTransfer(source.prompts, target.prompts);
     element(view.main, 'p', '请确认新旧预设标记，放反了可反转。这里不会自动判断版本。', 'note');
     const directionBox = element(view.main, 'div', '', 'direction');
     element(directionBox, 'span', '旧预设 · 提供开关', 'preset-role'); element(directionBox, 'strong', source.name);
     button(directionBox, '⇅ 反转新旧', () => { direction = 1 - direction; render(); }, 'swap');
     element(directionBox, 'span', '新预设 · 接收开关', 'preset-role'); element(directionBox, 'strong', target.name);
-    const summary = element(view.main, 'p', '');
-    const refresh = () => { const changed = transferSwitches(source.prompts, target.prompts, selections).changed; summary.textContent = `已对应 ${selections.size} 条 · 将调整 ${changed} 条 · 保持新版 ${target.prompts.length - selections.size} 条`; };
-    refresh();
+    const { changed } = transferSwitches(source.prompts, target.prompts, matches);
+    element(view.main, 'p', `已对应 ${matches.size} 条 · 将调整 ${changed} 条 · 保持新版 ${target.prompts.length - matches.size} 条`);
     element(view.main, 'p', '只沿用条目开关，保留新版正文、顺序和其他设置。未对应的条目保留新版当前状态。', 'note');
-    if (plan.unresolved.length) {
-      const details = element(view.main, 'details', '');
-      element(details, 'summary', `手动确认对应（${plan.unresolved.length} 条）`);
-      const rows = element(details, 'div', '');
-      const more = button(details, '显示更多', addRows);
-      function addRows() {
-        for (const row of plan.unresolved.slice(shown, shown + 40)) {
-          const block = element(rows, 'div', '', 'row');
-          const label = element(block, 'label', target.prompts[row.targetIndex].name || '未命名条目');
-          const select = element(label, 'select', '');
-          const option = (value, label) => { const o = element(select, 'option', label); o.value = String(value); };
-          option('', '保持新版当前状态');
-          let populated = false;
-          select.onfocus = select.onpointerdown = () => {
-            if (populated) return; populated = true;
-            const order = [...row.candidates, ...source.prompts.map((_, i) => i).filter(i => !row.candidates.includes(i))];
-            const autoMatched = new Set(plan.matches.values());
-            for (const si of order) if (!autoMatched.has(si)) option(si, `${row.candidates.includes(si) ? '建议 · ' : ''}${si + 1}. ${source.prompts[si].name || '未命名条目'} · ${source.prompts[si].enabled !== false ? '开' : '关'}`);
-          };
-          select.onchange = () => {
-            const value = select.value;
-            if (value !== '' && [...selections].some(([ti, si]) => ti !== row.targetIndex && si === Number(value))) { select.value = selections.has(row.targetIndex) ? String(selections.get(row.targetIndex)) : ''; status.textContent = '这个旧版条目已经对应到其他条目，请先取消原对应。'; return; }
-            if (value === '') selections.delete(row.targetIndex); else selections.set(row.targetIndex, Number(value));
-            status.textContent = ''; refresh();
-          };
-        }
-        shown += 40; more.hidden = shown >= plan.unresolved.length;
-      }
-      details.addEventListener('toggle', () => { if (details.open && !shown) addRows(); });
-    }
     const status = element(view.main, 'p', '', 'status');
     view.footer.className = 'transfer-actions';
     const cancel = button(view.footer, '取消', () => view.finish());
@@ -150,7 +119,7 @@ export function openSwitchTransfer(host, adapter) {
       view.busy(true);
       try {
         if (draftSignature(adapter.read()) !== original) throw Error('两侧预设已发生变化，请关闭后重新打开沿用开关');
-        const result = transferSwitches(source.prompts, target.prompts, selections);
+        const result = transferSwitches(source.prompts, target.prompts, matches);
         if (!result.changed) { status.textContent = '对应条目的开关已经一致，无需修改。'; view.busy(false); return; }
         await adapter.apply(1 - direction, result.prompts);
         view.finish(); adapter.notice(`已沿用 ${result.changed} 条开关，请保存目标预设；可用目标面板的撤销按钮撤销。`);
