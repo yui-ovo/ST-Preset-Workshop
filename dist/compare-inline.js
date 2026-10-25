@@ -23,7 +23,7 @@ export function createCompareActions(adapter) {
     });
     revision++;
   }
-  const rows = () => prepared.filter(row => mode === 'off' || !query || row.name.toLowerCase().includes(query.toLowerCase()));
+  const rows = () => prepared.filter(row => row.action?.kind === mode && (!query || row.name.toLowerCase().includes(query.toLowerCase())));
   async function apply(list) {
     if (busy || !list.length || list.some(a => !ready(a))) return;
     busy = true; error = ''; refresh();
@@ -64,7 +64,8 @@ export function createCompareActions(adapter) {
     dir.setAttribute('aria-label', '反转方向'); dir.onclick = e => { e.stopPropagation(); if (!busy) { direction = 1-direction; reset(); refresh(); } };
     const body = own(modal, 'div', '', 'pmm-ca-body'); pmmRuntimeResource(nativeList).before(body);
     const toolbar = node(body, 'div', '', 'pmm-ca-toolbar'); node(toolbar, 'strong', '差异条目列表');
-    const all = node(toolbar, 'input'); all.type = 'checkbox'; all.setAttribute('aria-label', '全选可操作的搜索结果');
+    const allSlot = node(toolbar, 'span', '', 'pmm-ca-check-slot');
+    const all = node(allSlot, 'input'); all.type = 'checkbox'; all.setAttribute('aria-label', '全选可操作的搜索结果');
     const cycle = button(toolbar, '', () => { mode = {replace:'insert',insert:'off',off:'replace'}[mode]; selected.clear(); query=''; revision++; refresh(); });
     cycle.dataset.pmmCompareMode = '1'; cycle.title = '切换：替换 → 插入 → 关闭'; cycle.setAttribute('aria-label', '切换操作模式');
     const search = node(body, 'input', '', 'pmm-ca-search'); search.type = 'search'; search.placeholder = '搜索条目'; search.setAttribute('aria-label', '搜索条目');
@@ -72,6 +73,7 @@ export function createCompareActions(adapter) {
     const list = node(body, 'div', '', 'pmm-ca-list');
     const status = node(body, 'div', '', 'pmm-ca-status'); status.setAttribute('role','status');
     const submit = own(footer, 'button', '', 'pmm-ca-button pmm-ca-submit'); submit.type = 'button'; pmmRuntimeResource(footer).prepend(submit);
+    const count = own(footer, 'span', '', 'pmm-ca-count'); count.setAttribute('role','status'); pmmRuntimeResource(footer).prepend(count);
     submit.onclick = e => { e.stopPropagation(); void apply(actions.filter(a => selected.has(a.si))); };
     all.onchange = () => { if (!all.checked) selected.clear(); else rows().forEach(r => { if (ready(r.action)) selected.add(r.si); }); refresh(); };
     let renderedRevision = -1;
@@ -81,13 +83,14 @@ export function createCompareActions(adapter) {
       from.textContent=source().name; to.textContent=target().name;
       dir.title = `${source().name} → ${target().name}（点击反转）`; dir.setAttribute('aria-description',dir.title); dir.hidden = !enabled; dir.disabled = busy;
       cycle.textContent = label(); cycle.disabled = busy;
-      all.hidden = !enabled; all.disabled = busy || !eligible.length; all.checked = !!eligible.length && eligible.every(r => selected.has(r.si));
+      allSlot.hidden = !enabled; all.disabled = busy || !eligible.length; all.checked = !!eligible.length && eligible.every(r => selected.has(r.si));
       all.indeterminate = !all.checked && eligible.some(r => selected.has(r.si));
       search.hidden = !enabled; search.disabled = busy; search.value = query;
       nativeList.style.setProperty('display', enabled ? 'none' : 'flex', 'important');
-      body.classList.toggle('pmm-ca-off', !enabled); list.hidden = !enabled; status.hidden = !enabled;
+      body.classList.toggle('pmm-ca-off', !enabled); list.hidden = !enabled; status.hidden = !enabled || !error;
       submit.hidden = !enabled; submit.textContent = `${label()}（${selected.size}）`; submit.disabled = busy || !selected.size;
-      status.textContent = error || (selected.size ? `已选 ${selected.size} 条` : '');
+      count.hidden = !enabled; count.textContent = `已选 ${selected.size} 条`;
+      status.textContent = error;
       list.querySelectorAll('select').forEach(control => {control.disabled=busy;});
       // Selecting a row updates controls in place, preserving focus and scroll.
       // It does not rebuild hundreds of cards or redo matching.
@@ -149,18 +152,19 @@ const CSS = `
 .pmm-ca-toolbar{display:flex;align-items:center;gap:8px;padding:8px 0;flex:none}.pmm-ca-toolbar strong{flex:1;font-size:11px}
 .pmm-ca-button{font:inherit!important;font-size:11px!important;color:var(--pm-text-primary,var(--pmm-ca-text,#e2e8f0))!important;background:var(--pm-panel-bg,rgba(127,127,127,.12))!important;border:1px solid var(--pm-border,#666)!important;border-radius:7px!important;padding:5px 8px!important;cursor:pointer;min-height:28px;box-sizing:border-box;line-height:1.3!important}
 .pmm-ca-button:disabled{opacity:.4;cursor:default}.pmm-ca-button:focus-visible{outline:2px solid var(--pm-quote-color,#90a5e0)}
-.pmm-ca-body input[type=checkbox]{appearance:auto!important;width:16px!important;height:16px!important;min-width:16px!important;margin:0!important;accent-color:var(--pm-quote-color,#90a5e0);box-shadow:none!important}
+.pmm-ca-body input[type=checkbox]{margin:0;flex-shrink:0}
 .pmm-ca-search,.pmm-ca-note select{font:inherit!important;box-sizing:border-box;width:100%;min-width:0;color:inherit!important;background:var(--pm-panel-bg,transparent)!important;border:1px solid var(--pm-border,#666)!important;border-radius:7px;padding:6px!important;margin:0 0 6px!important}
-.pmm-ca-list{overflow:auto;min-height:0;flex:1;max-height:55vh;overscroll-behavior:contain;border:1px solid var(--pm-border,#555);border-radius:8px}
+.pmm-ca-list{overflow:auto;min-height:0;flex:1;max-height:none;overscroll-behavior:contain;border:1px solid var(--pm-border,#555);border-radius:8px}
 .pmm-ca-row{padding:8px 7px;border-bottom:1px solid var(--pm-border,#555)}.pmm-ca-row:last-child{border-bottom:0}
-.pmm-ca-first{display:grid!important;grid-template-columns:42px minmax(0,1fr) 16px 4ch 64px;align-items:center;gap:6px;font-size:11px}
+.pmm-ca-first{display:grid!important;grid-template-columns:42px minmax(0,1fr) 20px 4ch 64px;align-items:center;gap:6px;font-size:11px}
 .pmm-ca-single{padding:4px 2px!important;width:42px}.pmm-ca-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-.pmm-ca-check-slot{display:flex;width:16px}.pmm-ca-percent{text-align:right;font-size:10px;font-variant-numeric:tabular-nums;white-space:nowrap;opacity:.75}
+.pmm-ca-check-slot{display:flex;align-items:center;justify-content:center;width:20px}.pmm-ca-percent{text-align:right;font-size:10px;font-variant-numeric:tabular-nums;white-space:nowrap;opacity:.75}
 .pmm-ca-badge{font-size:9px;text-align:center;border-radius:4px;padding:2px 0;color:#e19540;background:#a973111a;white-space:nowrap}.pmm-ca-badge[data-status=content]{color:#ef6666;background:#ef44441a}.pmm-ca-badge[data-status=name]{color:#22b55e;background:#22c55e1a}.pmm-ca-badge[data-status=unique]{color:#9c8be9;background:#a855f71a}.pmm-ca-badge[role=button]{cursor:pointer}
 .pmm-ca-note{margin:5px 0 0 48px;font-size:10px;line-height:1.5;opacity:.8;overflow-wrap:anywhere}.pmm-ca-note select{display:block;margin-top:5px!important}
 .pmm-ca-status{font-size:11px;padding-top:4px;overflow-wrap:anywhere}.pmm-ca-off{flex:0 0 auto;padding-bottom:0}.pmm-ca-submit{margin-right:6px}
+.pmm-ca-count{margin-right:auto;text-align:left;white-space:nowrap;font-size:11px;color:var(--pm-text-primary,var(--pmm-ca-text,#e2e8f0))}
 .pmm-ca-off + [data-pmm-diff-list] > div:first-child{display:none!important}
-[data-pmm-diff-footer]{gap:4px;flex-wrap:wrap}[data-pmm-diff-footer]>button{white-space:nowrap;padding:7px 9px!important;font-size:11px!important}
+[data-pmm-diff-footer]{align-items:center;gap:4px;flex-wrap:wrap}[data-pmm-diff-footer]>button{white-space:nowrap;padding:7px 9px!important;font-size:11px!important}
 [data-pmm-ca-owned][hidden],.pmm-ca-body [hidden]{display:none!important}
-@media(max-width:360px){.pmm-ca-body{padding-left:7px;padding-right:7px}.pmm-ca-first{grid-template-columns:38px minmax(0,1fr) 16px 4ch 58px;gap:4px}.pmm-ca-single{width:38px}.pmm-ca-note{margin-left:42px}}
+@media(max-width:360px){.pmm-ca-body{padding-left:7px;padding-right:7px}.pmm-ca-first{grid-template-columns:38px minmax(0,1fr) 20px 4ch 58px;gap:4px}.pmm-ca-single{width:38px}.pmm-ca-note{margin-left:42px}}
 `;

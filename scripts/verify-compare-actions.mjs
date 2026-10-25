@@ -25,7 +25,9 @@ export async function verifyCompareActions(page, frame, engine) {
   assert.equal(await page.locator('[data-pmm-editing-dialog]').count(),0,'Actions stay inside the comparison');
   const cycle=modal.locator('[data-pmm-compare-mode]');
   assert.equal(await cycle.textContent(),'替换');
+  assert.deepEqual(await modal.locator('.pmm-ca-name').allTextContents(),['A'],'Replace mode only lists replaceable entries');
   await cycle.click();assert.equal(await cycle.textContent(),'插入');
+  assert.deepEqual(await modal.locator('.pmm-ca-name').allTextContents(),['N1','N2','Solo'],'Insert mode only lists source entries eligible for insertion');
   assert.equal(await modal.locator('.pmm-ca-single').filter({hasText:'替换'}).count(),0);
   await cycle.click();assert.equal(await cycle.textContent(),'关闭');
   assert.equal(await modal.getByRole('checkbox').count(),0,'Selection controls are hidden in off mode');
@@ -113,6 +115,38 @@ export async function verifyCompareActions(page, frame, engine) {
   assert.equal(await page.evaluate(()=>compareWrites.length),0,'All operations remain drafts');
   await page.locator('.preset-panel').nth(1).getByTitle('撤销：对比插入条目',{exact:true}).click();
   assert.deepEqual((await read()).target.map(p=>p.id),['A','B']);
+  // A long real comparison must fill the available space, with theme-owned
+  // checkbox visuals and the selection count sharing the footer with actions.
+  await frame.evaluate(()=>{
+    const rows=Array.from({length:120},(_,i)=>({id:'long'+i,name:'长列表条目 '+i,content:'来源正文 '+i,enabled:true,role:'system',position:{type:'relative'}}));
+    parent.comparePresets.First={prompts:rows};
+    parent.comparePresets.Second={prompts:rows.map(p=>({...p,content:'目标正文 '+p.id}))};
+    const {main,merge}=testStores();main.loadPresetContent('First');merge.loadRightPreset('Second');
+  });
+  const theme=await page.addStyleTag({content:`body input[type=checkbox]{appearance:none;width:18px;height:18px;border:2px solid rgb(180,120,220);border-radius:6px;box-shadow:0 0 0 1px rgb(80,70,90);background:rgb(40,35,50)}body input[type=checkbox]:checked{background:rgb(180,120,220)}`});
+  for(const width of [320,390,768,1280]) {
+    await page.setViewportSize({width,height:844});await open();
+    assert.equal(await modal.locator('.pmm-ca-row').count(),120);
+    await modal.getByRole('checkbox',{name:'全选可操作的搜索结果'}).check();
+    assert.equal(await modal.locator('.pmm-ca-count').textContent(),'已选 120 条');
+    const geometry=await modal.evaluate(root=>{
+      const list=root.querySelector('.pmm-ca-list'), footer=root.querySelector('[data-pmm-diff-footer]'), count=root.querySelector('.pmm-ca-count'), submit=root.querySelector('.pmm-ca-submit');
+      const l=list.getBoundingClientRect(), f=footer.getBoundingClientRect(), c=count.getBoundingClientRect(), s=submit.getBoundingClientRect();
+      const box=root.getBoundingClientRect(), checkbox=getComputedStyle(root.querySelector('.pmm-ca-check-slot input'));
+      return {gap:f.top-l.bottom,scrolls:list.scrollHeight>list.clientHeight,countLeft:c.left-footer.clientLeft-f.left,order:c.right<=s.left+1,sameLine:Math.abs(c.top+c.height/2-s.top-s.height/2)<2,overflow:footer.scrollWidth>footer.clientWidth,footerBottom:f.bottom,modalBottom:box.bottom,appearance:checkbox.appearance,radius:checkbox.borderRadius,shadow:checkbox.boxShadow};
+    });
+    assert.ok(geometry.gap>=0&&geometry.gap<=16,`No unused region below the list at ${width}: ${JSON.stringify(geometry)}`);
+    assert.ok(geometry.scrolls&&geometry.order&&geometry.sameLine&&!geometry.overflow,`Scrollable list and inline footer at ${width}: ${JSON.stringify(geometry)}`);
+    assert.ok(geometry.countLeft<=16&&geometry.footerBottom<=geometry.modalBottom+1);
+    assert.equal(geometry.appearance,'none');assert.equal(geometry.radius,'6px');assert.notEqual(geometry.shadow,'none');
+    if(width===390)await page.screenshot({path:process.env.PMM_BROWSER_ASSET_DIR+'/compare-layout-'+engine+'.png'});
+    await modal.getByRole('button',{name:'关闭',exact:true}).click();
+    await frame.evaluate(()=>testStores().diff.clearCompareResult());
+    await page.waitForFunction(()=>!document.querySelector('[data-pmm-compare-modal]'));
+    await page.locator('#pmm-diff-detail-portal').waitFor({state:'detached'});
+  }
+  await theme.evaluate(node=>node.remove());
+  await frame.evaluate(()=>{testStores().main.prompts[0].content+='未保存修改';});
   await page.evaluate(async()=>{
     const mode=await import('/workshop-mode.js');window.modeReloads=0;
     window.modeSwitch=mode.changeWorkshopMode(window,'snapshots',()=>modeReloads++);
