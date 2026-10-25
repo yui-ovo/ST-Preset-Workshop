@@ -7,7 +7,7 @@ const workshop = await readFile(new URL('../dist/workshop-v3.02.js', import.meta
 for (const marker of [
   'function themeToolbarSlotMarkup()',
   'data-pmm-theme-toolbar-slot',
-  'if (switcher.nextElementSibling !== themeSlot) switcher.after(themeSlot);',
+  'if (switcher.nextElementSibling !== themeSlot) pmmRuntimeResource(switcher).after(themeSlot);',
   'function placeThemeToolbarButton(',
   "const themeToggle = state.host.querySelector('.pmm-mobile-theme-toggle');",
   'placeThemeToolbarButton(themeToggle);',
@@ -28,7 +28,7 @@ assert.ok(kindIndex >= 0 && kindIndex < themeIndex && themeIndex < multiIndex,
 const decorateStart = worldbook.indexOf('  function decorateNativeTop()');
 const decorateEnd = worldbook.indexOf('  function renderPanels()', decorateStart);
 const decorate = worldbook.slice(decorateStart, decorateEnd);
-assert.ok(decorate.includes('switcher.after(themeSlot)'),
+assert.ok(decorate.includes('pmmRuntimeResource(switcher).after(themeSlot)'),
   '预设模式下主题按钮槽没有紧跟在预设／世界书切换器后');
 
 for (const marker of [

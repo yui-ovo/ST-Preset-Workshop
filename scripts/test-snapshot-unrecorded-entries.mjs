@@ -54,6 +54,7 @@ function fixture({ prompts = initialPrompts(), snapshots = [], groups = [], draf
     },
   };
   context = vm.createContext({
+    pmmRuntimeResource: target => target,
     TOP: top, SELF: {}, clone, console,
     text: value => String(value ?? '').trim(),
     readStore: () => store,

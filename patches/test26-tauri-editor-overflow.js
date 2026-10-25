@@ -39,7 +39,7 @@
 
   function installStyle() {
     DOC.getElementById(STYLE_ID)?.remove();
-    const style = DOC.createElement('style');
+    const style = pmmRuntimeResource(DOC).createElement('style');
     style.id = STYLE_ID;
     style.textContent = `
 html.${ROOT_CLASS} ${PANEL_SELECTOR} .prompt-editor {
@@ -140,7 +140,7 @@ html.${ROOT_CLASS} ${PANEL_SELECTOR} .${COMPACT_CLASS} > .prompt-editor__expand-
   flex: 0 0 24px !important;
 }
 `;
-    (DOC.head || DOC.documentElement).appendChild(style);
+    (pmmRuntimeResource(DOC.head || DOC.documentElement)).appendChild(style);
   }
 
   function pixels(value) {
@@ -183,9 +183,9 @@ html.${ROOT_CLASS} ${PANEL_SELECTOR} .${COMPACT_CLASS} > .prompt-editor__expand-
     for (const header of headers) {
       if (!observedHeaders.has(header)) {
         observedHeaders.add(header);
-        resizeObserver?.observe?.(header);
+        pmmRuntimeResource(resizeObserver)?.observe?.(header);
       }
-      for (const child of header.children || []) resizeObserver?.observe?.(child);
+      for (const child of header.children || []) pmmRuntimeResource(resizeObserver)?.observe?.(child);
       updateHeader(header);
     }
     for (const header of Array.from(observedHeaders)) {
@@ -197,7 +197,7 @@ html.${ROOT_CLASS} ${PANEL_SELECTOR} .${COMPACT_CLASS} > .prompt-editor__expand-
 
   function schedule() {
     if (scheduledFrame) return;
-    scheduledFrame = win.requestAnimationFrame(scan);
+    scheduledFrame = pmmRuntimeResource(win).requestAnimationFrame(scan);
   }
 
   function onResize() {
@@ -205,15 +205,15 @@ html.${ROOT_CLASS} ${PANEL_SELECTOR} .${COMPACT_CLASS} > .prompt-editor__expand-
   }
 
   function cleanup() {
-    if (scheduledFrame) win.cancelAnimationFrame(scheduledFrame);
+    if (scheduledFrame) pmmRuntimeResource(win).cancelAnimationFrame(scheduledFrame);
     scheduledFrame = 0;
-    mutationObserver?.disconnect?.();
-    resizeObserver?.disconnect?.();
+    pmmRuntimeResource(mutationObserver)?.disconnect?.();
+    pmmRuntimeResource(resizeObserver)?.disconnect?.();
     mutationObserver = null;
     resizeObserver = null;
     observedHeaders.clear();
-    TOP.removeEventListener?.('resize', onResize);
-    TOP.removeEventListener?.('orientationchange', onResize);
+    pmmRuntimeResource(TOP).removeEventListener?.('resize', onResize);
+    pmmRuntimeResource(TOP).removeEventListener?.('orientationchange', onResize);
     DOC.querySelectorAll(`.${COMPACT_CLASS}`).forEach(element => element.classList.remove(COMPACT_CLASS));
     DOC.documentElement.classList.remove(ROOT_CLASS);
     DOC.getElementById(STYLE_ID)?.remove();
@@ -226,9 +226,9 @@ html.${ROOT_CLASS} ${PANEL_SELECTOR} .${COMPACT_CLASS} > .prompt-editor__expand-
     ? new win.ResizeObserver(schedule)
     : null;
   mutationObserver = new win.MutationObserver(schedule);
-  mutationObserver.observe(DOC.documentElement, { childList: true, subtree: true, characterData: true });
-  TOP.addEventListener?.('resize', onResize);
-  TOP.addEventListener?.('orientationchange', onResize);
+  pmmRuntimeResource(mutationObserver).observe(DOC.documentElement, { childList: true, subtree: true, characterData: true });
+  pmmRuntimeResource(TOP).addEventListener?.('resize', onResize);
+  pmmRuntimeResource(TOP).addEventListener?.('orientationchange', onResize);
   scan();
 
   TOP[API_KEY] = { cleanup, scan, needsCompactLayout, isIOS: true };

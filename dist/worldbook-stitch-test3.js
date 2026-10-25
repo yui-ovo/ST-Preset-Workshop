@@ -1,6 +1,8 @@
+function pmmRuntimeResource(target) { return globalThis.__PMM_RUNTIME_SCOPE__?.own(target) || target; }
 /* 个人测试通道 test.3：把世界书缝合嵌入工坊原有双卡片布局。 */
 (() => {
   'use strict';
+  if (globalThis.__PMM_RUNTIME_SCOPE__?.active === false) return;
 
   const SELF = window;
   const TOP = window.parent || window;
@@ -547,16 +549,16 @@
     try {
       const Observer = TOP.MutationObserver || MutationObserver;
       const observer = new Observer(() => {
-        if (!overlay.isConnected) return observer.disconnect();
+        if (!overlay.isConnected) return pmmRuntimeResource(observer).disconnect();
         syncWorldPickerTheme(overlay);
       });
-      observer.observe(source, { attributes: true, attributeFilter: ['style'] });
+      pmmRuntimeResource(observer).observe(source, { attributes: true, attributeFilter: ['style'] });
       overlay.__pmmWorldPickerThemeObserver = observer;
     } catch (_) {}
   }
 
   function removeSourcePicker(overlay) {
-    try { overlay?.__pmmWorldPickerThemeObserver?.disconnect?.(); } catch (_) {}
+    try { pmmRuntimeResource(overlay?.__pmmWorldPickerThemeObserver)?.disconnect?.(); } catch (_) {}
     overlay?.remove?.();
   }
 
@@ -1024,7 +1026,7 @@
     if (!name || visible.name !== name || !Array.isArray(visible.runtimePrompts)) return false;
     try {
       visible.runtimePrompts.splice(0, visible.runtimePrompts.length, ...clone(prompts));
-      TOP.setTimeout(scheduleDecorate, 0);
+      pmmRuntimeResource(TOP).setTimeout(scheduleDecorate, 0);
       return true;
     } catch (error) {
       console.warn('[世界书缝合] 预设已保存，但当前卡片即时刷新失败', error);
@@ -1215,7 +1217,7 @@
       }
       return fallback;
     };
-    const overlay = DOC.createElement('div');
+    const overlay = pmmRuntimeResource(DOC).createElement('div');
     overlay.className = 'pmm-wb-editor-overlay';
     overlay.style.setProperty('--pmm-wb-editor-bg', pickStyle('backgroundColor', '#fff', true));
     overlay.style.setProperty('--pmm-wb-editor-bg-image', pickStyle('backgroundImage', 'none'));
@@ -1301,8 +1303,8 @@
           textarea.scrollTop = searchPreview.scrollTop;
           textarea.scrollLeft = searchPreview.scrollLeft;
         };
-        if (typeof TOP.requestAnimationFrame === 'function') TOP.requestAnimationFrame(revealMatch);
-        else TOP.setTimeout(revealMatch, 0);
+        if (typeof pmmRuntimeResource(TOP).requestAnimationFrame === 'function') pmmRuntimeResource(TOP).requestAnimationFrame(revealMatch);
+        else pmmRuntimeResource(TOP).setTimeout(revealMatch, 0);
       }
       return result;
     };
@@ -1332,19 +1334,19 @@
       overlay.remove();
       if (next !== text) onSave(next);
     };
-    textarea.addEventListener('input', () => {
+    pmmRuntimeResource(textarea).addEventListener('input', () => {
       const now = Date.now();
       if (!undoStack.length || now - lastInputAt > 450) undoStack.push(previousValue);
       previousValue = textarea.value;
       lastInputAt = now;
       syncEditorValue();
     });
-    textarea.addEventListener('scroll', () => {
+    pmmRuntimeResource(textarea).addEventListener('scroll', () => {
       if (!searchPreview) return;
       searchPreview.scrollTop = textarea.scrollTop;
       searchPreview.scrollLeft = textarea.scrollLeft;
     }, { passive: true });
-    undoButton.addEventListener('click', () => {
+    pmmRuntimeResource(undoButton).addEventListener('click', () => {
       if (!undoStack.length) return;
       const start = textarea.selectionStart;
       textarea.value = undoStack.pop();
@@ -1355,18 +1357,18 @@
       const cursor = Math.min(Number.isFinite(start) ? start : textarea.value.length, textarea.value.length);
       textarea.setSelectionRange(cursor, cursor);
     });
-    searchToggle?.addEventListener('click', () => {
+    pmmRuntimeResource(searchToggle)?.addEventListener('click', () => {
       editorSearchOpen = !editorSearchOpen;
       if (!editorSearchOpen) editorReplaceOpen = false;
       syncEditorSearch();
-      if (editorSearchOpen) TOP.setTimeout(() => searchInput?.focus(), 0);
+      if (editorSearchOpen) pmmRuntimeResource(TOP).setTimeout(() => searchInput?.focus(), 0);
       else textarea.focus();
     });
-    searchInput?.addEventListener('input', () => {
+    pmmRuntimeResource(searchInput)?.addEventListener('input', () => {
       editorSearchIndex = 0;
       syncEditorSearch({ reveal: true });
     });
-    searchInput?.addEventListener('keydown', event => {
+    pmmRuntimeResource(searchInput)?.addEventListener('keydown', event => {
       if (event.key !== 'Enter') return;
       event.preventDefault();
       const result = selectedEditorSearchMatch();
@@ -1374,24 +1376,24 @@
       editorSearchIndex = (editorSearchIndex + (event.shiftKey ? -1 : 1) + result.matches.length) % result.matches.length;
       syncEditorSearch({ reveal: true });
     });
-    searchPrevious?.addEventListener('click', () => {
+    pmmRuntimeResource(searchPrevious)?.addEventListener('click', () => {
       const result = selectedEditorSearchMatch();
       if (!result.matches.length) return;
       editorSearchIndex = (editorSearchIndex - 1 + result.matches.length) % result.matches.length;
       syncEditorSearch({ reveal: true });
     });
-    searchNext?.addEventListener('click', () => {
+    pmmRuntimeResource(searchNext)?.addEventListener('click', () => {
       const result = selectedEditorSearchMatch();
       if (!result.matches.length) return;
       editorSearchIndex = (editorSearchIndex + 1) % result.matches.length;
       syncEditorSearch({ reveal: true });
     });
-    replaceToggle?.addEventListener('click', () => {
+    pmmRuntimeResource(replaceToggle)?.addEventListener('click', () => {
       editorReplaceOpen = !editorReplaceOpen;
       syncEditorSearch();
-      if (editorReplaceOpen) TOP.setTimeout(() => replaceInput?.focus(), 0);
+      if (editorReplaceOpen) pmmRuntimeResource(TOP).setTimeout(() => replaceInput?.focus(), 0);
     });
-    replaceCurrent?.addEventListener('click', () => {
+    pmmRuntimeResource(replaceCurrent)?.addEventListener('click', () => {
       const { query, match } = selectedEditorSearchMatch();
       if (!query) return notify('warning', '请先输入要查找的文字');
       if (!match) return notify('info', '此条正文中没有可替换的命中');
@@ -1403,7 +1405,7 @@
       syncEditorSearch({ reveal: true });
       notify('success', replacement ? '已替换 1 处' : '已删除 1 处匹配文字');
     });
-    replaceAll?.addEventListener('click', () => {
+    pmmRuntimeResource(replaceAll)?.addEventListener('click', () => {
       const { query, matches } = selectedEditorSearchMatch();
       if (!query) return notify('warning', '请先输入要查找的文字');
       if (!matches.length) return notify('info', '此条正文中没有可替换的命中');
@@ -1416,9 +1418,9 @@
       syncEditorSearch();
       notify('success', replacement ? `已替换 ${result.count} 处` : `已删除 ${result.count} 处匹配文字`);
     });
-    overlay.querySelector('[data-wb-editor-cancel]').addEventListener('click', closeEditor);
-    overlay.querySelector('[data-wb-editor-save]').addEventListener('click', saveEditor);
-    overlay.addEventListener('keydown', event => {
+    pmmRuntimeResource(overlay.querySelector('[data-wb-editor-cancel]')).addEventListener('click', closeEditor);
+    pmmRuntimeResource(overlay.querySelector('[data-wb-editor-save]')).addEventListener('click', saveEditor);
+    pmmRuntimeResource(overlay).addEventListener('keydown', event => {
       if (event.key === 'Escape') {
         event.preventDefault();
         if (editorSearchOpen) {
@@ -1431,8 +1433,8 @@
         closeEditor();
       }
     });
-    host.append(overlay);
-    TOP.setTimeout(() => textarea.focus(), 20);
+    pmmRuntimeResource(host).append(overlay);
+    pmmRuntimeResource(TOP).setTimeout(() => textarea.focus(), 20);
   }
 
   function openContentEditor(sideName, key) {
@@ -1501,7 +1503,7 @@
       shiftWorldContentEditorAboveKeyboard(textarea);
     };
     adjust();
-    for (const delay of [80, 240, 520]) TOP.setTimeout(adjust, delay);
+    for (const delay of [80, 240, 520]) pmmRuntimeResource(TOP).setTimeout(adjust, delay);
   }
 
   function openPresetContentEditor(button) {
@@ -1706,7 +1708,7 @@
   }
 
   function createCard(sideName, side) {
-    const holder = DOC.createElement('div');
+    const holder = pmmRuntimeResource(DOC).createElement('div');
     holder.innerHTML = renderWorldCard(sideName, side);
     return holder.firstElementChild;
   }
@@ -1733,10 +1735,10 @@
     if (!switcher) {
       const headerRight = panel.querySelector('.header-right');
       if (headerRight) {
-        const holder = DOC.createElement('span');
+        const holder = pmmRuntimeResource(DOC).createElement('span');
         holder.innerHTML = typeSwitchMarkup();
         switcher = holder.firstElementChild;
-        headerRight.prepend(switcher);
+        pmmRuntimeResource(headerRight).prepend(switcher);
       }
     } else {
       switcher.querySelectorAll('[data-wb-kind]').forEach(button => {
@@ -1746,11 +1748,11 @@
     if (switcher) {
       let themeSlot = panel.querySelector('[data-pmm-theme-toolbar-slot]');
       if (!themeSlot) {
-        themeSlot = DOC.createElement('span');
+        themeSlot = pmmRuntimeResource(DOC).createElement('span');
         themeSlot.className = 'pmm-wb-theme-slot';
         themeSlot.setAttribute('data-pmm-theme-toolbar-slot', '');
       }
-      if (switcher.nextElementSibling !== themeSlot) switcher.after(themeSlot);
+      if (switcher.nextElementSibling !== themeSlot) pmmRuntimeResource(switcher).after(themeSlot);
     }
     panel.querySelector('[data-pmm-wb-native-transfer]')?.remove();
   }
@@ -1760,7 +1762,7 @@
     const target = state.topType === 'world'
       ? state.topCard?.querySelector?.('[data-pmm-theme-toolbar-slot]')
       : state.nativeTop?.querySelector?.('[data-pmm-theme-toolbar-slot]');
-    if (target && themeToggle.parentElement !== target) target.append(themeToggle);
+    if (target && themeToggle.parentElement !== target) pmmRuntimeResource(target).append(themeToggle);
   }
 
   function renderPanels() {
@@ -1775,11 +1777,11 @@
     decorateNativeTop();
     if (state.topType === 'world') {
       state.topCard = createCard('top', state.top);
-      state.mainWrapper.insertBefore(state.topCard, state.mainWrapper.querySelector('.side-panel-root'));
+      pmmRuntimeResource(state.mainWrapper).insertBefore(state.topCard, state.mainWrapper.querySelector('.side-panel-root'));
     }
     if (!state.favoriteMode) {
       state.bottomCard = createCard('bottom', state.bottom);
-      state.container.append(state.bottomCard);
+      pmmRuntimeResource(state.container).append(state.bottomCard);
     }
     placeThemeToolbarButton(themeToggle);
     markWorldbookButton();
@@ -1788,7 +1790,7 @@
 
   function scheduleDecorate() {
     if (renderFrame || !state.open) return;
-    renderFrame = TOP.requestAnimationFrame(() => {
+    renderFrame = pmmRuntimeResource(TOP).requestAnimationFrame(() => {
       renderFrame = 0;
       syncWorldSearchHighlightTheme();
       decorateNativeTop();
@@ -1896,9 +1898,9 @@
           return;
         }
       }
-      TOP.setTimeout(() => { void watch(); }, 400);
+      pmmRuntimeResource(TOP).setTimeout(() => { void watch(); }, 400);
     };
-    TOP.setTimeout(() => { void watch(); }, 400);
+    pmmRuntimeResource(TOP).setTimeout(() => { void watch(); }, 400);
   }
 
   async function renameWorldSource(sideName) {
@@ -1928,7 +1930,7 @@
     if (!match) return;
     side.expanded.add(match.key);
     refreshWorldSearchResults(sideName);
-    TOP.setTimeout(() => {
+    pmmRuntimeResource(TOP).setTimeout(() => {
       const panel = state.host?.querySelector?.(`[data-pmm-wb-panel="${sideName}"]`);
       const card = panel?.querySelector?.(`[data-wb-entry="${safeId(match.key)}"]`);
       card?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
@@ -1956,7 +1958,7 @@
     if (match?.field === 'content') side.expanded.add(match.key);
     refreshWorldSearchResults(sideName);
     if (options.refocus) {
-      TOP.setTimeout(() => {
+      pmmRuntimeResource(TOP).setTimeout(() => {
         const input = state.host?.querySelector?.(`[data-pmm-wb-panel="${sideName}"] [data-wb-action="search-input"]`);
         if (input) {
           input.focus();
@@ -2070,7 +2072,7 @@
     const side = state[sideName];
     refreshCharacterWorldBindings();
     removeSourcePicker(state.host.querySelector('.pmm-wb-source-picker'));
-    const overlay = DOC.createElement('div');
+    const overlay = pmmRuntimeResource(DOC).createElement('div');
     overlay.className = 'pmm-wb-source-picker';
     overlay.innerHTML = `<div class="pmm-wb-picker-dialog"><div class="pmm-wb-picker-head"><input type="search" placeholder="搜索世界书或角色名" autocomplete="off"><button type="button"><i class="fa-solid fa-xmark"></i></button></div><div class="pmm-wb-picker-list"></div></div>`;
     const input = overlay.querySelector('input');
@@ -2095,12 +2097,12 @@
           + sectionMarkup('unbound', '未绑定角色的世界书', 'fa-book', unboundRows, unboundExpanded)
         : '<div class="pmm-wb-empty">没有找到对应的世界书或角色</div>';
     };
-    input.addEventListener('input', () => {
+    pmmRuntimeResource(input).addEventListener('input', () => {
       queryCollapsedSections.clear();
       draw();
     });
-    overlay.querySelector('.pmm-wb-picker-head button').addEventListener('click', () => removeSourcePicker(overlay));
-    overlay.addEventListener('click', event => {
+    pmmRuntimeResource(overlay.querySelector('.pmm-wb-picker-head button')).addEventListener('click', () => removeSourcePicker(overlay));
+    pmmRuntimeResource(overlay).addEventListener('click', event => {
       if (event.target === overlay) return removeSourcePicker(overlay);
       const sectionButton = event.target.closest('[data-wb-picker-section]');
       if (sectionButton) {
@@ -2121,10 +2123,10 @@
       removeSourcePicker(overlay);
       void enqueue('载入世界书', async () => { await loadWorldSide(side); renderPanels(); });
     });
-    state.host.append(overlay);
+    pmmRuntimeResource(state.host).append(overlay);
     startWorldPickerThemeSync(overlay);
     draw();
-    TOP.setTimeout(() => input.focus(), 30);
+    pmmRuntimeResource(TOP).setTimeout(() => input.focus(), 30);
   }
 
   async function switchTopKind(kind) {
@@ -2163,7 +2165,7 @@
       }
       renderPanels();
       if (side.searchOpen) {
-        TOP.setTimeout(() => state.host?.querySelector?.(`[data-pmm-wb-panel="${sideName}"] [data-wb-action="search-input"]`)?.focus?.(), 20);
+        pmmRuntimeResource(TOP).setTimeout(() => state.host?.querySelector?.(`[data-pmm-wb-panel="${sideName}"] [data-wb-action="search-input"]`)?.focus?.(), 20);
       }
       return;
     }
@@ -2404,7 +2406,7 @@
     clearNativeDropIndicators();
     clearWorldDropIndicators();
     for (const delay of [0, 80, 240]) {
-      TOP.setTimeout(() => {
+      pmmRuntimeResource(TOP).setTimeout(() => {
         clearNativeDropIndicators();
         clearWorldDropIndicators();
       }, delay);
@@ -2413,8 +2415,8 @@
 
   function removeWorldMultiDragFloat() {
     if (worldMultiDragFrame !== 0) {
-      if (typeof TOP.cancelAnimationFrame === 'function') TOP.cancelAnimationFrame(worldMultiDragFrame);
-      else TOP.clearTimeout(worldMultiDragFrame);
+      if (typeof pmmRuntimeResource(TOP).cancelAnimationFrame === 'function') pmmRuntimeResource(TOP).cancelAnimationFrame(worldMultiDragFrame);
+      else pmmRuntimeResource(TOP).clearTimeout(worldMultiDragFrame);
       worldMultiDragFrame = 0;
     }
     worldMultiDragPoint = null;
@@ -2443,41 +2445,41 @@
       const vertical = point.y - MULTI_DRAG_FLOAT_HEIGHT / 2;
       chip.style.transform = `translate3d(${horizontal}px, ${vertical}px, 0)`;
     };
-    worldMultiDragFrame = typeof TOP.requestAnimationFrame === 'function'
-      ? TOP.requestAnimationFrame(render)
-      : TOP.setTimeout(render, 16);
+    worldMultiDragFrame = typeof pmmRuntimeResource(TOP).requestAnimationFrame === 'function'
+      ? pmmRuntimeResource(TOP).requestAnimationFrame(render)
+      : pmmRuntimeResource(TOP).setTimeout(render, 16);
   }
 
   function showWorldMultiDragFloat(event, count, options = {}) {
     removeWorldMultiDragFloat();
     if (!Number.isFinite(count) || count < 1 || (count < 2 && !options.force)) return;
-    const chip = DOC.createElement('div');
+    const chip = pmmRuntimeResource(DOC).createElement('div');
     chip.className = 'pmm-wb-multi-drag-float';
     chip.setAttribute('aria-hidden', 'true');
     chip.dataset.pmmWbMultiDragTone = resolveWorldMultiDragTone();
     if (options.forbiddenOnly) chip.dataset.pmmWbMultiDragForbiddenOnly = 'true';
     if (IS_ANDROID) chip.dataset.pmmWbMultiDragPerf = 'lite';
-    const back = DOC.createElement('span');
+    const back = pmmRuntimeResource(DOC).createElement('span');
     back.className = 'pmm-wb-multi-drag-float-back';
-    const face = DOC.createElement('span');
+    const face = pmmRuntimeResource(DOC).createElement('span');
     face.className = 'pmm-wb-multi-drag-float-face';
-    const icon = DOC.createElement('i');
+    const icon = pmmRuntimeResource(DOC).createElement('i');
     icon.className = 'fa-solid fa-up-down';
-    const label = DOC.createElement('span');
+    const label = pmmRuntimeResource(DOC).createElement('span');
     label.textContent = `拖动 ${count} 条`;
-    const badge = DOC.createElement('b');
+    const badge = pmmRuntimeResource(DOC).createElement('b');
     badge.textContent = String(count);
-    face.append(icon, label, badge);
-    chip.append(back, face);
-    DOC.body.append(chip);
+    pmmRuntimeResource(face).append(icon, label, badge);
+    pmmRuntimeResource(chip).append(back, face);
+    pmmRuntimeResource(DOC.body).append(chip);
     worldMultiDragFloat = chip;
     positionWorldMultiDragFloat(event);
     const transfer = event.dataTransfer;
     if (!transfer || typeof transfer.setDragImage !== 'function') return;
-    const image = DOC.createElement('div');
+    const image = pmmRuntimeResource(DOC).createElement('div');
     image.setAttribute('aria-hidden', 'true');
     image.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:.01;background:#efedf0;pointer-events:none;';
-    DOC.body.append(image);
+    pmmRuntimeResource(DOC.body).append(image);
     worldMultiDragGhost = image;
     try { transfer.setDragImage(image, 0, 0); } catch (_) {}
   }
@@ -2669,7 +2671,7 @@
     }
     const action = event.target.closest?.('[data-wb-action]');
     if (!action) {
-      if (event.target.closest?.('.prompt-item__checkbox,.prompt-card__checkbox')) TOP.setTimeout(scheduleDecorate, 0);
+      if (event.target.closest?.('.prompt-item__checkbox,.prompt-card__checkbox')) pmmRuntimeResource(TOP).setTimeout(scheduleDecorate, 0);
       return;
     }
     if (action.tagName === 'SELECT'
@@ -2716,7 +2718,7 @@
     if (!state.open || !event.target.matches?.('[data-wb-field="content"]')) return;
     const textarea = event.target;
     const wrapper = event.target.closest?.('.pmm-wb-content-search-wrap');
-    TOP.setTimeout(() => {
+    pmmRuntimeResource(TOP).setTimeout(() => {
       if (DOC.activeElement !== textarea) clearWorldContentEditorShift(textarea);
       if (wrapper && !wrapper.contains(DOC.activeElement)) wrapper.classList.remove('is-editing');
     }, 0);
@@ -2729,7 +2731,7 @@
 
   function installStyle() {
     if (DOC.getElementById(STYLE_ID)) return;
-    const style = DOC.createElement('style');
+    const style = pmmRuntimeResource(DOC).createElement('style');
     style.id = STYLE_ID;
     style.textContent = `
 #preset-manager-main-panel.pmm-worldbook-mode .pm-panel-container{position:relative!important}
@@ -2780,10 +2782,10 @@
 .pmm-wb-entry-actions{display:inline-flex;flex:none;align-items:center;gap:6px;margin:0 10px 0 5px}.pmm-wb-entry-action{width:23px;height:24px;min-width:23px;padding:0!important;display:inline-flex;align-items:center;justify-content:center;border:0!important;border-radius:6px;background:color-mix(in srgb,currentColor 8%,transparent)!important;color:inherit!important;opacity:.72}.pmm-wb-entry-action i{font-size:9px}.pmm-wb-entry-action:active{transform:scale(.94);opacity:1}
 @media(max-width:768px){.pmm-wb-entry-actions{gap:7px;margin:0 11px 0 6px}.pmm-wb-entry-action{width:24px;height:25px;min-width:24px}}
 `;
-    DOC.head.append(style);
+    pmmRuntimeResource(DOC.head).append(style);
   }
 
-  function wait(milliseconds) { return new Promise(resolve => TOP.setTimeout(resolve, milliseconds)); }
+  function wait(milliseconds) { return new Promise(resolve => pmmRuntimeResource(TOP).setTimeout(resolve, milliseconds)); }
 
   async function ensureNormalMode(container) {
     const activeMode = MODE_CLASSES.some(name => container.classList.contains(name));
@@ -2832,12 +2834,12 @@
     container.classList.remove('pm-panel-container--merge-mode');
     refreshFavoriteIndex();
     renderPanels();
-    hostObserver?.disconnect();
+    pmmRuntimeResource(hostObserver)?.disconnect();
     hostObserver = new MutationObserver(() => {
       if (!state.host?.isConnected) return resetClosedState();
       scheduleDecorate();
     });
-    hostObserver.observe(host, { childList:true, subtree:true });
+    pmmRuntimeResource(hostObserver).observe(host, { childList:true, subtree:true });
   }
 
   async function open() {
@@ -2885,12 +2887,12 @@
     } finally {
       state.busy = false;
     }
-    hostObserver?.disconnect();
+    pmmRuntimeResource(hostObserver)?.disconnect();
     hostObserver = new MutationObserver(() => {
       if (!state.host?.isConnected) return resetClosedState();
       scheduleDecorate();
     });
-    hostObserver.observe(host, { childList: true, subtree: true });
+    pmmRuntimeResource(hostObserver).observe(host, { childList: true, subtree: true });
   }
 
   function resetClosedState() {
@@ -2912,7 +2914,7 @@
     context = null;
     dragPayload = null;
     removeWorldMultiDragFloat();
-    hostObserver?.disconnect();
+    pmmRuntimeResource(hostObserver)?.disconnect();
     hostObserver = null;
   }
 
@@ -2935,11 +2937,11 @@
     if (!force && TOP.__PMM_WORKSHOP_EDITING__?.guard) return TOP.__PMM_WORKSHOP_EDITING__.guard(dirtyDrafts, () => close(true));
     endNativePresetDragState();
     clearDrag();
-    if (renderFrame) TOP.cancelAnimationFrame(renderFrame);
+    if (renderFrame) pmmRuntimeResource(TOP).cancelAnimationFrame(renderFrame);
     renderFrame = 0;
     const themeToggle = state.host?.querySelector?.('.pmm-mobile-theme-toggle');
     const themeCard = state.nativeTop?.querySelector?.('.theme-switch-card');
-    if (themeToggle && themeCard) themeCard.append(themeToggle);
+    if (themeToggle && themeCard) pmmRuntimeResource(themeCard).append(themeToggle);
     removeSourcePicker(state.host?.querySelector?.('.pmm-wb-source-picker'));
     state.topCard?.remove();
     state.bottomCard?.remove();
@@ -2958,18 +2960,18 @@
     close(true);
     DOC.querySelector('#preset-manager-main-panel .pmm-wb-editor-overlay')?.remove();
     DOC.getElementById(STYLE_ID)?.remove();
-    DOC.removeEventListener('click', onPresetExpandClick, true);
-    DOC.removeEventListener('click', onDocumentClick, true);
-    DOC.removeEventListener('change', onDocumentChange, true);
-    DOC.removeEventListener('input', onDocumentInput, true);
-    DOC.removeEventListener('focusin', onDocumentFocusIn, true);
-    DOC.removeEventListener('focusout', onDocumentFocusOut, true);
-    DOC.removeEventListener('dragstart', onDragStart, true);
-    DOC.removeEventListener('drag', onDragMove, true);
-    DOC.removeEventListener('dragover', onDragOver, true);
-    DOC.removeEventListener('drop', onDrop, true);
-    DOC.removeEventListener('dragend', clearDrag, true);
-    DOC.removeEventListener('pmm-favorites-changed', onFavoritesChanged);
+    pmmRuntimeResource(DOC).removeEventListener('click', onPresetExpandClick, true);
+    pmmRuntimeResource(DOC).removeEventListener('click', onDocumentClick, true);
+    pmmRuntimeResource(DOC).removeEventListener('change', onDocumentChange, true);
+    pmmRuntimeResource(DOC).removeEventListener('input', onDocumentInput, true);
+    pmmRuntimeResource(DOC).removeEventListener('focusin', onDocumentFocusIn, true);
+    pmmRuntimeResource(DOC).removeEventListener('focusout', onDocumentFocusOut, true);
+    pmmRuntimeResource(DOC).removeEventListener('dragstart', onDragStart, true);
+    pmmRuntimeResource(DOC).removeEventListener('drag', onDragMove, true);
+    pmmRuntimeResource(DOC).removeEventListener('dragover', onDragOver, true);
+    pmmRuntimeResource(DOC).removeEventListener('drop', onDrop, true);
+    pmmRuntimeResource(DOC).removeEventListener('dragend', clearDrag, true);
+    pmmRuntimeResource(DOC).removeEventListener('pmm-favorites-changed', onFavoritesChanged);
     try { if (TOP[API_KEY]?.cleanup === cleanup) delete TOP[API_KEY]; } catch (_) {}
   }
 
@@ -2983,18 +2985,18 @@
 
   try { TOP.__PMM_WORLDBOOK_STITCH_TEST2__?.cleanup?.(); } catch (_) {}
   try { TOP[API_KEY]?.cleanup?.(); } catch (_) {}
-  DOC.addEventListener('click', onPresetExpandClick, true);
-  DOC.addEventListener('click', onDocumentClick, true);
-  DOC.addEventListener('change', onDocumentChange, true);
-  DOC.addEventListener('input', onDocumentInput, true);
-  DOC.addEventListener('focusin', onDocumentFocusIn, true);
-  DOC.addEventListener('focusout', onDocumentFocusOut, true);
-  DOC.addEventListener('dragstart', onDragStart, true);
-  DOC.addEventListener('drag', onDragMove, true);
-  DOC.addEventListener('dragover', onDragOver, true);
-  DOC.addEventListener('drop', onDrop, true);
-  DOC.addEventListener('dragend', clearDrag, true);
-  DOC.addEventListener('pmm-favorites-changed', onFavoritesChanged);
+  pmmRuntimeResource(DOC).addEventListener('click', onPresetExpandClick, true);
+  pmmRuntimeResource(DOC).addEventListener('click', onDocumentClick, true);
+  pmmRuntimeResource(DOC).addEventListener('change', onDocumentChange, true);
+  pmmRuntimeResource(DOC).addEventListener('input', onDocumentInput, true);
+  pmmRuntimeResource(DOC).addEventListener('focusin', onDocumentFocusIn, true);
+  pmmRuntimeResource(DOC).addEventListener('focusout', onDocumentFocusOut, true);
+  pmmRuntimeResource(DOC).addEventListener('dragstart', onDragStart, true);
+  pmmRuntimeResource(DOC).addEventListener('drag', onDragMove, true);
+  pmmRuntimeResource(DOC).addEventListener('dragover', onDragOver, true);
+  pmmRuntimeResource(DOC).addEventListener('drop', onDrop, true);
+  pmmRuntimeResource(DOC).addEventListener('dragend', clearDrag, true);
+  pmmRuntimeResource(DOC).addEventListener('pmm-favorites-changed', onFavoritesChanged);
   TOP[API_KEY] = { open, close, cleanup, state, openFavorites, dropFavorites, dirtyDrafts,
     async refreshSnapshotBook(name, data, skipNative = false) {
       if (!state.open) return;

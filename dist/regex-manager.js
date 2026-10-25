@@ -1,3 +1,4 @@
+function pmmRuntimeResource(target) { return globalThis.__PMM_RUNTIME_SCOPE__?.own(target) || target; }
 import { clone, equal, sourceKey, createTransactions, createHostAdapter, duplicateInPlace } from './regex-manager-core.js?pmm-version=2.98.41';
 
 const ID = 'pmm-regex-manager';
@@ -11,15 +12,15 @@ function loadNative(host) {
   if (nativeLoads.has(host)) return nativeLoads.get(host);
   const promise = new Promise((resolve, reject) => {
     const key = `__pmm_regex_native_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const script = host.document.createElement('script');
+    const script = pmmRuntimeResource(host.document).createElement('script');
     script.type = 'module';
     const url = new URL('script.js', host.document.baseURI).href;
-    const cleanup = () => { host.clearTimeout(timer); delete host[key]; script.remove(); };
-    const timer = host.setTimeout(() => { cleanup(); reject(new Error('酒馆保存接口载入超时')); }, 12000);
+    const cleanup = () => { pmmRuntimeResource(host).clearTimeout(timer); delete host[key]; script.remove(); };
+    const timer = pmmRuntimeResource(host).setTimeout(() => { cleanup(); reject(new Error('酒馆保存接口载入超时')); }, 12000);
     host[key] = (module, error) => { cleanup(); error ? reject(new Error(error)) : resolve(module); };
     script.textContent = `import(${JSON.stringify(url)}).then(m=>window[${JSON.stringify(key)}]?.(m),e=>window[${JSON.stringify(key)}]?.(null,e.message));`;
     script.onerror = () => { cleanup(); reject(new Error('酒馆保存接口载入失败')); };
-    host.document.head.append(script);
+    pmmRuntimeResource(host.document.head).append(script);
   }).catch(error => { nativeLoads.delete(host); throw error; });
   nativeLoads.set(host, promise);
   return promise;
@@ -101,24 +102,24 @@ export async function open({ host = window.parent, root = host.document.getEleme
   if (doc.getElementById(ID)) return;
   adapter ||= createHostAdapter(host, () => loadNative(host));
   const abort = new host.AbortController();
-  const on = (node, type, handler, options = {}) => node.addEventListener(type, handler, node === doc || node === host ? { ...options, signal: abort.signal } : options);
-  const el = (tag, className, text) => { const node = doc.createElement(tag); if (className) node.className = className; if (text != null) node.textContent = text; return node; };
+  const on = (node, type, handler, options = {}) => pmmRuntimeResource(node).addEventListener(type, handler, node === doc || node === host ? { ...options, signal: abort.signal } : options);
+  const el = (tag, className, text) => { const node = pmmRuntimeResource(doc).createElement(tag); if (className) node.className = className; if (text != null) node.textContent = text; return node; };
   const button = (text, title, fn, cls = '') => { const b = el('button', cls, text); b.type = 'button'; b.title = title; b.setAttribute('aria-label', title); on(b, 'click', fn); return b; };
   const iconButton = (kind, title, fn) => {
     const b = button('', title, fn, 'rx-icon');
-    const svg = doc.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true');
-    const path = doc.createElementNS(svg.namespaceURI, 'path');
+    const svg = pmmRuntimeResource(doc).createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true');
+    const path = pmmRuntimeResource(doc).createElementNS(svg.namespaceURI, 'path');
     path.setAttribute('d', kind === 'close' ? 'M6 6l12 12M6 18L18 6' : 'M3 4v6h6M3 10a9 9 0 1 1 2.7 8.4');
     if (kind === 'refresh') path.setAttribute('transform', 'translate(24 0) scale(-1 1)');
-    svg.append(path); b.append(svg); return b;
+    pmmRuntimeResource(svg).append(path); pmmRuntimeResource(b).append(svg); return b;
   };
-  if (!doc.getElementById(`${ID}-style`)) { const style = el('style'); style.id = `${ID}-style`; style.textContent = CSS; doc.head.append(style); }
+  if (!doc.getElementById(`${ID}-style`)) { const style = el('style'); style.id = `${ID}-style`; style.textContent = CSS; pmmRuntimeResource(doc.head).append(style); }
   const overlay = el('div'); overlay.id = ID;
   const shell = el('section', 'rx-shell'); shell.setAttribute('role', 'dialog'); shell.setAttribute('aria-label', '正则整理');
   shell.setAttribute('aria-modal', 'true'); shell.tabIndex = -1;
   const previousFocus = doc.activeElement;
   const heading = el('header', 'rx-head');
-  const title = el('div', 'rx-title', '正则整理'); title.append(el('small', '', '拖动 ⋮⋮ 到指定位置 · 跨栏复制，同列表排序'));
+  const title = el('div', 'rx-title', '正则整理'); pmmRuntimeResource(title).append(el('small', '', '拖动 ⋮⋮ 到指定位置 · 跨栏复制，同列表排序'));
   const status = el('div', 'rx-status'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
   let busy = false, closed = false, dirty = false, drag = null, frame = 0, picker = null;
   const transaction = createTransactions({
@@ -137,11 +138,11 @@ export async function open({ host = window.parent, root = host.document.getEleme
   }
   syncTheme();
   const observer = new host.MutationObserver(syncTheme);
-  if (themeSource) observer.observe(themeSource, { attributes: true, attributeFilter: ['style'] });
+  if (themeSource) pmmRuntimeResource(observer).observe(themeSource, { attributes: true, attributeFilter: ['style'] });
   function close() {
     if (busy) { message('正在保存，完成后即可关闭'); return; }
     if (closed) return;
-    closed = true; stopDrag(); abort.abort(); observer.disconnect(); lifecycle.disconnect(); overlay.remove();
+    closed = true; stopDrag(); abort.abort(); pmmRuntimeResource(observer).disconnect(); pmmRuntimeResource(lifecycle).disconnect(); overlay.remove();
     if (previousFocus?.isConnected) previousFocus.focus?.({ preventScroll: true });
     // One native refresh after all edits, never per drag frame or per row.
     if (dirty) {
@@ -152,12 +153,12 @@ export async function open({ host = window.parent, root = host.document.getEleme
   }
   const undo = iconButton('undo', '撤销上一步', () => run(() => transaction.undo(), '已撤销'));
   const refresh = iconButton('refresh', '刷新两栏列表', () => run(async () => {}, '已刷新'));
-  heading.append(title, undo, refresh, iconButton('close', '关闭正则整理', close));
-  const panesNode = el('div', 'rx-panes'); shell.append(heading, panesNode, status); overlay.append(shell); (root || doc.body).append(overlay);
+  pmmRuntimeResource(heading).append(title, undo, refresh, iconButton('close', '关闭正则整理', close));
+  const panesNode = el('div', 'rx-panes'); pmmRuntimeResource(shell).append(heading, panesNode, status); pmmRuntimeResource(overlay).append(shell); (pmmRuntimeResource(root || doc.body)).append(overlay);
   // Observe only the direct parent for removal, not the page subtree.
-  const lifecycle = new host.MutationObserver(() => { if (!overlay.isConnected) { closed = true; stopDrag(); abort.abort(); observer.disconnect(); lifecycle.disconnect(); } });
-  lifecycle.observe(root?.parentNode || doc.body, { childList: true });
-  if (root) lifecycle.observe(root, { childList: true });
+  const lifecycle = new host.MutationObserver(() => { if (!overlay.isConnected) { closed = true; stopDrag(); abort.abort(); pmmRuntimeResource(observer).disconnect(); pmmRuntimeResource(lifecycle).disconnect(); } });
+  pmmRuntimeResource(lifecycle).observe(root?.parentNode || doc.body, { childList: true });
+  if (root) pmmRuntimeResource(lifecycle).observe(root, { childList: true });
   on(host, 'pagehide', close, { once: true });
   on(overlay, 'keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); if (picker) { picker.remove(); picker = null; } else close(); } });
   on(overlay, 'keydown', e => {
@@ -177,7 +178,7 @@ export async function open({ host = window.parent, root = host.document.getEleme
     catch (e) { error = e; message(e.message || String(e), true); }
     finally {
       if (!closed) {
-        for (const pane of panes) { try { pane.data = adapter.read(pane.source); pane.selected.clear(); pane.expanded = -1; renderRows(pane); } catch (e) { pane.data = []; pane.list.replaceChildren(el('div', 'rx-empty', e.message)); } }
+        for (const pane of panes) { try { pane.data = adapter.read(pane.source); pane.selected.clear(); pane.expanded = -1; renderRows(pane); } catch (e) { pane.data = []; pmmRuntimeResource(pane.list).replaceChildren(el('div', 'rx-empty', e.message)); } }
         busy = false; overlay.dataset.busy = 'false'; panesNode.inert = false; undo.disabled = !transaction.history.length; refresh.disabled = false;
         if (error) console.warn('[预设工坊][正则]', error);
       }
@@ -197,11 +198,11 @@ export async function open({ host = window.parent, root = host.document.getEleme
   }
   function choosePreset(pane) {
     if (picker || busy) return;
-    picker = el('div', 'rx-picker'); const head = el('div', 'rx-head'); head.append(el('strong', 'rx-title', '选择预设'), button('×', '关闭预设选择', () => { picker.remove(); picker = null; }));
+    picker = el('div', 'rx-picker'); const head = el('div', 'rx-head'); pmmRuntimeResource(head).append(el('strong', 'rx-title', '选择预设'), button('×', '关闭预设选择', () => { picker.remove(); picker = null; }));
     const search = el('input', 'rx-search'); search.placeholder = '搜索预设名称'; search.setAttribute('aria-label', '搜索预设名称');
-    const list = el('div', 'rx-picker-list'); picker.append(head, search, list); shell.append(picker);
+    const list = el('div', 'rx-picker-list'); pmmRuntimeResource(picker).append(head, search, list); pmmRuntimeResource(shell).append(picker);
     const presets = adapter.presets();
-    const draw = () => { list.replaceChildren(); for (const name of presets.names.filter(n => n.toLowerCase().includes(search.value.trim().toLowerCase()))) list.append(button(name, name, () => { picker.remove(); picker = null; changeSource(pane, { type: 'preset', name, apiId: presets.apiId }); })); if (!list.childElementCount) list.append(el('div', 'rx-empty', '没有匹配的预设')); };
+    const draw = () => { pmmRuntimeResource(list).replaceChildren(); for (const name of presets.names.filter(n => n.toLowerCase().includes(search.value.trim().toLowerCase()))) pmmRuntimeResource(list).append(button(name, name, () => { picker.remove(); picker = null; changeSource(pane, { type: 'preset', name, apiId: presets.apiId }); })); if (!list.childElementCount) pmmRuntimeResource(list).append(el('div', 'rx-empty', '没有匹配的预设')); };
     on(search, 'input', draw); draw(); search.focus();
   }
   function visibleIndices(pane) { const q = pane.query.trim().toLowerCase(); return pane.data.flatMap((r, i) => !q || String(r.scriptName || '').toLowerCase().includes(q) ? [i] : []); }
@@ -226,37 +227,37 @@ export async function open({ host = window.parent, root = host.document.getEleme
     const check = el('input'); check.type = 'checkbox'; check.setAttribute('aria-label', `选择 ${record.scriptName || '未命名正则'}`);
     on(check, 'change', () => { check.checked ? pane.selected.add(index) : pane.selected.delete(index); updateSelection(pane); });
     const name = button('', `展开 ${record.scriptName || '未命名正则'}`, () => { pane.expanded = pane.expanded === index ? -1 : index; renderRows(pane); }, 'rx-row-title');
-    name.setAttribute('aria-expanded', String(pane.expanded === index)); name.append(el('span', 'rx-name', record.scriptName || '未命名正则'), el('span', 'rx-scope', (record.placement || []).map(n => SCOPES[n] || `范围 ${n}`).join(' · ') || '未设置作用范围'));
+    name.setAttribute('aria-expanded', String(pane.expanded === index)); pmmRuntimeResource(name).append(el('span', 'rx-name', record.scriptName || '未命名正则'), el('span', 'rx-scope', (record.placement || []).map(n => SCOPES[n] || `范围 ${n}`).join(' · ') || '未设置作用范围'));
     const toggle = button(record.disabled ? '关闭' : '开启', `${record.disabled ? '开启' : '关闭'} ${record.scriptName || '正则'}`, () => run(async () => { const after = clone(pane.data); after[index].disabled = !record.disabled; await transaction.edit(pane.source, pane.data, after, '更改开关'); }, '开关已保存'), 'rx-toggle'); toggle.setAttribute('aria-pressed', String(!record.disabled));
-    row.append(grip, check, name, toggle);
+    pmmRuntimeResource(row).append(grip, check, name, toggle);
     if (pane.expanded === index) {
-      const detail = el('div', 'rx-detail'); detail.append(el('div', 'rx-full-name', record.scriptName || '未命名正则'));
-      detail.append(el('pre', '', `查找：${record.findRegex || ''}\n替换：${record.replaceString || ''}`));
+      const detail = el('div', 'rx-detail'); pmmRuntimeResource(detail).append(el('div', 'rx-full-name', record.scriptName || '未命名正则'));
+      pmmRuntimeResource(detail).append(el('pre', '', `查找：${record.findRegex || ''}\n替换：${record.replaceString || ''}`));
       const actions = el('div', 'rx-actions');
-      if (pane.source.type !== 'favorites') actions.append(button('☆', '收藏选中的正则', () => run(async () => { const to = { type: 'favorites' }; const data = adapter.read(to); await transaction.transfer(pane.source, to, pane.data, data, selectedFor(pane, index), data.length); }, '已加入正则收藏')));
-      actions.append(button('⧉', '复制：在原条目下方生成副本', () => run(() => transaction.edit(pane.source, pane.data, duplicateInPlace(pane.data, selectedFor(pane, index)), '复制正则'), '已在原条目下方生成副本')), button('删除', '删除选中的正则', () => {
+      if (pane.source.type !== 'favorites') pmmRuntimeResource(actions).append(button('☆', '收藏选中的正则', () => run(async () => { const to = { type: 'favorites' }; const data = adapter.read(to); await transaction.transfer(pane.source, to, pane.data, data, selectedFor(pane, index), data.length); }, '已加入正则收藏')));
+      pmmRuntimeResource(actions).append(button('⧉', '复制：在原条目下方生成副本', () => run(() => transaction.edit(pane.source, pane.data, duplicateInPlace(pane.data, selectedFor(pane, index)), '复制正则'), '已在原条目下方生成副本')), button('删除', '删除选中的正则', () => {
         const indices = selectedFor(pane, index);
         if (host.confirm(`删除 ${indices.length} 条正则？本次关闭前可撤销。`)) run(() => transaction.edit(pane.source, pane.data, pane.data.filter((_, i) => !indices.includes(i)), '删除正则'), '已删除，可撤销');
       }));
-      detail.append(actions); row.append(detail);
+      pmmRuntimeResource(detail).append(actions); pmmRuntimeResource(row).append(detail);
     }
     return row;
   }
   function renderRows(pane) {
-    const scroll = pane.list.scrollTop; pane.list.replaceChildren();
+    const scroll = pane.list.scrollTop; pmmRuntimeResource(pane.list).replaceChildren();
     const indices = visibleIndices(pane); const shown = indices.slice(0, pane.limit);
     const fragment = doc.createDocumentFragment();
-    for (const index of shown) fragment.append(createRow(pane, index));
-    if (!shown.length) fragment.append(el('div', 'rx-empty', pane.query ? '没有匹配的正则' : '这里还没有正则\n可从另一栏拖入'));
-    pane.list.append(fragment);
-    if (indices.length > shown.length) pane.list.append(button(`继续显示（余 ${indices.length - shown.length} 条）`, '显示更多正则', () => { pane.limit += 80; renderRows(pane); }, 'rx-more'));
+    for (const index of shown) pmmRuntimeResource(fragment).append(createRow(pane, index));
+    if (!shown.length) pmmRuntimeResource(fragment).append(el('div', 'rx-empty', pane.query ? '没有匹配的正则' : '这里还没有正则\n可从另一栏拖入'));
+    pmmRuntimeResource(pane.list).append(fragment);
+    if (indices.length > shown.length) pmmRuntimeResource(pane.list).append(button(`继续显示（余 ${indices.length - shown.length} 条）`, '显示更多正则', () => { pane.limit += 80; renderRows(pane); }, 'rx-more'));
     pane.list.scrollTop = scroll; updateSelection(pane);
   }
   function makePane(source, side) {
     const pane = { source, data: [], selected: new Set(), query: '', expanded: -1, limit: 80, side };
     const wrapper = el('section', 'rx-pane'); wrapper.dataset.side = side; const head = el('div', 'rx-pane-head');
     const type = el('select'); type.setAttribute('aria-label', `${side === 'a' ? '上方／左侧' : '下方／右侧'}正则来源`);
-    for (const [value, label] of Object.entries(TYPES)) { const option = el('option', '', label); option.value = value; if (value === 'character') option.disabled = !adapter.currentCharacter(); if (value === 'preset') option.disabled = !metadata.names.length; type.append(option); }
+    for (const [value, label] of Object.entries(TYPES)) { const option = el('option', '', label); option.value = value; if (value === 'character') option.disabled = !adapter.currentCharacter(); if (value === 'preset') option.disabled = !metadata.names.length; pmmRuntimeResource(type).append(option); }
     const name = button('', '选择预设', () => choosePreset(pane), 'rx-source-name'); const tools = el('div', 'rx-tools'); const search = el('input', 'rx-search'); search.placeholder = '搜索正则'; search.setAttribute('aria-label', `${side} 栏搜索正则`);
     const count = el('span', 'rx-count'); const all = button('全选', '全选当前搜索结果', () => { const indices = visibleIndices(pane); const clear = indices.every(i => pane.selected.has(i)); for (const i of indices) clear ? pane.selected.delete(i) : pane.selected.add(i); updateSelection(pane); });
     const list = el('div', 'rx-list'); list.dataset.side = side;
@@ -269,19 +270,19 @@ export async function open({ host = window.parent, root = host.document.getEleme
     on(search, 'input', () => { pane.query = search.value; pane.limit = 80; pane.expanded = -1; renderRows(pane); pane.list.scrollTop = 0; });
     // Incremental DOM construction, only while the user scrolls this list.
     on(list, 'scroll', () => { if (!drag && list.scrollHeight - list.scrollTop - list.clientHeight < 120 && visibleIndices(pane).length > pane.limit) { pane.limit += 80; renderRows(pane); } }, { passive: true });
-    const sourceBox = el('span', 'rx-source-box'); sourceBox.append(type);
-    const searchBox = el('span', 'rx-search-box'); searchBox.append(search);
-    tools.append(searchBox, count, all); head.append(sourceBox, name, tools); wrapper.append(head, list); panesNode.append(wrapper); panes.push(pane); changeSource(pane, source);
+    const sourceBox = el('span', 'rx-source-box'); pmmRuntimeResource(sourceBox).append(type);
+    const searchBox = el('span', 'rx-search-box'); pmmRuntimeResource(searchBox).append(search);
+    pmmRuntimeResource(tools).append(searchBox, count, all); pmmRuntimeResource(head).append(sourceBox, name, tools); pmmRuntimeResource(wrapper).append(head, list); pmmRuntimeResource(panesNode).append(wrapper); panes.push(pane); changeSource(pane, source);
   }
   function stopDrag() {
-    if (frame) host.cancelAnimationFrame(frame); frame = 0;
+    if (frame) pmmRuntimeResource(host).cancelAnimationFrame(frame); frame = 0;
     if (drag) { drag.line.remove(); drag.badge.remove(); try { drag.handle.releasePointerCapture(drag.pointer); } catch (_) {} drag = null; }
   }
   function startDrag(event, pane, index) {
     if (busy || event.button !== 0 || drag) return;
     event.preventDefault(); event.stopPropagation();
     const line = el('div', 'rx-drop-line'); const indices = selectedFor(pane, index);
-    const badge = el('div', 'rx-drag-label', `${indices.length} 条正则`); badge.style.display = 'none'; overlay.append(badge);
+    const badge = el('div', 'rx-drag-label', `${indices.length} 条正则`); badge.style.display = 'none'; pmmRuntimeResource(overlay).append(badge);
     drag = { pane, indices, pointer: event.pointerId, handle: event.currentTarget, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, line, badge, target: null, active: false };
     drag.handle.setPointerCapture(event.pointerId);
   }
@@ -311,16 +312,16 @@ export async function open({ host = window.parent, root = host.document.getEleme
       }
       const at = row ? Number(row.dataset.index) + (before ? 0 : 1) : target.data.length;
       const top = row ? row.offsetTop + (before ? 0 : row.offsetHeight) : 18;
-      line.style.top = `${top}px`; list.append(line); drag.target = target; drag.at = at;
+      line.style.top = `${top}px`; pmmRuntimeResource(list).append(line); drag.target = target; drag.at = at;
       badge.textContent = `${sourceKey(drag.pane.source) === sourceKey(target.source) ? '排序' : '复制'} ${drag.indices.length} 条`;
-      if (velocity) frame = host.requestAnimationFrame(drawDrag);
+      if (velocity) frame = pmmRuntimeResource(host).requestAnimationFrame(drawDrag);
     }
   }
   on(doc, 'pointermove', e => {
     if (!drag || drag.pointer !== e.pointerId) return;
     drag.x = e.clientX; drag.y = e.clientY;
     if (Math.hypot(drag.x - drag.startX, drag.y - drag.startY) > 5) drag.active = true;
-    if (drag.active) { e.preventDefault(); if (!frame) frame = host.requestAnimationFrame(drawDrag); }
+    if (drag.active) { e.preventDefault(); if (!frame) frame = pmmRuntimeResource(host).requestAnimationFrame(drawDrag); }
   }, { passive: false });
   on(doc, 'pointerup', e => {
     if (!drag || drag.pointer !== e.pointerId) return;

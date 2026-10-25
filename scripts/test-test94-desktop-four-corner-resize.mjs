@@ -237,7 +237,7 @@ const moduleEnd = source.indexOf("console.info('[预设工坊] test.94 已加载
 assert.ok(moduleStart > 0 && moduleEnd > moduleStart, '无法提取 test.94 模块代码');
 
 const moduleCode = source.slice(moduleStart, moduleEnd) + "\nreturn TOP[API_KEY];";
-const initModule = new Function('window', 'document', moduleCode);
+const initModule = new Function('window', 'document', 'function pmmRuntimeResource(target){return target;}\n'+moduleCode);
 const api = initModule(mockWin, mockWin.document);
 
 assert.ok(api, '模块初始化后成功暴露 TOP API');

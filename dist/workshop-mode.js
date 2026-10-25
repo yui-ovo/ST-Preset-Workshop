@@ -4,7 +4,10 @@ export function readWorkshopMode(host = globalThis) {
   catch (_) { return 'full'; }
 }
 
-export async function changeWorkshopMode(host, next, reload = () => host.location.reload()) {
+export async function changeWorkshopMode(host, next, restart = () => {
+  if (!host.__ST_PRESET_WORKSHOP__?.restart) throw Error('工坊尚未准备好，请稍后重试');
+  return host.__ST_PRESET_WORKSHOP__.restart();
+}) {
   if (!['full', 'snapshots'].includes(next)) throw Error('未知运行模式');
   if (next === readWorkshopMode(host)) return true;
   const doc = host.document;
@@ -16,8 +19,14 @@ export async function changeWorkshopMode(host, next, reload = () => host.locatio
     await host.__PMM_WORKSHOP_EDITING__.closeMain();
     if (doc.getElementById('preset-manager-main-panel')) return false;
   }
+  const previous = readWorkshopMode(host);
   host.localStorage.setItem(MODE_KEY, next);
-  reload();
+  try { await restart(); }
+  catch (error) {
+    host.localStorage.setItem(MODE_KEY, previous);
+    try { await restart(); } catch (_) { /* Keep the saved previous choice for retry. */ }
+    throw error;
+  }
   return true;
 }
 
@@ -27,17 +36,20 @@ export function installWorkshopModeSettings(host = globalThis) {
   const mount = () => {
     const container = doc.querySelector('#extensions_settings2, #extensions_settings');
     if (!container) return false;
-    const box = doc.createElement('div'); box.id = 'pmm-runtime-mode-settings';
-    const title = doc.createElement('b'); title.textContent = '🧩预设工坊 · 运行模式';
+    const box = doc.createElement('div'); box.id = 'pmm-runtime-mode-settings'; box.className = 'inline-drawer';
+    const header = doc.createElement('div'); header.className = 'inline-drawer-toggle inline-drawer-header';
+    const title = doc.createElement('b'); title.textContent = '预设工坊';
+    const arrow = doc.createElement('div'); arrow.className = 'inline-drawer-icon fa-solid fa-circle-chevron-down down';
+    header.append(title, arrow);
+    const content = doc.createElement('div'); content.className = 'inline-drawer-content'; content.style.display = 'none';
     const select = doc.createElement('select'); select.className = 'text_pole'; select.setAttribute('aria-label', '预设工坊运行模式');
-    for (const [value, label] of [['full', '完整工坊'], ['snapshots', '仅保留预设快照']]) {
+    for (const [value, label] of [['full', '完整模式'], ['snapshots', '快照模式']]) {
       const option = doc.createElement('option'); option.value = value; option.textContent = label; select.append(option);
     }
     select.value = readWorkshopMode(host);
     const note = doc.createElement('small');
-    note.textContent = '切换后重新载入酒馆。仅快照模式保留原生预设栏相机、快照保存/恢复及绑定联动，暂停其余工坊功能；已有数据保留。';
-    box.style.cssText = 'display:flex;flex-direction:column;gap:8px;margin:12px 0';
-    box.append(title, select, note); container.append(box);
+    note.textContent = '切换无需刷新酒馆。快照模式保留预设快照及绑定联动；已有数据保留。';
+    content.append(select, note); box.append(header, content); container.append(box);
     select.onchange = async () => {
       select.disabled = true;
       try { await changeWorkshopMode(host, select.value); }

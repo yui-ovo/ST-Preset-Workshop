@@ -1,4 +1,5 @@
-import { readPresetStore, planPresetRelink, commitPresetRelink } from './snapshot-backup-core.js?v=2.98.23';
+function pmmRuntimeResource(target) { return globalThis.__PMM_RUNTIME_SCOPE__?.own(target) || target; }
+import { readPresetStore, planPresetRelink, commitPresetRelink } from './snapshot-backup-core.js?v=2.98.49';
 
 const KEY = '__PMM_PRESET_SNAPSHOT_LINKS__';
 export function installPresetSnapshotLinks(host) {
@@ -24,7 +25,7 @@ export function installPresetSnapshotLinks(host) {
     if (plan.notes.length) host.toastr?.info?.('快照已跟随改名；' + plan.notes.join('；'));
   }
   // Subscribe to confirmed rename only: no rename-before, preset-change inference or polling.
-  events?.on?.(renamedEvent, renamed);
+  pmmRuntimeResource(events)?.on?.(renamedEvent, renamed);
   const api = { renamed, cleanup() {
     if (events?.off) events.off(renamedEvent, renamed);
     else events?.removeListener?.(renamedEvent, renamed);

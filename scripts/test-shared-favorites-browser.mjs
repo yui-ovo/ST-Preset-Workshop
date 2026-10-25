@@ -31,9 +31,18 @@ try {
     page.on('pageerror', error => { errors.push(error.message); if(process.env.PMM_TEST_COMPARE) console.error(error); });
     await page.route('**/*', async route => {
       const url = new URL(route.request().url());
+      if (process.env.PMM_TEST_RUNTIME && url.origin !== 'http://startup.test') {
+        let body = '';
+        if(url.pathname.includes('vue.runtime.global')) body = await asset('vue.runtime.global.prod.js') + '\n' + await asset('pinia.iife.prod.js');
+        else if(url.pathname.endsWith('log.js')) body = 'window.log={info(){},warn(){},error(){},debug(){}};';
+        return route.fulfill({contentType:'application/javascript',body});
+      }
       if (url.origin !== 'http://startup.test') return route.abort();
       if (url.pathname === '/') return route.fulfill({ contentType: 'text/html', body: '<!doctype html><head></head><body><div id="top-bar"></div><div id="extensionsMenu"></div><div id="sheld"><div id="chat"><div class="welcomePanel"><span class="welcomeHeaderVersionDisplay">TT</span></div></div></div><div id="send_form"><textarea id="send_textarea"></textarea></div></body>' });
       if (url.pathname === '/zod4.mjs') return route.fulfill({ contentType: 'application/javascript', body: await asset('zod4.mjs') });
+      if(process.env.PMM_TEST_RUNTIME && url.pathname === '/workshop-v3.02.js') return route.fulfill({contentType:'application/javascript',body:source});
+      if(process.env.PMM_TEST_RUNTIME && url.pathname.startsWith('/bridge/')) return route.fulfill({contentType:'application/javascript',body:await readFile(new URL('..'+url.pathname,import.meta.url),'utf8')});
+      if(url.pathname === '/manifest.json') return route.fulfill({contentType:'application/json',body:await readFile(new URL('../manifest.json',import.meta.url),'utf8')});
       if (/^\/[\w.-]+\.js$/.test(url.pathname)) return route.fulfill({ contentType: 'application/javascript', body: await readFile(new URL(`../dist${url.pathname}`, import.meta.url), 'utf8') });
       return route.abort();
     });
@@ -71,6 +80,11 @@ try {
       await page.evaluate(() => { const f = document.createElement('iframe'); f.hidden = true; document.body.append(f); });
       await page.frames().at(-1).evaluate(script => { Object.assign(window, parent.TavernHelper); (0, eval)(script); }, await readFile(process.env.PMM_COMPANION_SCRIPT, 'utf8'));
     }
+    if(process.env.PMM_TEST_RUNTIME) {
+      const {verifyRuntimeModes}=await import('./verify-runtime-modes.mjs');
+      await verifyRuntimeModes(page, engine);
+      assert.deepEqual(errors,[]); continue;
+    }
     await page.evaluate(() => { const f = document.createElement('iframe'); f.hidden = true; document.body.append(f); });
     const frame = page.frames().at(-1);
     for (const file of ['vue.runtime.global.prod.js', 'pinia.iife.prod.js']) await frame.addScriptTag({ content: await asset(file) });
@@ -80,6 +94,7 @@ try {
       window._ = parent._; window.$ = window.jQuery = parent.jQuery;
       window.z = await import('http://startup.test/zod4.mjs');
       window.log = { info() {}, warn() {}, error() {}, debug() {} };
+      window.__PMM_RUNTIME_SCOPE__ = (await import('/runtime-resources.js')).createRuntimeScope(window);
     });
     await frame.addScriptTag({ type: 'module', url: 'http://startup.test/shared-favorites.js' });
     await frame.evaluate(() => { window.__PMM_LOAD_WORLDBOOK_STITCH__ = async () => { await import('http://startup.test/worldbook-stitch-test3.js'); return parent.__PMM_WORLDBOOK_STITCH_TEST3__; }; });

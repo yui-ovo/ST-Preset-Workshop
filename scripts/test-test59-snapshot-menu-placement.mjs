@@ -11,7 +11,7 @@ function section(startMarker, endMarker) {
 }
 
 const placement = section('function positionOpenSnapshotMenu(overlay)', 'function renderOverlay()');
-assert.ok(placement.includes('overlay.appendChild(menu)'), '快照菜单没有脱离会裁切它的滚动列表');
+assert.ok(placement.includes('pmmRuntimeResource(overlay).appendChild(menu)'), '快照菜单没有脱离会裁切它的滚动列表');
 assert.ok(placement.includes("dialog.querySelector('footer')"), '快照菜单没有把底部说明栏作为可用空间边界');
 assert.ok(placement.includes('roomBelow < menuHeight'), '快照菜单没有检测下方剩余空间');
 assert.ok(placement.includes("opensAbove ? 'up' : 'down'"), '快照菜单没有记录自适应展开方向');

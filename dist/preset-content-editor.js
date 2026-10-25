@@ -1,3 +1,4 @@
+function pmmRuntimeResource(target) { return globalThis.__PMM_RUNTIME_SCOPE__?.own(target) || target; }
 ;(() => {
   const TOP = globalThis.parent && globalThis.parent !== globalThis ? globalThis.parent : globalThis;
   const DOC = TOP.document;
@@ -13,7 +14,7 @@
 
   function installStyle() {
     if (DOC.getElementById(STYLE_ID)) return;
-    const style = DOC.createElement('style');
+    const style = pmmRuntimeResource(DOC).createElement('style');
     style.id = STYLE_ID;
     style.textContent = `
       .pmm-preset-editor-host{position:relative!important}
@@ -33,7 +34,7 @@
       .pmm-preset-editor-dialog textarea{flex:1;min-height:0;width:auto;margin:8px;padding:10px;border:1px solid var(--pmm-editor-border,rgba(127,127,127,.18));border-radius:9px;background:var(--pmm-editor-field-bg,rgba(127,127,127,.05));color:var(--pmm-editor-text,#222);font-size:12px!important;line-height:1.55!important;resize:none}
       @media(max-width:768px){.pmm-preset-editor-dialog{width:94%;height:82%;max-height:calc(100dvh - 24px);border-radius:12px}.pmm-preset-editor-dialog textarea{margin:6px;padding:8px;font-size:11px!important}}
     `;
-    DOC.head.append(style);
+    pmmRuntimeResource(DOC.head).append(style);
   }
 
   function closeActiveEditor() {
@@ -87,7 +88,7 @@
       return fallback;
     };
 
-    const overlay = DOC.createElement('div');
+    const overlay = pmmRuntimeResource(DOC).createElement('div');
     overlay.className = 'pmm-preset-editor-overlay';
     if (desktop) overlay.classList.add('pmm-preset-editor-desktop');
     if (side) overlay.dataset.pmmEditorSide = side;
@@ -117,8 +118,8 @@
       undoButton.title = available ? '撤销本次编辑' : '暂无可撤销输入';
     };
     const closeEditor = () => {
-      TOP.clearTimeout(focusTimer);
-      hostObserver?.disconnect();
+      pmmRuntimeResource(TOP).clearTimeout(focusTimer);
+      pmmRuntimeResource(hostObserver)?.disconnect();
       overlay.remove();
       host.classList.remove('pmm-preset-editor-host');
       if (activeEditors.get(editorKey) === closeEditor) activeEditors.delete(editorKey);
@@ -145,7 +146,7 @@
       sourceField.dispatchEvent(new TOP.Event('change', { bubbles: true }));
     };
 
-    textarea.addEventListener('input', () => {
+    pmmRuntimeResource(textarea).addEventListener('input', () => {
       const now = Date.now();
       if (!undoStack.length || now - lastInputAt > 450) undoStack.push(previousValue);
       previousValue = textarea.value;
@@ -153,10 +154,10 @@
       counter.textContent = `${textarea.value.length} 字符`;
       updateUndoButton();
     });
-    undoButton.addEventListener('click', undoInput);
-    overlay.querySelector('[data-pmm-editor-cancel]').addEventListener('click', closeEditor);
-    overlay.querySelector('[data-pmm-editor-save]').addEventListener('click', saveEditor);
-    overlay.addEventListener('keydown', event => {
+    pmmRuntimeResource(undoButton).addEventListener('click', undoInput);
+    pmmRuntimeResource(overlay.querySelector('[data-pmm-editor-cancel]')).addEventListener('click', closeEditor);
+    pmmRuntimeResource(overlay.querySelector('[data-pmm-editor-save]')).addEventListener('click', saveEditor);
+    pmmRuntimeResource(overlay).addEventListener('keydown', event => {
       if (event.key === 'Escape') {
         event.preventDefault();
         closeEditor();
@@ -167,17 +168,17 @@
     });
 
     if (desktop) {
-      DOC.body.append(overlay);
+      pmmRuntimeResource(DOC.body).append(overlay);
       // The desktop portal must disappear if its workshop is closed or removed.
       hostObserver = new TOP.MutationObserver(() => {
         if (!host.isConnected || !host.getClientRects().length || !sourceField.isConnected
           || (side && !mergeContainer.classList.contains('pm-panel-container--merge-mode'))) closeEditor();
       });
-      hostObserver.observe(DOC.body, { childList: true, subtree: true });
-      hostObserver.observe(host, { attributes: true, attributeFilter: ['style', 'class', 'hidden'] });
-      if (side) hostObserver.observe(mergeContainer, { attributes: true, attributeFilter: ['class'] });
-    } else host.append(overlay);
-    focusTimer = TOP.setTimeout(() => {
+      pmmRuntimeResource(hostObserver).observe(DOC.body, { childList: true, subtree: true });
+      pmmRuntimeResource(hostObserver).observe(host, { attributes: true, attributeFilter: ['style', 'class', 'hidden'] });
+      if (side) pmmRuntimeResource(hostObserver).observe(mergeContainer, { attributes: true, attributeFilter: ['class'] });
+    } else pmmRuntimeResource(host).append(overlay);
+    focusTimer = pmmRuntimeResource(TOP).setTimeout(() => {
       if (overlay.isConnected) desktop ? textarea.focus({ preventScroll: true }) : textarea.focus();
     }, 20);
   }
@@ -193,13 +194,13 @@
 
   function cleanup() {
     closeActiveEditor();
-    DOC.removeEventListener('click', onPresetExpandClick, true);
+    pmmRuntimeResource(DOC).removeEventListener('click', onPresetExpandClick, true);
     DOC.getElementById(STYLE_ID)?.remove();
     try { if (TOP[API_KEY]?.cleanup === cleanup) delete TOP[API_KEY]; } catch (_) {}
   }
 
   try { TOP[API_KEY]?.cleanup?.(); } catch (_) {}
-  DOC.addEventListener('click', onPresetExpandClick, true);
+  pmmRuntimeResource(DOC).addEventListener('click', onPresetExpandClick, true);
   TOP[API_KEY] = { cleanup, openPresetContentEditor };
   console.info('[预设工坊] 预设条目正文全屏编辑器已加载。');
 })();

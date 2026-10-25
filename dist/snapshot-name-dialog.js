@@ -1,3 +1,4 @@
+function pmmRuntimeResource(target) { return globalThis.__PMM_RUNTIME_SCOPE__?.own(target) || target; }
 // Shared by preset, character and global snapshot editors.
 export function requestSnapshotName(parent, value, maxLength = 100, kind = 'snapshot') {
   if (!parent?.isConnected) return Promise.resolve(null);
@@ -6,7 +7,7 @@ export function requestSnapshotName(parent, value, maxLength = 100, kind = 'snap
   const content = parent.querySelector('[role="dialog"], .pmm-wbs-dialog');
   const wasInert = content?.inert;
   if (content) content.inert = true;
-  const host = doc.createElement('div');
+  const host = pmmRuntimeResource(doc).createElement('div');
   host.style.cssText = 'position:absolute!important;inset:0!important;z-index:10!important;display:block!important';
   const root = host.attachShadow({ mode: 'open' });
   root.innerHTML = `<style>
@@ -27,9 +28,9 @@ export function requestSnapshotName(parent, value, maxLength = 100, kind = 'snap
   input.maxLength = maxLength;
   input.value = String(value || '').slice(0, maxLength);
   for (const type of ['click', 'pointerdown', 'mousedown', 'touchstart', 'keydown', 'input']) {
-    host.addEventListener(type, event => event.stopPropagation());
+    pmmRuntimeResource(host).addEventListener(type, event => event.stopPropagation());
   }
-  parent.append(host);
+  pmmRuntimeResource(parent).append(host);
   return new Promise(resolve => {
     let finished = false;
     const observer = new doc.defaultView.MutationObserver(() => {
@@ -38,22 +39,22 @@ export function requestSnapshotName(parent, value, maxLength = 100, kind = 'snap
     const finish = result => {
       if (finished) return;
       finished = true;
-      observer.disconnect();
+      pmmRuntimeResource(observer).disconnect();
       host.remove();
       if (content) content.inert = wasInert;
       if (previousFocus?.isConnected) previousFocus.focus?.({ preventScroll: true });
       resolve(result);
     };
-    observer.observe(doc.body, { childList: true, subtree: true });
-    root.querySelector('form').addEventListener('submit', event => {
+    pmmRuntimeResource(observer).observe(doc.body, { childList: true, subtree: true });
+    pmmRuntimeResource(root.querySelector('form')).addEventListener('submit', event => {
       event.preventDefault();
       const name = input.value.trim();
       if (!name) { input.setCustomValidity(kind === 'group' ? '请填写分组名称' : '请填写快照名称'); input.reportValidity(); return; }
       finish(name);
     });
-    input.addEventListener('input', () => input.setCustomValidity(''));
-    root.querySelector('button').addEventListener('click', () => finish(null));
-    root.addEventListener('keydown', event => {
+    pmmRuntimeResource(input).addEventListener('input', () => input.setCustomValidity(''));
+    pmmRuntimeResource(root.querySelector('button')).addEventListener('click', () => finish(null));
+    pmmRuntimeResource(root).addEventListener('keydown', event => {
       if (event.key === 'Escape') { event.preventDefault(); finish(null); }
       if (event.key === 'Tab') {
         const controls = [...root.querySelectorAll('input,button')];

@@ -1,4 +1,4 @@
-import { planSwitchTransfer } from './workshop-editing-core.js?v=2.98.48';
+import { planSwitchTransfer } from './workshop-editing-core.js?v=2.98.49';
 const copy = value => JSON.parse(JSON.stringify(value));
 const text = value => String(value ?? '').trim();
 const sectionOf = (side, index) => side.sections?.find(s => s.itemIds?.includes(side.prompts[index]?.id))?.id || '';

@@ -12,7 +12,7 @@ for (const marker of [
   "data-wb-action=\"content-search-edit\"",
   "classList?.add('is-editing')",
   'function onDocumentFocusOut(event)',
-  "DOC.addEventListener('focusout', onDocumentFocusOut, true)",
+  "pmmRuntimeResource(DOC).addEventListener('focusout', onDocumentFocusOut, true)",
   "search.scope !== 'title'",
   "&& worldSearchMatches(content, search.query).length",
   '.pmm-wb-search-highlight.is-current',
@@ -33,7 +33,7 @@ for (const marker of [
   'function syncWorldUndoButton(sideName)',
   'syncWorldUndoButton(sideName);',
   '48%,var(--pm-panel-bg,#fff)',
-  "DOC.addEventListener('focusin', onDocumentFocusIn, true)",
+  "pmmRuntimeResource(DOC).addEventListener('focusin', onDocumentFocusIn, true)",
   "side.multi\n              ? toolbarButton('batch-delete', '删除所选'",
   ": toolbarButton('undo', side.history.length ? `撤销：${side.history[side.history.length - 1].label}`",
   'function selectedWorldEntryKeys(side)',
@@ -122,8 +122,8 @@ assert.ok(presetDragPreviewStart >= 0 && presetDragPreviewEnd > presetDragPrevie
 assert.ok(presetDragPreview.includes('fa-up-down'), '预设多选拖动缺少统一的上下箭头图标');
 assert.ok(presetDragPreview.includes('c.textContent="拖动 "+n.length+" 条"'), '预设多选拖动缺少数量文案');
 assert.ok(presetDragPreview.includes('setDragImage(C,0,0)'), '预设多选拖动没有压缩原生拖拽截图');
-assert.ok(presetDragPreview.includes('h.body.appendChild(t)'), '预设多选拖动必须渲染到可见的酒馆页面');
-assert.ok(presetDragPreview.includes('h.addEventListener("drag",p,!0)'), '预设多选拖动必须在酒馆页面持续跟手');
+assert.ok(presetDragPreview.includes('pmmRuntimeResource(h.body).appendChild(t)'), '预设多选拖动必须渲染到可见的酒馆页面');
+assert.ok(presetDragPreview.includes('pmmRuntimeResource(h).addEventListener("drag",p,!0)'), '预设多选拖动必须在酒馆页面持续跟手');
 assert.ok(presetDragPreview.includes('t.dataset.pmmMultiDragTone=a?"dark":"light"'), '预设多选拖动必须根据当前明暗选择浮标样式');
 assert.ok(presetDragPreview.includes('rgba(247,246,248,.88)'), '预设多选拖动缺少日间白瓷玻璃样式');
 assert.ok(presetDragPreview.includes('rgba(36,43,57,.84)'), '预设多选拖动缺少夜间深蓝玻璃样式');

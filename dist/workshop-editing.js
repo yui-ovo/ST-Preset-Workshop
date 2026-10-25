@@ -1,9 +1,10 @@
-import { planSwitchTransfer, transferSwitches, draftSignature, saveDirtyDrafts } from './workshop-editing-core.js?v=2.98.48';
+function pmmRuntimeResource(target) { return globalThis.__PMM_RUNTIME_SCOPE__?.own(target) || target; }
+import { planSwitchTransfer, transferSwitches, draftSignature, saveDirtyDrafts } from './workshop-editing-core.js?v=2.98.49';
 
 export const dialogs = new WeakMap();
 export function dialog(host, title, onCancel) {
   const doc = host.ownerDocument, win = doc.defaultView, prior = doc.activeElement, wasInert = host.inert;
-  const layer = doc.createElement('div'); layer.dataset.pmmEditingDialog = '1';
+  const layer = pmmRuntimeResource(doc).createElement('div'); layer.dataset.pmmEditingDialog = '1';
   const theme = win.getComputedStyle(host.querySelector('.preset-panel') || host);
   for (const name of ['--pm-panel-bg', '--pm-text-primary', '--pm-border', '--pm-quote-color', '--pmm-safe-top', '--pmm-safe-bottom', '--tt-inset-top', '--tt-inset-bottom']) layer.style.setProperty(name, theme.getPropertyValue(name));
   // Make the dialog opaque even when the surrounding theme uses translucent panels.
@@ -20,7 +21,7 @@ export function dialog(host, title, onCancel) {
     @media(max-width:480px){footer.close-actions button{width:100%}}
   </style><div class="veil"><section role="dialog" aria-modal="true" aria-labelledby="heading"><h2 id="heading"></h2><main></main><footer></footer></section></div>`;
   root.querySelector('h2').textContent = title;
-  host.inert = true; doc.body.append(layer);
+  host.inert = true; pmmRuntimeResource(doc.body).append(layer);
   const viewport = win.visualViewport;
   let busy = false, frame = 0, finished = false;
   function updateViewport() {
@@ -34,17 +35,17 @@ export function dialog(host, title, onCancel) {
       animation: 'none', transition: 'none', overflow: 'hidden', 'z-index': '2147483645' };
     for (const [key, value] of Object.entries(values)) layer.style.setProperty(key, value, 'important');
   }
-  function scheduleViewport() { if (!frame && !finished) frame = win.requestAnimationFrame(updateViewport); }
+  function scheduleViewport() { if (!frame && !finished) frame = pmmRuntimeResource(win).requestAnimationFrame(updateViewport); }
   const viewportEvents = [[win, 'resize'], [win, 'orientationchange'], [viewport, 'resize'], [viewport, 'scroll']];
   updateViewport();
-  for (const [target, type] of viewportEvents) target?.addEventListener(type, scheduleViewport, { passive: true });
+  for (const [target, type] of viewportEvents) pmmRuntimeResource(target)?.addEventListener(type, scheduleViewport, { passive: true });
   const finish = () => {
     if (finished) return; finished = true;
-    for (const [target, type] of viewportEvents) target?.removeEventListener(type, scheduleViewport);
-    if (frame) win.cancelAnimationFrame(frame);
+    for (const [target, type] of viewportEvents) pmmRuntimeResource(target)?.removeEventListener(type, scheduleViewport);
+    if (frame) pmmRuntimeResource(win).cancelAnimationFrame(frame);
     layer.remove(); host.inert = wasInert; dialogs.delete(doc); if (prior?.isConnected) prior.focus?.({ preventScroll: true });
   };
-  root.addEventListener('keydown', event => {
+  pmmRuntimeResource(root).addEventListener('keydown', event => {
     if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); if (!busy) onCancel(); }
     if (event.key !== 'Tab') return;
     const controls = [...root.querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled)')].filter(n => n.getClientRects().length);
@@ -52,12 +53,12 @@ export function dialog(host, title, onCancel) {
     event.preventDefault(); const at = controls.indexOf(root.activeElement);
     controls[(at + (event.shiftKey ? -1 : 1) + controls.length) % controls.length].focus();
   });
-  for (const type of ['click', 'pointerdown', 'touchstart', 'keydown']) layer.addEventListener(type, e => e.stopPropagation());
+  for (const type of ['click', 'pointerdown', 'touchstart', 'keydown']) pmmRuntimeResource(layer).addEventListener(type, e => e.stopPropagation());
   return { root, main: root.querySelector('main'), footer: root.querySelector('footer'), finish,
     busy(value) { busy = value; root.querySelectorAll('button,input,select').forEach(n => { if (value) n.dataset.wasDisabled = String(n.disabled); n.disabled = value || n.dataset.wasDisabled === 'true'; }); } };
 }
 export function element(parent, tag, value, className = '') {
-  const node = parent.ownerDocument.createElement(tag); node.textContent = value; if (className) node.className = className; parent.append(node); return node;
+  const node = pmmRuntimeResource(parent.ownerDocument).createElement(tag); node.textContent = value; if (className) node.className = className; pmmRuntimeResource(parent).append(node); return node;
 }
 export function button(parent, label, action, className = '') { const b = element(parent, 'button', label, className); b.type = 'button'; b.onclick = action; return b; }
 
@@ -74,7 +75,7 @@ export function confirmWorkshopClose(host, getEntries, close) {
   dialogs.set(doc, result);
   element(view.main, 'p', '以下内容尚未保存：');
   const list = element(view.main, 'ul', '');
-  const refreshList = rows => { list.replaceChildren(); rows.forEach(entry => element(list, 'li', entry.label)); };
+  const refreshList = rows => { pmmRuntimeResource(list).replaceChildren(); rows.forEach(entry => element(list, 'li', entry.label)); };
   refreshList(entries);
   const status = element(view.main, 'p', '', 'status');
   view.footer.className = 'close-actions';
@@ -101,7 +102,7 @@ export function openSwitchTransfer(host, adapter) {
   dialogs.set(host.ownerDocument, true);
   let direction = 0;
   function render() {
-    view.main.replaceChildren(); view.footer.replaceChildren();
+    pmmRuntimeResource(view.main).replaceChildren(); pmmRuntimeResource(view.footer).replaceChildren();
     const source = sides[direction], target = sides[1 - direction];
     const { matches } = planSwitchTransfer(source.prompts, target.prompts);
     element(view.main, 'p', '请确认新旧预设标记，放反了可反转。这里不会自动判断版本。', 'note');

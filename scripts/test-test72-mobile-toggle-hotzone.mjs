@@ -31,10 +31,10 @@ for (const marker of [
   'if (current.actionsVisibleAtStart && hitsOtherControl(event.target, current.toggle)) return;',
   'triggerToggle(current.toggle)',
   'Math.hypot(event.clientX - pending.point.x, event.clientY - pending.point.y) > CLICK_SUPPRESS_RADIUS',
-  "DOC.addEventListener('pointerdown', onPointerDown, { capture: true, passive: true })",
-  "DOC.addEventListener('pointermove', onPointerMove, { capture: true, passive: true })",
-  "DOC.addEventListener('pointerup', onPointerUp, { capture: true, passive: false })",
-  "DOC.addEventListener('touchend', onTouchEnd, { capture: true, passive: false })",
+  "pmmRuntimeResource(DOC).addEventListener('pointerdown', onPointerDown, { capture: true, passive: true })",
+  "pmmRuntimeResource(DOC).addEventListener('pointermove', onPointerMove, { capture: true, passive: true })",
+  "pmmRuntimeResource(DOC).addEventListener('pointerup', onPointerUp, { capture: true, passive: false })",
+  "pmmRuntimeResource(DOC).addEventListener('touchend', onTouchEnd, { capture: true, passive: false })",
 ]) {
   assert.ok(compat.includes(marker), `test.72 缺少手机快捷开关保护：${marker}`);
 }

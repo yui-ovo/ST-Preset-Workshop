@@ -36,6 +36,7 @@ function runtime() {
     },
   };
   c = vm.createContext({
+    pmmRuntimeResource: target => target,
     console, TOP: top, SELF: {}, STORAGE_KEY: 'snapshots', clone: copy,
     text: value => String(value ?? '').trim(),
     syncChatBindingListener() {}, notify() {}, renderOverlay() {},

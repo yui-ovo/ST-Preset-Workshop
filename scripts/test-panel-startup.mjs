@@ -25,6 +25,7 @@ async function fixture({ themeError = false, loadError = false, noFrames = false
     refreshDisplayedPrompts(value) { assert.equal(value.length, 0); cleared++; },
   };
   runInNewContext(helper + '\n' + hook, {
+    pmmRuntimeResource: target => target,
     window: { parent: host },
     // Hidden iframe frames may never run. Startup must not request one.
     requestAnimationFrame() { throw Error('Used hidden iframe frame'); },

@@ -10,6 +10,7 @@ if (process.env.PMM_SNAPSHOT_STORAGE_SOURCE) files['preset-snapshot-storage.js']
 const bundle = await readFile(new URL('../dist/workshop-v3.02.js', import.meta.url), 'utf8');
 files['preset.js'] = "import {requestSnapshotName} from './snapshot-name-dialog.js';\nimport {installPresetSnapshotLinks} from './snapshot-preset-links.js';\nimport {installPresetSnapshotStorage} from './preset-snapshot-storage.js';\n" + bundle.slice(bundle.indexOf('/* ===== PMM_SWITCH_SNAPSHOTS_TEST52'), bundle.indexOf('/* ===== PMM_THEMED_COMPARE_DRAG_LINE_V289'));
 files['scripts/openai.js'] = 'export const promptManager={render(){}};';
+files['preset.js'] = bundle.split('\n')[0] + '\n' + files['preset.js'];
 if (process.env.PMM_TEST_SNAPSHOT_ONLY) files['preset.js'] = await readFile(new URL('../dist/snapshot-only.js', import.meta.url), 'utf8');
 let saved, fail = false, writes = [], reads = 0;
 const original = () => ({ temperature: 0.7, prompts: [{ identifier: 'p0', content: 'SAVED BODY' }],

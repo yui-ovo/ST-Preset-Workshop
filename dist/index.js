@@ -1,6 +1,6 @@
-import { readWorkshopMode, installWorkshopModeSettings } from './workshop-mode.js?v=2.98.48';
+import { readWorkshopMode, installWorkshopModeSettings } from './workshop-mode.js?v=2.98.49';
 const EXTENSION_NAME = '🧩预设工坊';
-const EXTENSION_VERSION = '2.98.48';
+const EXTENSION_VERSION = '2.98.49';
 const RUNTIME_ID = 'TH-script--🧩预设工坊（GitHub 扩展）--2f53f6af-3c9e-4c71-bc52-9f635be25300';
 const LEGACY_IFRAME_PREFIX = 'TH-script--🧩预设工坊';
 const EXTENSION_FOLDER_NAME = 'ST-Preset-Workshop';
@@ -21,6 +21,8 @@ let nativeUpdateReloadTimer = null;
 let nativeUpdateReloadPending = false;
 let singleExtensionUpdatePending = false;
 let bulkExtensionUpdateInProgress = false;
+let startupPromise = null;
+let runtimeGeneration = 0;
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -287,6 +289,7 @@ function buildRuntimeDocument() {
   const worldbookSnapshotsUrl = appendRuntimeVersion(new URL('./worldbook-snapshots.js', import.meta.url).href);
   const worldbookLoaderKey = '__PMM_LOAD_WORLDBOOK_STITCH__';
   const regexManagerUrl = appendRuntimeVersion(new URL('./regex-manager.js', import.meta.url).href);
+  const resourcesUrl = appendRuntimeVersion(new URL('./runtime-resources.js', import.meta.url).href);
 
   return `<!DOCTYPE html>
 <html>
@@ -298,6 +301,10 @@ ${snapshotOnly ? '' : '<script src="https://testingcf.jsdelivr.net/npm/vue/dist/
 ${snapshotOnly ? '' : '<script src="https://testingcf.jsdelivr.net/gh/N0VI028/JS-Slash-Runner/src/iframe/node_modules/log.js"></script>'}
 </head>
 <body>
+<script type="module">
+import {createRuntimeScope} from ${JSON.stringify(resourcesUrl)};
+window.__PMM_RUNTIME_SCOPE__ = createRuntimeScope(window);
+</script>
 ${snapshotOnly ? '' : `<script>
 (() => {
   let loading;
@@ -345,6 +352,15 @@ ${snapshotOnly ? `<script type="module" src="${snapshotOnlyUrl}"></script>` : `<
 }
 
 export async function startPresetWorkshop() {
+  if (startupPromise) return startupPromise;
+  const generation = runtimeGeneration;
+  const pending = startRuntime(generation);
+  startupPromise = pending;
+  try { return await pending; }
+  finally { if (startupPromise === pending) startupPromise = null; }
+}
+
+async function startRuntime(generation) {
   installWorkshopModeSettings();
   startVersionWatcher();
   const currentRuntime = document.getElementById(RUNTIME_ID);
@@ -366,7 +382,9 @@ export async function startPresetWorkshop() {
     return null;
   }
 
+  if (generation !== runtimeGeneration) return null;
   const delayedLegacyRuntime = await waitForLegacyRuntime();
+  if (generation !== runtimeGeneration) return null;
   if (delayedLegacyRuntime) {
     console.warn(`[${EXTENSION_NAME}] 检测到稍后启动的旧版酒馆助手脚本，扩展运行实例未重复启动。`);
     notify('warning', '检测到旧版脚本，请先停用旧版后再使用扩展版');
@@ -388,17 +406,37 @@ export async function startPresetWorkshop() {
 }
 
 export function stopPresetWorkshop() {
+  runtimeGeneration++;
+  startupPromise = null;
   stopVersionWatcher();
   clearPendingExtensionUpdateReload();
   try { globalThis.__PMM_PRESET_CONTENT_EDITOR_V1__?.cleanup?.(); } catch (_) {}
   try { globalThis.__PMM_PRESET_SNAPSHOT_LINKS__?.cleanup?.(); } catch (_) {}
   try { globalThis.__PMM_PRESET_SNAPSHOT_STORAGE__?.cleanup?.(); } catch (_) {}
-  document.getElementById(RUNTIME_ID)?.remove();
+  const runtime = document.getElementById(RUNTIME_ID);
+  runtime?.contentWindow?.__PMM_RUNTIME_SCOPE__?.dispose();
+  runtime?.remove();
+}
+
+let restarting = null;
+export function restartPresetWorkshop() {
+  if (restarting) return restarting;
+  restarting = (async () => {
+    stopPresetWorkshop();
+    const runtime = await startPresetWorkshop();
+    if (!runtime) throw Error('工坊启动失败，请检查酒馆助手是否启用');
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(Error('工坊启动超时，请稍后重试')), 30000);
+      runtime.addEventListener('load', () => {clearTimeout(timer);resolve();}, {once:true});
+    });
+  })().finally(() => { restarting = null; });
+  return restarting;
 }
 
 globalThis.__ST_PRESET_WORKSHOP__ = {
   start: startPresetWorkshop,
   stop: stopPresetWorkshop,
+  restart: restartPresetWorkshop,
   version: EXTENSION_VERSION,
 };
 

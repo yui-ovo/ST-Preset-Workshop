@@ -1,4 +1,5 @@
-import { PRESET_KEY, readPresetStore, validateBackup } from './snapshot-backup-core.js?v=2.98.23';
+function pmmRuntimeResource(target) { return globalThis.__PMM_RUNTIME_SCOPE__?.own(target) || target; }
+import { PRESET_KEY, readPresetStore, validateBackup } from './snapshot-backup-core.js?v=2.98.49';
 
 export const FIELD = 'pmm_switch_snapshots';
 export const SYNC_KEY = 'pmm.preset-snapshot-sync.v1';
@@ -73,7 +74,7 @@ export function createPresetAdapter(host) {
     const headers = context()?.getRequestHeaders?.();
     if (!headers || typeof host.fetch !== 'function') throw new Error('当前酒馆未提供安全的预设保存接口');
     const controller = new AbortController();
-    const timeout = host.setTimeout(() => controller.abort(), 20000);
+    const timeout = pmmRuntimeResource(host).setTimeout(() => controller.abort(), 20000);
     try {
       const response = await host.fetch(path, { method: 'POST', headers, body: JSON.stringify(body), cache: 'no-store', signal: controller.signal });
       if (!response.ok) throw new Error(`酒馆读写失败（${response.status}），请检查连接后重试`);
@@ -81,7 +82,7 @@ export function createPresetAdapter(host) {
     } catch (error) {
       if (controller.signal.aborted) throw new Error('酒馆连接超时，请稍后重试');
       throw error;
-    } finally { host.clearTimeout(timeout); }
+    } finally { pmmRuntimeResource(host).clearTimeout(timeout); }
   }
   return {
     async readAll() {
@@ -189,8 +190,8 @@ export function installPresetSnapshotStorage(host, options = {}) {
     if (pending.size && !stopped) schedule();
   }
   function schedule() {
-    if (timer) host.clearTimeout(timer);
-    timer = host.setTimeout(() => { timer = 0; void run(); }, delay);
+    if (timer) pmmRuntimeResource(host).clearTimeout(timer);
+    timer = pmmRuntimeResource(host).setTimeout(() => { timer = 0; void run(); }, delay);
   }
   async function cycle() {
     const files = await adapter.readAll();
@@ -277,7 +278,7 @@ export function installPresetSnapshotStorage(host, options = {}) {
     if (stopped) return;
     if (running) { wantsRefresh = true; return running; }
     wantsRefresh = false;
-    if (timer) { host.clearTimeout(timer); timer = 0; }
+    if (timer) { pmmRuntimeResource(host).clearTimeout(timer); timer = 0; }
     running = cycle().catch(error => {
       initialized = true; readError = error.message;
       const names = new Set([...seen.keys(), ...records.keys()]);
@@ -321,14 +322,14 @@ export function installPresetSnapshotStorage(host, options = {}) {
       : available.has(name) ? { state: 'saved', message: '快照将自动保存到预设' }
       : { state: 'error', message: '仅存本地：未找到对应预设，可在快照备份中恢复到其他预设' }),
     cleanup() {
-      stopped = true; if (timer) host.clearTimeout(timer);
+      stopped = true; if (timer) pmmRuntimeResource(host).clearTimeout(timer);
       if (events?.eventSource?.off) events.eventSource.off(eventType, presetChanged);
       else events?.eventSource?.removeListener?.(eventType, presetChanged);
       if (host[API] === api) delete host[API];
     },
   };
   host[API] = api;
-  events?.eventSource?.on?.(eventType, presetChanged);
+  pmmRuntimeResource(events?.eventSource)?.on?.(eventType, presetChanged);
   ready = run();
   return api;
 }

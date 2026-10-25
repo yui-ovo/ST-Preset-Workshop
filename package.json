@@ -1,6 +1,6 @@
 {
   "name": "st-preset-workshop",
-  "version": "2.98.48",
+  "version": "2.98.49",
   "private": true,
   "type": "module",
   "scripts": {
@@ -36,8 +36,9 @@
     "test:workshop-editing": "node --check dist/workshop-editing.js && node --check dist/workshop-editing-core.js && node scripts/test-workshop-editing.mjs",
     "test:workshop-editing-browser": "node scripts/test-workshop-editing-browser.mjs",
     "test:workshop-editing-viewport": "node scripts/test-workshop-editing-viewport.mjs",
-    "test:compare-actions": "node --check dist/compare-actions.js && node scripts/test-compare-actions.mjs && node scripts/build-snapshot-only.mjs --check && node --check dist/snapshot-only.js",
+    "test:compare-actions": "node --check dist/compare-inline.js && node scripts/test-compare-actions.mjs && node scripts/build-snapshot-only.mjs --check && node --check dist/snapshot-only.js && node scripts/test-runtime-resources.mjs",
     "test:compare-actions-browser": "node scripts/test-compare-actions-browser.mjs",
-    "test:snapshot-only-browser": "node scripts/test-snapshot-only-browser.mjs"
+    "test:snapshot-only-browser": "node scripts/test-snapshot-only-browser.mjs",
+    "test:runtime-modes-browser": "node scripts/test-runtime-modes-browser.mjs"
   }
 }

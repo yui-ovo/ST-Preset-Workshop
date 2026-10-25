@@ -9,8 +9,8 @@ const autoEnd = workshop.indexOf('function ae(e){', autoStart);
 assert.ok(autoStart >= 0 && autoEnd > autoStart, '无法定位安卓拖拽自动滚动实现');
 const autoScroll = workshop.slice(autoStart, autoEnd);
 assert.ok(autoScroll.includes('Date.now()-_pmmAutoScrollHeartbeat>140'), '自动滚动缺少拖拽事件失联保护');
-assert.ok(autoScroll.includes('window.requestAnimationFrame'), '自动滚动没有改为逐帧调度');
-assert.ok(autoScroll.includes('window.cancelAnimationFrame'), '自动滚动没有在结束时取消逐帧调度');
+assert.ok(autoScroll.includes('pmmRuntimeResource(window).requestAnimationFrame'), '自动滚动没有改为逐帧调度');
+assert.ok(autoScroll.includes('pmmRuntimeResource(window).cancelAnimationFrame'), '自动滚动没有在结束时取消逐帧调度');
 assert.ok(!autoScroll.includes('setInterval(()=>{p.value?p.value.scrollTop+=e:Ae()},16)'), '自动滚动仍使用持续定时器');
 assert.ok(workshop.includes("onDragend:Ae}"), '拖拽松手时没有立即停止自动滚动');
 
@@ -33,7 +33,7 @@ for (const marker of [
   'const MULTI_DRAG_FLOAT_WIDTH = 198;',
   'let worldMultiDragFrame = 0;',
   'worldMultiDragPoint = { x, y };',
-  'TOP.requestAnimationFrame(render)',
+  'pmmRuntimeResource(TOP).requestAnimationFrame(render)',
   'chip.style.transform = `translate3d(${horizontal}px, ${vertical}px, 0)`;',
   "chip.dataset.pmmWbMultiDragPerf = 'lite';",
   'will-change:transform',

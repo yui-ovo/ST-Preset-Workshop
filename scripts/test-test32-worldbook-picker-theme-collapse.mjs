@@ -10,7 +10,7 @@ for (const marker of [
   'function syncWorldPickerTheme(overlay)',
   "overlay.style.setProperty(name, value, 'important');",
   'function startWorldPickerThemeSync(overlay)',
-  "observer.observe(source, { attributes: true, attributeFilter: ['style'] });",
+  "pmmRuntimeResource(observer).observe(source, { attributes: true, attributeFilter: ['style'] });",
   'startWorldPickerThemeSync(overlay);',
   'const expandedSections = new Set();',
   'const queryCollapsedSections = new Set();',
@@ -32,7 +32,7 @@ assert.ok(
   '分类收起时仍然渲染了全部世界书条目',
 );
 assert.ok(
-  picker.indexOf('state.host.append(overlay);') < picker.indexOf('startWorldPickerThemeSync(overlay);'),
+  picker.indexOf('pmmRuntimeResource(state.host).append(overlay);') < picker.indexOf('startWorldPickerThemeSync(overlay);'),
   '搜索弹窗尚未挂载就开始读取主题',
 );
 

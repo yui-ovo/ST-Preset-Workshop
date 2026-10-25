@@ -61,8 +61,8 @@ for (const marker of [
   "useFixedKeyboardViewport ? 'fixed' : 'absolute'",
   'viewport?.pageLeft',
   'viewport?.pageTop',
-  "ownerDocument.addEventListener?.('focusin', settleKeyboardViewport, true)",
-  "ownerDocument.addEventListener?.('focusout', settleKeyboardViewport, true)",
+  "pmmRuntimeResource(ownerDocument).addEventListener?.('focusin', settleKeyboardViewport, true)",
+  "pmmRuntimeResource(ownerDocument).addEventListener?.('focusout', settleKeyboardViewport, true)",
   'for (const delay of [80, 180, 360])',
   'keyboardTimers.clear()',
 ]) {

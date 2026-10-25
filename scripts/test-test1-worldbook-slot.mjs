@@ -10,7 +10,7 @@ const requiredMarkers = [
   "icon.className = 'fa-solid fa-book-atlas'",
   "label.textContent = '世界书'",
   "DOC.querySelectorAll('.side-panel-root .panel-buttons')",
-  'toolbar.append(button)',
+  'pmmRuntimeResource(toolbar).append(button)',
   'event.preventDefault()',
   'event.stopPropagation()',
   "const LOADER_KEY = '__PMM_LOAD_WORLDBOOK_STITCH__'",

@@ -13,7 +13,7 @@ for (const marker of [
   'event.stopImmediatePropagation?.();',
   "sourceField.dispatchEvent(new TOP.Event('input', { bubbles: true }))",
   "sourceField.dispatchEvent(new TOP.Event('change', { bubbles: true }))",
-  "DOC.addEventListener('click', onPresetExpandClick, true);",
+  "pmmRuntimeResource(DOC).addEventListener('click', onPresetExpandClick, true);",
   'width:min(92%,660px);height:min(82%,680px)',
   'width:94%;height:82%;max-height:calc(100dvh - 24px)',
 ]) {
@@ -42,8 +42,8 @@ for (const marker of [
   'event.stopImmediatePropagation?.();',
   "sourceField.dispatchEvent(new TOP.Event('input', { bubbles: true }))",
   "sourceField.dispatchEvent(new TOP.Event('change', { bubbles: true }))",
-  "DOC.addEventListener('click', onPresetExpandClick, true);",
-  "DOC.removeEventListener('click', onPresetExpandClick, true);",
+  "pmmRuntimeResource(DOC).addEventListener('click', onPresetExpandClick, true);",
+  "pmmRuntimeResource(DOC).removeEventListener('click', onPresetExpandClick, true);",
   'width:min(92%,660px);height:min(82%,680px)',
   'width:94%;height:82%;max-height:calc(100dvh - 24px)',
 ]) {
@@ -51,8 +51,8 @@ for (const marker of [
 }
 
 assert.ok(
-  source.indexOf("DOC.addEventListener('click', onPresetExpandClick, true);")
-    < source.indexOf("DOC.addEventListener('click', onDocumentClick, true);"),
+  source.indexOf("pmmRuntimeResource(DOC).addEventListener('click', onPresetExpandClick, true);")
+    < source.indexOf("pmmRuntimeResource(DOC).addEventListener('click', onDocumentClick, true);"),
   '预设放大入口应先于通用点击处理，以拦截原生全屏编辑器',
 );
 

@@ -1,5 +1,6 @@
-import { requestSnapshotName } from './snapshot-name-dialog.js?v=2.98.0';
-import { createWorldbookSnapshots, copy } from './worldbook-snapshot-core.js?v=2.98.0';
+function pmmRuntimeResource(target) { return globalThis.__PMM_RUNTIME_SCOPE__?.own(target) || target; }
+import { requestSnapshotName } from './snapshot-name-dialog.js?v=2.98.49';
+import { createWorldbookSnapshots, copy } from './worldbook-snapshot-core.js?v=2.98.49';
 
 const SELF = window, TOP = window.parent || window, DOC = TOP.document;
 const KEY = '__PMM_WORLDBOOK_SNAPSHOTS__';
@@ -163,7 +164,7 @@ function notifyBoundChatRestored(name) {
 }
 let nativeObserver = null, nativeDiscoveryObserver = null, nativeRoot = null, nativeFrame = 0, nativeCatalogSignature = '', nativeCatalogNames = [];
 const NATIVE_ACTION_CLASS = 'pmm-native-worldbook-action';
-const style = DOC.createElement('style');
+const style = pmmRuntimeResource(DOC).createElement('style');
 style.id = 'pmm-worldbook-snapshot-style';
 style.textContent = `
 .pmm-wbs-overlay.pmm-switch-snapshot-overlay .pmm-wbs-dialog button.pmm-wbs-toggle{appearance:none!important;-webkit-appearance:none!important;border:0!important;background:transparent!important;box-shadow:none!important;filter:none!important;padding:0!important;margin:0!important;width:44px!important;height:36px!important;min-width:44px!important;min-height:36px!important;outline:none!important;display:grid!important;place-items:center!important}
@@ -406,7 +407,7 @@ style.textContent = `
   .pmm-wbs-head { padding:18px 16px 12px; } .pmm-wbs-body { padding:10px 14px 14px; } .pmm-snapshot-tabs { margin:0 14px 8px; } .pmm-wbs-foot { padding:10px 15px; } .pmm-wbs-dialog { border-radius:26px; }
 }
 `;
-DOC.head.append(style);
+pmmRuntimeResource(DOC.head).append(style);
 const tabLabels = { character: '角色世界书', global: '全局世界书' };
 function icon(name) {
   const paths = {
@@ -436,18 +437,18 @@ function decoratePreset(root) {
 function decorateBackup(root) {
   const header = root?.querySelector('.pmm-switch-snapshot-head');
   if (!header || header.querySelector('[data-snapshot-backup]')) return;
-  const control = DOC.createElement('button');
+  const control = pmmRuntimeResource(DOC).createElement('button');
   control.type = 'button'; control.dataset.snapshotBackup = '';
   control.className = 'pmm-switch-snapshot-close';
   control.title = '快照备份（预设和世界书）'; control.setAttribute('aria-label', '快照备份');
   control.style.cssText = 'flex:0 0 34px;margin-left:auto';
   control.innerHTML = '<i class="fa-solid fa-box-archive"></i>';
-  control.addEventListener('click', async event => {
+  pmmRuntimeResource(control).addEventListener('click', async event => {
     event.preventDefault(); event.stopPropagation();
-    try { const module = await import('./snapshot-backup.js?v=2.98.24'); module.openSnapshotBackup(TOP); }
+    try { const module = await import('./snapshot-backup.js?v=2.98.49'); module.openSnapshotBackup(TOP); }
     catch (error) { report(error); }
   });
-  header.insertBefore(control, header.lastElementChild);
+  pmmRuntimeResource(header).insertBefore(control, header.lastElementChild);
 }
 function theme(target = overlay) {
   if (!target) return;
@@ -463,9 +464,9 @@ function theme(target = overlay) {
     ? { ink:'#e6e8ed', surface:'#20232b', card:'#282d36', border:'#424752' }
     : { ink:'#35363b', surface:'#fafafa', card:'#f3f4f6', border:'#dadce1' };
   // Resolve in the source tree: --fp-* and magic-theme references do not exist on a body-mounted modal.
-  const probe = source.ownerDocument.createElement('span');
+  const probe = pmmRuntimeResource(source.ownerDocument).createElement('span');
   probe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none';
-  source.append(probe);
+  pmmRuntimeResource(source).append(probe);
   const resolve = (expression, fallback) => {
     probe.style.setProperty('color', fallback, 'important');
     probe.style.setProperty('color', expression, 'important');
@@ -500,12 +501,12 @@ function theme(target = overlay) {
 function watchTheme() {
   themeCleanup?.();
   let frame = 0;
-  const update = () => { if (!frame) frame = TOP.requestAnimationFrame(() => { frame = 0; theme(); }); };
+  const update = () => { if (!frame) frame = pmmRuntimeResource(TOP).requestAnimationFrame(() => { frame = 0; theme(); }); };
   const observer = new TOP.MutationObserver(update);
   const sources = [DOC.documentElement, DOC.body, DOC.getElementById('preset-manager-main-panel'), DOC.querySelector('#preset-manager-main-panel .pm-panel-container'), DOC.querySelector('#preset-manager-main-panel .preset-panel'), DOC.querySelector('#preset-manager-floating-panel .floating-panel-root')];
-  sources.filter(Boolean).forEach(node => observer.observe(node, { attributes:true, attributeFilter:['class','style','data-theme'] }));
-  TOP.addEventListener('storage', update);
-  themeCleanup = () => { observer.disconnect(); TOP.removeEventListener('storage', update); if (frame) TOP.cancelAnimationFrame(frame); };
+  sources.filter(Boolean).forEach(node => pmmRuntimeResource(observer).observe(node, { attributes:true, attributeFilter:['class','style','data-theme'] }));
+  pmmRuntimeResource(TOP).addEventListener('storage', update);
+  themeCleanup = () => { pmmRuntimeResource(observer).disconnect(); pmmRuntimeResource(TOP).removeEventListener('storage', update); if (frame) pmmRuntimeResource(TOP).cancelAnimationFrame(frame); };
 }
 function bindViewport() {
   const vv = TOP.visualViewport;
@@ -524,12 +525,12 @@ function bindViewport() {
     if(menuId && ['resize','orientationchange','scroll'].includes(event?.type)) {
       menuId='';overlay?.querySelectorAll('.pmm-wbs-menu').forEach(node=>node.remove());
     }
-    if (!frame) frame = TOP.requestAnimationFrame(update);
+    if (!frame) frame = pmmRuntimeResource(TOP).requestAnimationFrame(update);
   };
   const targets = [[TOP, 'resize'], [TOP, 'scroll'], [TOP, 'orientationchange'], [vv, 'resize'], [vv, 'scroll'], [overlay, 'focusin'], [overlay, 'focusout']];
-  targets.forEach(([target, name]) => target?.addEventListener(name, schedule, { passive: true }));
+  targets.forEach(([target, name]) => pmmRuntimeResource(target)?.addEventListener(name, schedule, { passive: true }));
   update();
-  viewportCleanup = () => { targets.forEach(([target, name]) => target?.removeEventListener(name, schedule)); if (frame) TOP.cancelAnimationFrame(frame); };
+  viewportCleanup = () => { targets.forEach(([target, name]) => pmmRuntimeResource(target)?.removeEventListener(name, schedule)); if (frame) pmmRuntimeResource(TOP).cancelAnimationFrame(frame); };
 }
 function bindBatchViewport() {
   batchViewportCleanup?.(); batchViewportCleanup = null;
@@ -551,27 +552,27 @@ function bindBatchViewport() {
     for (const [name, value] of Object.entries(values)) node.style.setProperty(name, value, 'important');
     node.style.setProperty('--wbs-batch-visible-height', `${height}px`);
   };
-  const schedule = () => { if (!frame) frame = TOP.requestAnimationFrame(update); };
+  const schedule = () => { if (!frame) frame = pmmRuntimeResource(TOP).requestAnimationFrame(update); };
   const settle = () => {
     schedule();
-    TOP.clearTimeout(settleTimer);
-    settleTimer = TOP.setTimeout(schedule, 180);
+    pmmRuntimeResource(TOP).clearTimeout(settleTimer);
+    settleTimer = pmmRuntimeResource(TOP).setTimeout(schedule, 180);
   };
   const targets = [[TOP, 'resize'], [TOP, 'scroll'], [TOP, 'orientationchange'], [vv, 'resize'], [vv, 'scroll'], [node, 'focusin'], [node, 'focusout']];
-  targets.forEach(([target, name]) => target?.addEventListener(name, settle, { passive:true }));
+  targets.forEach(([target, name]) => pmmRuntimeResource(target)?.addEventListener(name, settle, { passive:true }));
   update();
   batchViewportCleanup = () => {
-    targets.forEach(([target, name]) => target?.removeEventListener(name, settle));
-    if (frame) TOP.cancelAnimationFrame(frame);
-    TOP.clearTimeout(settleTimer);
+    targets.forEach(([target, name]) => pmmRuntimeResource(target)?.removeEventListener(name, settle));
+    if (frame) pmmRuntimeResource(TOP).cancelAnimationFrame(frame);
+    pmmRuntimeResource(TOP).clearTimeout(settleTimer);
   };
 }
 function say(text,sticky=false) {
-  TOP.clearTimeout(messageTimer); messageTimer=0;
+  pmmRuntimeResource(TOP).clearTimeout(messageTimer); messageTimer=0;
   message = text;
   const node = overlay?.querySelector('[data-message]');
   if (node) { node.innerHTML = '<span>'+h(text)+'</span>'+button('dismiss-message','×','aria-label="关闭提示"'); node.hidden = !text; }
-  if(text && !sticky)messageTimer=TOP.setTimeout(()=>say(''),3000);
+  if(text && !sticky)messageTimer=pmmRuntimeResource(TOP).setTimeout(()=>say(''),3000);
 }
 function report(error) { console.warn('[世界书快照]', error); say(error.message || String(error),true); }
 async function run(action) {
@@ -643,7 +644,7 @@ function updateBatchFooter() {
   if(selectAll){selectAll.disabled=!names.length;selectAll.textContent=all?'取消全选':'全选';}
 }
 function revealBatchBoundStart() {
-  TOP.requestAnimationFrame(()=>{
+  pmmRuntimeResource(TOP).requestAnimationFrame(()=>{
     const body=batchOverlay?.querySelector('.pmm-wbs-body'),toggle=batchOverlay?.querySelector('[data-batch-action="toggle-bound"]');
     if(!body || !toggle || !batchBoundExpanded)return;
     body.scrollTop+=toggle.getBoundingClientRect().top-body.getBoundingClientRect().top-6;
@@ -693,9 +694,9 @@ async function deleteBatchSelection() {
 async function openBatch() {
   if(batchOverlay)return;
   batchBooks=await catalog();batchNames=batchBooks.map(row=>row.name);batchSelected.clear();batchQuery='';batchBoundExpanded=false;
-  batchOverlay=DOC.createElement('div');batchOverlay.className='pmm-wbs-overlay pmm-wbs-batch-overlay';
-  batchOverlay.addEventListener('input',event=>{ if(event.target.matches('.pmm-wbs-batch-search')) { batchQuery=event.target.value;filterBatchRows(); } });
-  batchOverlay.addEventListener('click',event=>{
+  batchOverlay=pmmRuntimeResource(DOC).createElement('div');batchOverlay.className='pmm-wbs-overlay pmm-wbs-batch-overlay';
+  pmmRuntimeResource(batchOverlay).addEventListener('input',event=>{ if(event.target.matches('.pmm-wbs-batch-search')) { batchQuery=event.target.value;filterBatchRows(); } });
+  pmmRuntimeResource(batchOverlay).addEventListener('click',event=>{
     const target=event.target.closest('[data-batch-action]');if(!target || target.disabled)return;
     event.preventDefault();event.stopPropagation();
     const action=target.dataset.batchAction;
@@ -709,16 +710,16 @@ async function openBatch() {
     else if(action==='select-all') { const visible=batchVisibleNames(),all=visible.length&&visible.every(name=>batchSelected.has(name));for(const name of visible){all?batchSelected.delete(name):batchSelected.add(name);updateBatchRow(name);}updateBatchFooter(); }
     else if(action==='delete')void deleteBatchSelection();
   });
-  batchOverlay.addEventListener('keydown',event=>{if(event.key==='Escape'){event.stopPropagation();closeBatch();}});
-  DOC.body.append(batchOverlay);theme(batchOverlay);bindBatchViewport();renderBatch();
+  pmmRuntimeResource(batchOverlay).addEventListener('keydown',event=>{if(event.key==='Escape'){event.stopPropagation();closeBatch();}});
+  pmmRuntimeResource(DOC.body).append(batchOverlay);theme(batchOverlay);bindBatchViewport();renderBatch();
 }
 function makeNativeWorldbookButton(action,label,iconName) {
-  const button=DOC.createElement('button');button.type='button';
+  const button=pmmRuntimeResource(DOC).createElement('button');button.type='button';
   button.className=`menu_button menu_button_icon interactable ${NATIVE_ACTION_CLASS}`;
   button.dataset.pmmNativeWorldbookAction=action;button.title=label;button.setAttribute('aria-label',label);
   button.innerHTML=`<i class="fa-solid ${iconName}" aria-hidden="true"></i>`;
-  for(const type of ['pointerdown','mousedown','touchstart'])button.addEventListener(type,event=>event.stopPropagation(),{passive:true});
-  button.addEventListener('click',event=>{
+  for(const type of ['pointerdown','mousedown','touchstart'])pmmRuntimeResource(button).addEventListener(type,event=>event.stopPropagation(),{passive:true});
+  pmmRuntimeResource(button).addEventListener('click',event=>{
     event.preventDefault();event.stopPropagation();
     if(action==='snapshot'){closeBatch();void open('global','',true);}
     else void openBatch();
@@ -730,17 +731,17 @@ function syncNativeWorldbookTools() {
   const root=DOC.getElementById('WorldInfo');
   if(!root)return;
   if(root!==nativeRoot) {
-    nativeRoot=root;nativeObserver?.disconnect();
+    nativeRoot=root;pmmRuntimeResource(nativeObserver)?.disconnect();
     nativeObserver=new TOP.MutationObserver(scheduleNativeWorldbookSync);
-    nativeObserver.observe(root,{childList:true,subtree:true});
-    nativeDiscoveryObserver?.disconnect();nativeDiscoveryObserver=null;
+    pmmRuntimeResource(nativeObserver).observe(root,{childList:true,subtree:true});
+    pmmRuntimeResource(nativeDiscoveryObserver)?.disconnect();nativeDiscoveryObserver=null;
   }
   const heading=[...root.children].find(node=>node.matches?.('.flex-container.alignitemscenter'));
   if(heading) {
     let actions=heading.querySelector('.pmm-native-worldbook-actions');
-    if(!actions){actions=DOC.createElement('div');actions.className='pmm-native-worldbook-actions';heading.append(actions);}
-    if(!actions.querySelector('[data-pmm-native-worldbook-action="batch"]'))actions.append(makeNativeWorldbookButton('batch','批量管理世界书','fa-list-check'));
-    if(!actions.querySelector('[data-pmm-native-worldbook-action="snapshot"]'))actions.append(makeNativeWorldbookButton('snapshot','全局世界书快照','fa-camera'));
+    if(!actions){actions=pmmRuntimeResource(DOC).createElement('div');actions.className='pmm-native-worldbook-actions';pmmRuntimeResource(heading).append(actions);}
+    if(!actions.querySelector('[data-pmm-native-worldbook-action="batch"]'))pmmRuntimeResource(actions).append(makeNativeWorldbookButton('batch','批量管理世界书','fa-list-check'));
+    if(!actions.querySelector('[data-pmm-native-worldbook-action="snapshot"]'))pmmRuntimeResource(actions).append(makeNativeWorldbookButton('snapshot','全局世界书快照','fa-camera'));
   }
   try {
     const names=helper('getWorldbookNames')().map(String),signature=JSON.stringify(names);
@@ -753,13 +754,13 @@ function syncNativeWorldbookTools() {
 }
 function scheduleNativeWorldbookSync() {
   if(nativeFrame || disposed)return;
-  nativeFrame=TOP.requestAnimationFrame(syncNativeWorldbookTools);
+  nativeFrame=pmmRuntimeResource(TOP).requestAnimationFrame(syncNativeWorldbookTools);
 }
 function installNativeWorldbookTools() {
   syncNativeWorldbookTools();
   if(nativeRoot)return;
   nativeDiscoveryObserver=new TOP.MutationObserver(scheduleNativeWorldbookSync);
-  nativeDiscoveryObserver.observe(DOC.documentElement,{childList:true,subtree:true});
+  pmmRuntimeResource(nativeDiscoveryObserver).observe(DOC.documentElement,{childList:true,subtree:true});
 }
 function button(action, label, extra = '') {
   const glyph={'edit-group':'edit','manage-snapshots':'camera','edit-snapshot':'edit',rename:'edit','delete-group':'trash',delete:'trash'}[action];
@@ -853,8 +854,8 @@ function bookEntriesMarkup(name, entries) {
   }).join('');
 }
 function scheduleBookEntryRender(callback) {
-  if(typeof TOP.requestAnimationFrame==='function')TOP.requestAnimationFrame(callback);
-  else TOP.setTimeout(callback,16);
+  if(typeof pmmRuntimeResource(TOP).requestAnimationFrame==='function')pmmRuntimeResource(TOP).requestAnimationFrame(callback);
+  else pmmRuntimeResource(TOP).setTimeout(callback,16);
 }
 function ensureBookEntries(bookBlock) {
   if(!draft || !bookBlock)return;
@@ -907,9 +908,9 @@ function syncGroupSave() {
 function sizeGroupPlanSelects() {
   const selects=overlay?.querySelectorAll('[data-group-plan]');
   if(!selects?.length)return;
-  const probe=DOC.createElement('span');
+  const probe=pmmRuntimeResource(DOC).createElement('span');
   probe.style.cssText='position:fixed;left:-10000px;top:0;visibility:hidden;white-space:pre;pointer-events:none';
-  overlay.append(probe);
+  pmmRuntimeResource(overlay).append(probe);
   const max=Math.min(210,(TOP.visualViewport?.width || TOP.innerWidth)*.55);
   for(const select of selects) {
     const text=select.selectedOptions[0]?.textContent || '默认',css=TOP.getComputedStyle(select);
@@ -946,8 +947,8 @@ function positionMenu() {
   const trigger=menu?.parentElement?.querySelector('[data-wbs="menu"],[data-wbs="group-menu"]');
   if(!menu || !trigger)return;
   menu.style.cssText='position:fixed;left:-10000px;top:0;visibility:hidden';
-  overlay.append(menu);
-  TOP.requestAnimationFrame(()=>{
+  pmmRuntimeResource(overlay).append(menu);
+  pmmRuntimeResource(TOP).requestAnimationFrame(()=>{
     if(!menu.isConnected || !trigger.isConnected)return;
     const r=trigger.getBoundingClientRect(),d=overlay.querySelector('.pmm-wbs-dialog').getBoundingClientRect();
     const row=trigger.closest('.pmm-wbs-row-main,.pmm-switch-snapshot-row')?.getBoundingClientRect() || r;
@@ -973,17 +974,17 @@ async function open(scope = 'character', selected = '', restore = true) {
   book=page==='global' && last?.page===page?String(last.book||''):'';message='';picker=false;pickerReturnBook='';
   if(page==='global' && section==='snapshots' && !engine.read().groups.some(group=>group.id===book)) { section='groups'; book=''; }
   lastFocus = DOC.activeElement;
-  overlay = DOC.createElement('div'); overlay.className = 'pmm-wbs-overlay pmm-switch-snapshot-overlay';
-  overlay.addEventListener('click', onClick);
-  overlay.addEventListener('input', onInput);
-  overlay.addEventListener('change', onChange);
-  overlay.addEventListener('scroll', event=>{
+  overlay = pmmRuntimeResource(DOC).createElement('div'); overlay.className = 'pmm-wbs-overlay pmm-switch-snapshot-overlay';
+  pmmRuntimeResource(overlay).addEventListener('click', onClick);
+  pmmRuntimeResource(overlay).addEventListener('input', onInput);
+  pmmRuntimeResource(overlay).addEventListener('change', onChange);
+  pmmRuntimeResource(overlay).addEventListener('scroll', event=>{
     if(menuId && event.target.classList?.contains('pmm-wbs-body')) {
       menuId='';overlay.querySelectorAll('.pmm-wbs-menu').forEach(node=>node.remove());
     }
   },true);
-  overlay.addEventListener('keydown', onKey);
-  DOC.body.append(overlay); theme(); watchTheme(); bindViewport(); render();
+  pmmRuntimeResource(overlay).addEventListener('keydown', onKey);
+  pmmRuntimeResource(DOC.body).append(overlay); theme(); watchTheme(); bindViewport(); render();
   overlay.querySelector('[data-wbs="close"]')?.focus({ preventScroll: true });
   await run(async () => {
     await refresh();
@@ -1001,7 +1002,7 @@ async function close(force = false) {
   if (!force && busy) return;
   if (!force && (draft || editGroup || renameId) && !TOP.confirm('放弃尚未保存的编辑并关闭？')) return;
   draft = null; editGroup = null; groupQuery=''; renameId = ''; menuId = '';
-  TOP.clearTimeout(messageTimer);messageTimer=0;message='';
+  pmmRuntimeResource(TOP).clearTimeout(messageTimer);messageTimer=0;message='';
   engine.setCapturing(false);
   viewportCleanup?.(); viewportCleanup = null;
   themeCleanup?.(); themeCleanup = null;
@@ -1211,7 +1212,7 @@ async function conflictAction(action) {
   }
 }
 function onChatChanged(immediate = false) {
-  TOP.clearTimeout(eventTimer);
+  pmmRuntimeResource(TOP).clearTimeout(eventTimer);
   const run = async () => {
     eventTimer = 0;
     if (disposed) return;
@@ -1235,7 +1236,7 @@ function onChatChanged(immediate = false) {
     } catch (error) { report(error); TOP.toastr?.warning?.(`世界书快照：${error.message}`); }
   };
   if (immediate === true) return run();
-  eventTimer = TOP.setTimeout(run, 180);
+  eventTimer = pmmRuntimeResource(TOP).setTimeout(run, 180);
 }
 function syncListener() {
   // No polling: only subscribe to context changes. Also observe during a draft to prevent stale saves.
@@ -1243,19 +1244,19 @@ function syncListener() {
   const context = ctx();
   eventSource = context.eventSource;
   eventType = context.eventTypes?.CHAT_CHANGED || context.event_types?.CHAT_CHANGED;
-  if (eventSource && eventType) eventSource.on(eventType, onChatChanged);
+  if (eventSource && eventType) pmmRuntimeResource(eventSource).on(eventType, onChatChanged);
   else eventSource = null;
 }
 function cleanup() {
-  disposed = true; TOP.clearTimeout(eventTimer);
+  disposed = true; pmmRuntimeResource(TOP).clearTimeout(eventTimer);
   currentChatKey = ''; chatInitialized = false; lastNotifiedChatKey = '';
   if (eventSource && eventType) {
     if (eventSource.off) eventSource.off(eventType, onChatChanged);
     else eventSource.removeListener?.(eventType, onChatChanged);
   }
-  nativeObserver?.disconnect();nativeObserver=null;
-  nativeDiscoveryObserver?.disconnect();nativeDiscoveryObserver=null;nativeRoot=null;
-  if(nativeFrame){TOP.cancelAnimationFrame(nativeFrame);nativeFrame=0;}
+  pmmRuntimeResource(nativeObserver)?.disconnect();nativeObserver=null;
+  pmmRuntimeResource(nativeDiscoveryObserver)?.disconnect();nativeDiscoveryObserver=null;nativeRoot=null;
+  if(nativeFrame){pmmRuntimeResource(TOP).cancelAnimationFrame(nativeFrame);nativeFrame=0;}
   DOC.querySelectorAll?.(`.${NATIVE_ACTION_CLASS},.pmm-native-worldbook-actions`).forEach(node=>node.remove());
   closeBatch();void close(true); style.remove();
   if (TOP[KEY]?.engine === engine) delete TOP[KEY];
@@ -1265,4 +1266,4 @@ syncListener();
 installNativeWorldbookTools();
 // The persisted return journal also handles a browser refresh while inside a character.
 onChatChanged();
-SELF.addEventListener('pagehide', cleanup, { once: true });
+pmmRuntimeResource(SELF).addEventListener('pagehide', cleanup, { once: true });

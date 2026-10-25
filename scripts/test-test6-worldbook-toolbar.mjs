@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 const source = await readFile(new URL('../dist/worldbook-stitch-test3.js', import.meta.url), 'utf8');
 
 for (const marker of [
-  'headerRight.prepend(switcher);',
+  'pmmRuntimeResource(headerRight).prepend(switcher);',
   'pmm-wb-kind-switch--toolbar',
   'pm-main-wrapper>.preset-panel .theme-switch-card{display:none!important}',
   "toolbarButton('multi', side.multi ? '退出多选' : '多选', 'fa-check-double'",

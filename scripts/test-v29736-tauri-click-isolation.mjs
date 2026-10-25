@@ -21,6 +21,6 @@ for (const exactSelector of [
 }
 
 assert.ok(nativeEntry.includes('WORKSHOP_EVENT_SELECTORS.some(selector => target?.closest?.(selector))'), '事件拦截没有逐个检查明确根节点');
-assert.ok(nativeEntry.includes('guardedBody.addEventListener(type, preventNativePresetAutoClose'), '仍需在 body 冒泡阶段阻止酒馆误关主预设页');
+assert.ok(nativeEntry.includes('pmmRuntimeResource(guardedBody).addEventListener(type, preventNativePresetAutoClose'), '仍需在 body 冒泡阶段阻止酒馆误关主预设页');
 
 console.log('v2.97.36 回归通过：TauriTavern 全站点击不再被截断，主预设返回页边界仅覆盖明确工坊区域。');

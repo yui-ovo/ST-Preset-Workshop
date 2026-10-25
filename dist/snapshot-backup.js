@@ -1,9 +1,10 @@
-import { readStores, createBackup, validateBackup, planImport, commitImport, readPresetStore, planPresetRelink, commitPresetRelink } from './snapshot-backup-core.js?v=2.98.23';
+function pmmRuntimeResource(target) { return globalThis.__PMM_RUNTIME_SCOPE__?.own(target) || target; }
+import { readStores, createBackup, validateBackup, planImport, commitImport, readPresetStore, planPresetRelink, commitPresetRelink } from './snapshot-backup-core.js?v=2.98.49';
 
 export function openSnapshotBackup(host = window.parent || window) {
   const doc = host.document;
   if (doc.getElementById('pmm-snapshot-backup')) return;
-  const root = doc.createElement('div'); root.id = 'pmm-snapshot-backup';
+  const root = pmmRuntimeResource(doc).createElement('div'); root.id = 'pmm-snapshot-backup';
   root.innerHTML = `<style>
     #pmm-snapshot-backup{z-index:2147483647!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:max(12px,env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) max(12px,env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px))!important;background:#0008;box-sizing:border-box!important;color:var(--SmartThemeBodyColor,#eee);font:14px/1.6 sans-serif;overflow:hidden!important}
     #pmm-snapshot-backup *{box-sizing:border-box}
@@ -65,26 +66,26 @@ export function openSnapshotBackup(host = window.parent || window) {
     return { selected, names };
   }
   function option(select, value, label = value) {
-    const node = doc.createElement('option'); node.value = value; node.textContent = label; select.append(node);
+    const node = pmmRuntimeResource(doc).createElement('option'); node.value = value; node.textContent = label; pmmRuntimeResource(select).append(node);
   }
   function renderMappings() {
-    const list = q('[data-mapping-list]'); list.replaceChildren();
+    const list = q('[data-mapping-list]'); pmmRuntimeResource(list).replaceChildren();
     const { names } = presetChoices();
     const sourceNames = [...new Set(backup.preset.snapshots.map(s => s.presetName))];
     q('[data-mapping]').hidden = !sourceNames.length;
     q('[data-mapping]').open = sourceNames.some(name => !names.includes(name));
     for (const name of sourceNames) {
-      const label = doc.createElement('label'); label.className = 'pmm-preset-mapping';
+      const label = pmmRuntimeResource(doc).createElement('label'); label.className = 'pmm-preset-mapping';
       const count = backup.preset.snapshots.filter(s => s.presetName === name).length;
       label.textContent = `${name}（${count} 个快照） →`;
-      const select = doc.createElement('select'); select.dataset.presetSource = name;
+      const select = pmmRuntimeResource(doc).createElement('select'); select.dataset.presetSource = name;
       option(select, name, names.includes(name) ? name : `保留原名：${name}（当前未找到）`);
       for (const target of names) if (target !== name) option(select, target);
       select.onchange = () => {
         presetTargets[name] = select.value; status('');
         try { preview(); } catch (error) { status(error.message); }
       };
-      label.append(select); list.append(label);
+      pmmRuntimeResource(label).append(select); pmmRuntimeResource(list).append(label);
     }
   }
   function recoveryPlan() {
@@ -102,7 +103,7 @@ export function openSnapshotBackup(host = window.parent || window) {
     } catch (error) { q('[data-recovery-preview]').textContent = error.message; }
   }
   function renderRecoverySources() {
-    const select = q('[data-recovery-source]'), previous = select.value; select.replaceChildren();
+    const select = q('[data-recovery-source]'), previous = select.value; pmmRuntimeResource(select).replaceChildren();
     const target = q('[data-recovery-target]').value;
     const rows = readPresetStore(host.localStorage).snapshots;
     option(select, '', '请选择旧预设名字');
@@ -114,7 +115,7 @@ export function openSnapshotBackup(host = window.parent || window) {
   }
   function renderRecovery() {
     const { selected, names } = presetChoices(), select = q('[data-recovery-target]');
-    select.replaceChildren(); option(select, '', '请选择要恢复到的预设');
+    pmmRuntimeResource(select).replaceChildren(); option(select, '', '请选择要恢复到的预设');
     for (const name of names) option(select, name);
     if (names.includes(selected)) select.value = selected;
     renderRecoverySources();
@@ -128,7 +129,7 @@ export function openSnapshotBackup(host = window.parent || window) {
       const target = q('[data-recovery-target]').value;
       if (!presetChoices().names.includes(target)) throw new Error('目标预设已改名或移除，请重新选择');
       const plan = recoveryPlan(); commitPresetRelink(host.localStorage, plan);
-      host.__PMM_PRESET_SNAPSHOT_STORAGE__?.observe?.();
+      pmmRuntimeResource(host.__PMM_PRESET_SNAPSHOT_STORAGE__)?.observe?.();
       host.__PMM_SWITCH_SNAPSHOTS_TEST52__?.refreshAfterImport?.();
       status(`已复制 ${plan.changed} 个快照到“${target}”，当前开关未改变。`);
       previewRecovery(); if (backup) preview();
@@ -139,8 +140,8 @@ export function openSnapshotBackup(host = window.parent || window) {
       await host.__PMM_PRESET_SNAPSHOT_STORAGE__?.refresh?.();
       const data = createBackup(readStores(host.localStorage));
       const url = host.URL.createObjectURL(new host.Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
-      const link = doc.createElement('a'); link.href = url; link.download = `预设工坊-全部快照-${new Date().toISOString().slice(0, 10)}.json`;
-      doc.body.append(link); link.click(); link.remove(); host.setTimeout(() => host.URL.revokeObjectURL(url), 30000);
+      const link = pmmRuntimeResource(doc).createElement('a'); link.href = url; link.download = `预设工坊-全部快照-${new Date().toISOString().slice(0, 10)}.json`;
+      pmmRuntimeResource(doc.body).append(link); link.click(); link.remove(); pmmRuntimeResource(host).setTimeout(() => host.URL.revokeObjectURL(url), 30000);
       status('已生成备份文件，请保留下载的 JSON 文件。');
     } catch (error) { status(error.message); }
   };
@@ -150,8 +151,8 @@ export function openSnapshotBackup(host = window.parent || window) {
     try {
       const data = createBackup({ preset: migration, world: { snapshots: [], groups: [], defaults: [] } });
       const url = host.URL.createObjectURL(new host.Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
-      const link = doc.createElement('a'); link.href = url; link.download = '预设工坊-迁移前本地快照.json';
-      doc.body.append(link); link.click(); link.remove(); host.setTimeout(() => host.URL.revokeObjectURL(url), 30000);
+      const link = pmmRuntimeResource(doc).createElement('a'); link.href = url; link.download = '预设工坊-迁移前本地快照.json';
+      pmmRuntimeResource(doc.body).append(link); link.click(); link.remove(); pmmRuntimeResource(host).setTimeout(() => host.URL.revokeObjectURL(url), 30000);
       status('已导出更新前的旧快照备份。可通过「选择备份文件」合并恢复；已有同名或同标识快照会保留，冲突项会跳过。');
     } catch (error) { status(error.message); }
   };
@@ -174,7 +175,7 @@ export function openSnapshotBackup(host = window.parent || window) {
       for (const [source, target] of Object.entries(presetTargets)) if (source !== target && !names.includes(target)) throw new Error('目标预设已改名或移除，请重新选择备份文件和对应预设');
       const plan = preview(); if (!plan || !Object.values(plan.added).some(Boolean)) return;
       commitImport(host.localStorage, plan);
-      host.__PMM_PRESET_SNAPSHOT_STORAGE__?.observe?.();
+      pmmRuntimeResource(host.__PMM_PRESET_SNAPSHOT_STORAGE__)?.observe?.();
       host.__PMM_SWITCH_SNAPSHOTS_TEST52__?.refreshAfterImport?.();
       host.__PMM_WORLDBOOK_SNAPSHOTS__?.refreshAfterImport?.();
       backup = null; q('[data-preview]').hidden = true; q('[data-import-actions]').hidden = true;
@@ -192,13 +193,13 @@ export function openSnapshotBackup(host = window.parent || window) {
       margin: '0', transform: 'none', translate: 'none' };
     for (const [key, value] of Object.entries(values)) root.style.setProperty(key, value, 'important');
   }
-  function scheduleViewport() { if (!frame) frame = host.requestAnimationFrame(updateViewport); }
+  function scheduleViewport() { if (!frame) frame = pmmRuntimeResource(host).requestAnimationFrame(updateViewport); }
   const viewportEvents = [[host, 'resize'], [host, 'orientationchange'], [viewport, 'resize'], [viewport, 'scroll']];
   function close() {
     fileSerial++;
-    for (const [target, type] of viewportEvents) target?.removeEventListener(type, scheduleViewport);
-    if (frame) host.cancelAnimationFrame(frame);
-    root.remove(); doc.removeEventListener('keydown', onKey, true); priorFocus?.focus?.({ preventScroll: true });
+    for (const [target, type] of viewportEvents) pmmRuntimeResource(target)?.removeEventListener(type, scheduleViewport);
+    if (frame) pmmRuntimeResource(host).cancelAnimationFrame(frame);
+    root.remove(); pmmRuntimeResource(doc).removeEventListener('keydown', onKey, true); priorFocus?.focus?.({ preventScroll: true });
   }
   function onKey(event) {
     if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); close(); }
@@ -211,8 +212,8 @@ export function openSnapshotBackup(host = window.parent || window) {
   }
   q('[data-close]').onclick = close;
   root.onclick = event => { if (event.target === root) close(); };
-  doc.body.append(root);
+  pmmRuntimeResource(doc.body).append(root);
   updateViewport();
-  for (const [target, type] of viewportEvents) target?.addEventListener(type, scheduleViewport, { passive: true });
-  doc.addEventListener('keydown', onKey, true); q('[data-close]').focus({ preventScroll: true });
+  for (const [target, type] of viewportEvents) pmmRuntimeResource(target)?.addEventListener(type, scheduleViewport, { passive: true });
+  pmmRuntimeResource(doc).addEventListener('keydown', onKey, true); q('[data-close]').focus({ preventScroll: true });
 }
