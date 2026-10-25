@@ -1,5 +1,6 @@
+import { readWorkshopMode, installWorkshopModeSettings } from './workshop-mode.js?v=2.98.48';
 const EXTENSION_NAME = '🧩预设工坊';
-const EXTENSION_VERSION = '2.98.47';
+const EXTENSION_VERSION = '2.98.48';
 const RUNTIME_ID = 'TH-script--🧩预设工坊（GitHub 扩展）--2f53f6af-3c9e-4c71-bc52-9f635be25300';
 const LEGACY_IFRAME_PREFIX = 'TH-script--🧩预设工坊';
 const EXTENSION_FOLDER_NAME = 'ST-Preset-Workshop';
@@ -270,6 +271,7 @@ async function waitForTavernHelper() {
 }
 
 function buildRuntimeDocument() {
+  const snapshotOnly = readWorkshopMode() === 'snapshots';
   const appendRuntimeVersion = source => {
     const url = new URL(source);
     url.searchParams.set('pmm-version', EXTENSION_VERSION);
@@ -278,6 +280,7 @@ function buildRuntimeDocument() {
   const parentJqueryUrl = appendRuntimeVersion(new URL('../bridge/parent-jquery.js', import.meta.url).href);
   const predefineUrl = appendRuntimeVersion(new URL('../bridge/predefine.js', import.meta.url).href);
   const workshopUrl = appendRuntimeVersion(new URL('./workshop-v3.02.js', import.meta.url).href);
+  const snapshotOnlyUrl = appendRuntimeVersion(new URL('./snapshot-only.js', import.meta.url).href);
   const presetContentEditorUrl = appendRuntimeVersion(new URL('./preset-content-editor.js', import.meta.url).href);
   const worldbookStitchUrl = appendRuntimeVersion(new URL('./worldbook-stitch-test3.js', import.meta.url).href);
   const sharedFavoritesUrl = appendRuntimeVersion(new URL('./shared-favorites.js', import.meta.url).href);
@@ -289,14 +292,13 @@ function buildRuntimeDocument() {
 <html>
 <head>
 <base href="${location.origin}/">
-<script src="https://testingcf.jsdelivr.net/npm/vue/dist/vue.runtime.global.prod.min.js"></script>
-<script src="https://testingcf.jsdelivr.net/npm/vue-router/dist/vue-router.global.prod.min.js"></script>
+${snapshotOnly ? '' : '<script src="https://testingcf.jsdelivr.net/npm/vue/dist/vue.runtime.global.prod.min.js"></script><script src="https://testingcf.jsdelivr.net/npm/vue-router/dist/vue-router.global.prod.min.js"></script>'}
 <script src="${parentJqueryUrl}"></script>
 <script src="${predefineUrl}"></script>
-<script src="https://testingcf.jsdelivr.net/gh/N0VI028/JS-Slash-Runner/src/iframe/node_modules/log.js"></script>
+${snapshotOnly ? '' : '<script src="https://testingcf.jsdelivr.net/gh/N0VI028/JS-Slash-Runner/src/iframe/node_modules/log.js"></script>'}
 </head>
 <body>
-<script>
+${snapshotOnly ? '' : `<script>
 (() => {
   let loading;
   window.__PMM_LOAD_REGEX_MANAGER__ = () => loading ||= import(${JSON.stringify(regexManagerUrl)}).catch(error => { loading = null; throw error; });
@@ -333,16 +335,17 @@ function buildRuntimeDocument() {
     return loading;
   };
 })();
-</script>
-<script type="module" src="${presetContentEditorUrl}"></script>
+</script>`}
+${snapshotOnly ? `<script type="module" src="${snapshotOnlyUrl}"></script>` : `<script type="module" src="${presetContentEditorUrl}"></script>
 <script type="module" src="${worldbookSnapshotsUrl}"></script>
 <script type="module" src="${sharedFavoritesUrl}"></script>
-<script type="module" src="${workshopUrl}"></script>
+<script type="module" src="${workshopUrl}"></script>`}
 </body>
 </html>`;
 }
 
 export async function startPresetWorkshop() {
+  installWorkshopModeSettings();
   startVersionWatcher();
   const currentRuntime = document.getElementById(RUNTIME_ID);
   if (currentRuntime) {

@@ -1,3 +1,4 @@
+import { verifyCompareActions } from './verify-compare-actions.mjs';
 // Full production bundle + real Vue, hosted in a hidden iframe like ST/TT.
 // PMM_BROWSER_ASSET_DIR contains vue.runtime.global.prod.js, pinia.iife.prod.js,
 // lodash.min.js, zod4.mjs and jquery.min.js. No dependency downloads during tests.
@@ -18,15 +19,16 @@ const asset = name => readFile(resolve(assets, name), 'utf8');
 const engine = process.env.PMM_BROWSER_ENGINE || 'chromium';
 const source = (await readFile(process.env.PMM_WORKSHOP_SOURCE || new URL('../dist/workshop-v3.02.js', import.meta.url), 'utf8'))
   .replace(/import\{createPinia[^;]+;import\{klona[^;]+;/, 'const e=Pinia.createPinia,n=Pinia.defineStore,t=_.cloneDeep;')
-  .replace('export{xo as mountMainPanel,fo as toggleMainPanel,bo as unmountMainPanel};', 'window.testOpen=fo;window.testClose=bo;window.testStores=()=>({main:Je(),merge:mn(),branch:je(),diff:Cn()});');
+  .replace('export{xo as mountMainPanel,fo as toggleMainPanel,bo as unmountMainPanel};', 'window.testOpen=fo;window.testClose=bo;window.testStores=()=>({main:Je(),merge:mn(),branch:je(),diff:Cn(),groups:ze()});');
 const browser = await playwright[engine].launch(engine === 'chromium' ? { channel: 'msedge', headless: true } : { headless: true });
 try {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
   const page = await context.newPage();
+  if (process.env.PMM_TEST_COMPARE) page.setDefaultTimeout(10000);
   for (const pass of [0]) {
     await page.setViewportSize({ width:390, height:844 });
     const errors = [];
-    page.on('pageerror', error => errors.push(error.message));
+    page.on('pageerror', error => { errors.push(error.message); if(process.env.PMM_TEST_COMPARE) console.error(error); });
     await page.route('**/*', async route => {
       const url = new URL(route.request().url());
       if (url.origin !== 'http://startup.test') return route.abort();
@@ -104,6 +106,10 @@ try {
       return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0.9 && rect.width > 100 && rect.height > 100;
     });
     assert.ok(visible, 'Panel must be painted, not merely present in the DOM');
+    if (process.env.PMM_TEST_COMPARE) {
+      try { await verifyCompareActions(page, frame, engine); } catch(error) { console.error(errors); await page.screenshot({path:assets+'/compare-failure.png'}); throw error; }
+      assert.deepEqual(errors, []); continue;
+    }
     if (process.env.PMM_TEST_EDITING) {
       try { await verifyWorkshopEditing(page, frame, engine); } catch (error) { console.error(errors); await page.screenshot({path: assets + "/editing-failure.png"}); throw error; }
       assert.deepEqual(errors, []);

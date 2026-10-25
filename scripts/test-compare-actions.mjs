@@ -1,0 +1,45 @@
+import assert from 'node:assert/strict';
+import { planCompareActions as plan, applyCompareActions as apply } from '../dist/compare-actions-core.js';
+import { changeWorkshopMode, readWorkshopMode, MODE_KEY } from '../dist/workshop-mode.js';
+import fs from 'node:fs';
+const entry = fs.readFileSync(new URL('../dist/index.js',import.meta.url),'utf8');
+const builder = entry.slice(entry.indexOf('function buildRuntimeDocument()'),entry.indexOf('export async function startPresetWorkshop'))
+  .replaceAll('import.meta.url', "'http://fixture/dist/index.js'");
+for (const mode of ['full','snapshots']) {
+  const html = Function('readWorkshopMode','URL','location','EXTENSION_VERSION',builder+';return buildRuntimeDocument();')(()=>mode,URL,{origin:'http://fixture'},'test');
+  assert.equal(/src="[^\"]*snapshot-only\.js/.test(html),mode==='snapshots');
+  for (const module of ['workshop-v3.02.js','worldbook-snapshots.js','shared-favorites.js','preset-content-editor.js','vue.runtime.global']) assert.equal(html.includes(module),mode==='full',module);
+  assert.equal(html.includes('__PMM_LOAD_REGEX_MANAGER__'),mode==='full');
+}
+const row = (id, content = id) => ({ id, name:id, content, enabled:false, role:'assistant', position:{type:'relative'}, extra:{keep:true} });
+const side = (ids, sections = []) => ({name:'fixture',prompts:ids.map(id=>row(id)),sections});
+const source = side(['a','new1','new2','b']), target = side(['a','b']);
+let actions = plan(source,target), result = apply(source,target,actions);
+assert.deepEqual(result.prompts.map(p=>p.id),['a','new1','new2','b']);
+assert.deepEqual(target.prompts.map(p=>p.id),['a','b'],'Input untouched');
+assert.deepEqual(plan(side(['before','a','b','after']),target).map(a=>a.at),[0,2]);
+assert.ok(plan(source,side(['b','a'])).every(a=>a.at===null),'Reversed anchors require choice');
+assert.equal(plan(side(['x']),target)[0].at,null);
+assert.throws(()=>apply(side(['x']),target,plan(side(['x']),target)),/位置/);
+const modified = side(['a']); modified.prompts[0].content='new body'; modified.prompts[0].name='renamed';
+result = apply(modified,target,plan(modified,target));
+assert.deepEqual(result.prompts[0],{...target.prompts[0],content:'new body'});
+const grouped = side(['a','b'],[{id:'baibai_g',displayName:'组',itemIds:['a','b']}]);
+const groupedSource = side(['a','x','b'],[{id:'different-g',displayName:'组',itemIds:['a','x','b']}]);
+actions=plan(groupedSource,grouped); assert.equal(actions[0].sectionId,'baibai_g');
+result=apply(groupedSource,grouped,actions);assert.deepEqual(result.sections[0].itemIds,['a','x','b']);
+const conflict=side(['a','b'],[{id:'g1',displayName:'1',itemIds:['a']},{id:'g2',displayName:'2',itemIds:['b']}]);
+assert.equal(plan(source,conflict)[0].at,null,'Cross-group boundaries require choice');
+assert.equal(plan(side(['x']),side(['x','x']))[0].kind,'blocked');
+assert.equal(plan(side(['x','x']),side([]))[0].kind,'blocked');
+assert.equal(plan(side(['x']),side(['y']),[{si:0,ti:0}])[0].kind,'replace');
+assert.throws(()=>apply(source,target,[actions[0],actions[0]]));
+const storage=new Map();let reloads=0,root=false,editor=false,closeResult=false;
+const host={localStorage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v)},document:{querySelector:()=>editor,getElementById:()=>root},__PMM_WORKSHOP_EDITING__:{closeMain:async()=>{if(closeResult)root=false;}}};
+assert.equal(readWorkshopMode(host),'full');
+root=true;
+assert.equal(await changeWorkshopMode(host,'snapshots',()=>reloads++),false);assert.equal(reloads,0);assert.equal(storage.has(MODE_KEY),false);
+closeResult=true;assert.equal(await changeWorkshopMode(host,'snapshots',()=>reloads++),true);assert.equal(reloads,1);assert.equal(readWorkshopMode(host),'snapshots');
+editor=true;await assert.rejects(changeWorkshopMode(host,'full',()=>reloads++),/编辑/);assert.equal(readWorkshopMode(host),'snapshots');
+editor=false;await changeWorkshopMode(host,'full',()=>reloads++);assert.equal(reloads,2);
+console.log('Compare content-only, insertion anchors/order/groups, ambiguity and mode guards passed');

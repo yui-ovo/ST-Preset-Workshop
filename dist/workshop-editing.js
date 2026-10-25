@@ -1,7 +1,7 @@
-import { planSwitchTransfer, transferSwitches, draftSignature, saveDirtyDrafts } from './workshop-editing-core.js?v=2.98.47';
+import { planSwitchTransfer, transferSwitches, draftSignature, saveDirtyDrafts } from './workshop-editing-core.js?v=2.98.48';
 
-const dialogs = new WeakMap();
-function dialog(host, title, onCancel) {
+export const dialogs = new WeakMap();
+export function dialog(host, title, onCancel) {
   const doc = host.ownerDocument, win = doc.defaultView, prior = doc.activeElement, wasInert = host.inert;
   const layer = doc.createElement('div'); layer.dataset.pmmEditingDialog = '1';
   const theme = win.getComputedStyle(host.querySelector('.preset-panel') || host);
@@ -47,19 +47,19 @@ function dialog(host, title, onCancel) {
   root.addEventListener('keydown', event => {
     if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); if (!busy) onCancel(); }
     if (event.key !== 'Tab') return;
-    const controls = [...root.querySelectorAll('button:not(:disabled)')].filter(n => n.getClientRects().length);
+    const controls = [...root.querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled)')].filter(n => n.getClientRects().length);
     if (!controls.length) return;
     event.preventDefault(); const at = controls.indexOf(root.activeElement);
     controls[(at + (event.shiftKey ? -1 : 1) + controls.length) % controls.length].focus();
   });
   for (const type of ['click', 'pointerdown', 'touchstart', 'keydown']) layer.addEventListener(type, e => e.stopPropagation());
   return { root, main: root.querySelector('main'), footer: root.querySelector('footer'), finish,
-    busy(value) { busy = value; root.querySelectorAll('button').forEach(n => n.disabled = value); } };
+    busy(value) { busy = value; root.querySelectorAll('button,input,select').forEach(n => { if (value) n.dataset.wasDisabled = String(n.disabled); n.disabled = value || n.dataset.wasDisabled === 'true'; }); } };
 }
-function element(parent, tag, value, className = '') {
+export function element(parent, tag, value, className = '') {
   const node = parent.ownerDocument.createElement(tag); node.textContent = value; if (className) node.className = className; parent.append(node); return node;
 }
-function button(parent, label, action, className = '') { const b = element(parent, 'button', label, className); b.type = 'button'; b.onclick = action; return b; }
+export function button(parent, label, action, className = '') { const b = element(parent, 'button', label, className); b.type = 'button'; b.onclick = action; return b; }
 
 export function confirmWorkshopClose(host, getEntries, close) {
   if (!host?.isConnected) return false;

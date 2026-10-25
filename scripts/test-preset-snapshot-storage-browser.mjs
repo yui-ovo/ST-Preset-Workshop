@@ -10,13 +10,14 @@ if (process.env.PMM_SNAPSHOT_STORAGE_SOURCE) files['preset-snapshot-storage.js']
 const bundle = await readFile(new URL('../dist/workshop-v3.02.js', import.meta.url), 'utf8');
 files['preset.js'] = "import {requestSnapshotName} from './snapshot-name-dialog.js';\nimport {installPresetSnapshotLinks} from './snapshot-preset-links.js';\nimport {installPresetSnapshotStorage} from './preset-snapshot-storage.js';\n" + bundle.slice(bundle.indexOf('/* ===== PMM_SWITCH_SNAPSHOTS_TEST52'), bundle.indexOf('/* ===== PMM_THEMED_COMPARE_DRAG_LINE_V289'));
 files['scripts/openai.js'] = 'export const promptManager={render(){}};';
+if (process.env.PMM_TEST_SNAPSHOT_ONLY) files['preset.js'] = await readFile(new URL('../dist/snapshot-only.js', import.meta.url), 'utf8');
 let saved, fail = false, writes = [], reads = 0;
 const original = () => ({ temperature: 0.7, prompts: [{ identifier: 'p0', content: 'SAVED BODY' }],
   prompt_order: [{ character_id: 100001, order: [{ identifier: 'p0', enabled: false }] }], extensions: { other: { keep: true } } });
 const html = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
 body{margin:0;font:14px sans-serif;color:#eee;background:#222;--SmartThemeBodyColor:#eee;--SmartThemeBlurTintColor:#25252b;--SmartThemeBorderColor:#888}
 body.light{color:#333;background:#eee;--SmartThemeBodyColor:#333;--SmartThemeBlurTintColor:#f8f5f3}button{color:inherit;background:transparent}
-</style><button id="open">预设快照</button><button id="backup">快照备份</button><script>
+</style><div><button id="update_oai_preset">原生保存</button></div><button id="open">预设快照</button><button id="backup">快照备份</button><script>
 const presetName='当前测试预设';
 window.fixture={prompts:Array.from({length:3},(_,i)=>({id:'p'+i,name:'条目'+i,enabled:true,content:'UNSAVED BODY'})),live:{temperature:1.7,extensions:{}},cached:{extensions:{}},listeners:new Map(),writes:0,intervals:0,toasts:[]};
 const events={on(t,fn){if(!fixture.listeners.has(t))fixture.listeners.set(t,new Set());fixture.listeners.get(t).add(fn)},off(t,fn){fixture.listeners.get(t)?.delete(fn)},async emit(t,v){for(const fn of fixture.listeners.get(t)||[])await fn(v)}};
@@ -59,9 +60,15 @@ try {
     page.on('dialog', dialog => dialog.accept());
     await page.goto(url + '?seed'); await page.waitForFunction(() => window.ready); await settled(page);
     assert.equal(writes.length, 1); assert.equal(reads, 2, 'Migration batch uses one preflight and one verification read');
+    if (process.env.PMM_TEST_SNAPSHOT_ONLY) {
+      await page.locator('[data-pmm-native-preset-action="snapshot"]').waitFor();
+      assert.equal(await page.locator('[data-pmm-native-preset-action="batch"],#preset-manager-floating-panel,#preset-manager-main-panel').count(),0);
+      assert.equal(await page.evaluate(()=>typeof Vue),'undefined','No Vue/workshop runtime required');
+    }
+
     const plain = structuredClone(saved); delete plain.extensions.pmm_switch_snapshots;
     assert.deepEqual(plain, original());
-    await page.click('#open'); await status(page).filter({ hasText: '已保存到预设' }).waitFor();
+    await page.click(process.env.PMM_TEST_SNAPSHOT_ONLY ? '[data-pmm-native-preset-action="snapshot"]' : '#open'); await status(page).filter({ hasText: '已保存到预设' }).waitFor();
     assert.equal(await page.locator('.pmm-switch-snapshot-row').count(), 1);
     if (width === 820) await page.evaluate(() => document.body.className = 'light');
     const b = await page.locator('.pmm-switch-snapshot-dialog').boundingBox();
@@ -169,6 +176,35 @@ try {
     assert.deepEqual(await page.evaluate(() => fixture.prompts.map(p => p.enabled)), [true, true, true], 'Actual chat changes still apply the character binding');
     await page.evaluate(() => __PMM_SWITCH_SNAPSHOTS_TEST52__.cleanup());
     assert.deepEqual(errors, []); await context.close();
+  }
+  if (process.env.PMM_TEST_SNAPSHOT_ONLY) {
+    saved = original(); fail = false;
+    const context = await browser.newContext({viewport:{width:390,height:844}}), page = await context.newPage(), errors=[];
+    page.on('pageerror',e=>errors.push(e.message));
+    await page.goto(url+'?seed'); await page.waitForFunction(()=>window.ready); await settled(page);
+    await page.evaluate(()=>{
+      fixture.groups={version:1,groups:[{id:'g',name:'原生分组',enabled:true}],prompts:{p0:{groupId:'g'},p1:{groupId:'g'}}};
+      const getContext=SillyTavern.getContext;
+      SillyTavern.getContext=()=>{
+        const ctx=getContext(), manager=ctx.getPresetManager();
+        manager.readPresetExtensionField=()=>structuredClone(fixture.groups);
+        manager.writePresetExtensionField=async({value})=>{fixture.groups=structuredClone(value);};
+        return {...ctx,getPresetManager:()=>manager};
+      };
+    });
+    const groups=await page.evaluate(()=>__PMM_BAIBAI_COMPAT__.snapshotBranchState({presetName:'当前测试预设',prompts:fixture.prompts}).sections);
+    assert.deepEqual(groups[0].itemIds,['p0','p1']);
+    await page.locator('[data-pmm-native-preset-action="snapshot"]').click();
+    await page.locator('[data-pmm-snapshot-action="new"]').click();
+    await page.locator('.pmm-switch-editor-group-head').getByText('原生分组',{exact:true}).waitFor();
+    await page.evaluate(()=>__PMM_SWITCH_SNAPSHOTS_TEST52__.close());
+    const before=await page.evaluate(()=>fixture.groups.prompts);
+    await page.evaluate(async()=>{
+      await __PMM_BAIBAI_COMPAT__.syncGroupEnabledStates({presetName:'当前测试预设',states:[{id:'g',name:'原生分组',enabled:false}]});
+    });
+    assert.equal(await page.evaluate(()=>fixture.groups.groups[0].enabled),false);
+    assert.deepEqual(await page.evaluate(()=>fixture.groups.prompts),before);
+    assert.deepEqual(errors,[]);await context.close();
   }
   console.log(`Embedded snapshot browser passed (${engine}): real UI create/overwrite, no binding replay on same-preset save, real chat binding, failure/retry, isolated-browser restore, migration backup, unsaved-body isolation, 390/820/1280 layout and cleanup.`);
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
