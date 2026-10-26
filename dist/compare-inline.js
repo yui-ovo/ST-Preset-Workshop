@@ -105,16 +105,18 @@ export function createCompareActions(adapter) {
         const a = row.action, canAct = a?.kind === mode;
         const article = node(list, 'article', '', 'pmm-ca-row'); article.dataset.sourceIndex = row.si;
         const first = node(article, 'div', '', 'pmm-ca-first');
-        let single;
-        if (canAct) { single = button(first, label(), () => void apply([a]), 'pmm-ca-single'); single.disabled = busy || !ready(a); }
-        else node(first, 'span', '', 'pmm-ca-action-space');
-        const name = node(first, 'span', row.name || '未命名条目', 'pmm-ca-name'); name.title = row.name || '';
         const checkSlot = node(first, 'span', '', 'pmm-ca-check-slot');
+        let check;
         if (canAct) {
-          const check = node(checkSlot, 'input'); check.type = 'checkbox'; check.setAttribute('aria-label', `选择 ${row.name}`); check.checked = selected.has(row.si); check.disabled = busy || !ready(a);
+          check = node(checkSlot, 'input'); check.type = 'checkbox'; check.setAttribute('aria-label', `选择 ${row.name}`); check.checked = selected.has(row.si); check.disabled = busy || !ready(a);
           check.onchange = () => { check.checked ? selected.add(row.si) : selected.delete(row.si); refresh(); };
+        }
+        const name = node(first, 'span', row.name || '未命名条目', 'pmm-ca-name'); name.title = row.name || '';
+        if (canAct) {
+          const single = button(first, label(), () => void apply([a]), 'pmm-ca-single'); single.disabled = busy || !ready(a);
           rowControls.push({a,check,single});
         }
+        else node(first, 'span', '', 'pmm-ca-action-space');
         const percent = row.similarity === undefined ? '' : `${Math.round((row.status === 'content' ? 1-row.similarity : row.similarity)*100)}%`;
         node(first, 'span', percent, 'pmm-ca-percent');
         const names = {content:'内容不同',name:'已改名',partial:'正文相似',unique:row.leftId?'仅上侧存在':'仅下侧存在'};
@@ -156,15 +158,15 @@ const CSS = `
 .pmm-ca-search,.pmm-ca-note select{font:inherit!important;box-sizing:border-box;width:100%;min-width:0;color:inherit!important;background:var(--pm-panel-bg,transparent)!important;border:1px solid var(--pm-border,#666)!important;border-radius:7px;padding:6px!important;margin:0 0 6px!important}
 .pmm-ca-list{overflow:auto;min-height:0;flex:1;max-height:none;overscroll-behavior:contain;border:1px solid var(--pm-border,#555);border-radius:8px}
 .pmm-ca-row{padding:8px 7px;border-bottom:1px solid var(--pm-border,#555)}.pmm-ca-row:last-child{border-bottom:0}
-.pmm-ca-first{display:grid!important;grid-template-columns:42px minmax(0,1fr) 20px 4ch 64px;align-items:center;gap:6px;font-size:11px}
+.pmm-ca-first{display:grid!important;grid-template-columns:20px minmax(0,1fr) 42px 4ch 64px;align-items:center;gap:6px;font-size:11px}
 .pmm-ca-single{padding:4px 2px!important;width:42px}.pmm-ca-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .pmm-ca-check-slot{display:flex;align-items:center;justify-content:center;width:20px}.pmm-ca-percent{text-align:right;font-size:10px;font-variant-numeric:tabular-nums;white-space:nowrap;opacity:.75}
 .pmm-ca-badge{font-size:9px;text-align:center;border-radius:4px;padding:2px 0;color:#e19540;background:#a973111a;white-space:nowrap}.pmm-ca-badge[data-status=content]{color:#ef6666;background:#ef44441a}.pmm-ca-badge[data-status=name]{color:#22b55e;background:#22c55e1a}.pmm-ca-badge[data-status=unique]{color:#9c8be9;background:#a855f71a}.pmm-ca-badge[role=button]{cursor:pointer}
-.pmm-ca-note{margin:5px 0 0 48px;font-size:10px;line-height:1.5;opacity:.8;overflow-wrap:anywhere}.pmm-ca-note select{display:block;margin-top:5px!important}
+.pmm-ca-note{margin:5px 0 0 26px;font-size:10px;line-height:1.5;opacity:.8;overflow-wrap:anywhere}.pmm-ca-note select{display:block;margin-top:5px!important}
 .pmm-ca-status{font-size:11px;padding-top:4px;overflow-wrap:anywhere}.pmm-ca-off{flex:0 0 auto;padding-bottom:0}.pmm-ca-submit{margin-right:6px}
 .pmm-ca-count{margin-right:auto;text-align:left;white-space:nowrap;font-size:11px;color:var(--pm-text-primary,var(--pmm-ca-text,#e2e8f0))}
 .pmm-ca-off + [data-pmm-diff-list] > div:first-child{display:none!important}
 [data-pmm-diff-footer]{align-items:center;gap:4px;flex-wrap:wrap}[data-pmm-diff-footer]>button{white-space:nowrap;padding:7px 9px!important;font-size:11px!important}
 [data-pmm-ca-owned][hidden],.pmm-ca-body [hidden]{display:none!important}
-@media(max-width:360px){.pmm-ca-body{padding-left:7px;padding-right:7px}.pmm-ca-first{grid-template-columns:38px minmax(0,1fr) 20px 4ch 58px;gap:4px}.pmm-ca-single{width:38px}.pmm-ca-note{margin-left:42px}}
+@media(max-width:360px){.pmm-ca-body{padding-left:7px;padding-right:7px}.pmm-ca-first{grid-template-columns:20px minmax(0,1fr) 38px 4ch 58px;gap:4px}.pmm-ca-single{width:38px}.pmm-ca-note{margin-left:24px}}
 `;
