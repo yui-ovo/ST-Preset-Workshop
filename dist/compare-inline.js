@@ -18,7 +18,8 @@ export function createCompareActions(adapter) {
   if (!sides || sides[0].name === sides[1].name) return null;
   let signature = draftSignature(sides);
   const selected = new Set(), categories = new Set(), placements = new Map(), mounts = new Set();
-  let direction = 0, mode = 'off', multi = false, query = '', busy = false, error = '', actions = [], prepared = [], revision = 0;
+  const rememberedMode = adapter.getMode?.();
+  let direction = 0, mode = ['off','replace','insert'].includes(rememberedMode) ? rememberedMode : 'off', multi = false, query = '', busy = false, error = '', actions = [], prepared = [], revision = 0;
   const source = () => sides[direction], target = () => sides[1 - direction];
   const resolved = a => ({ ...a, ...placements.get(a.si) });
   const ready = a => a && a.kind === mode && (a.kind === 'replace' || Number.isInteger(resolved(a).at));
@@ -120,7 +121,7 @@ export function createCompareActions(adapter) {
     all.dataset.pmmCompareAll = '1';
     const choose = button(toolbar, '多选', () => { multi = !multi; selected.clear(); revision++; refresh(); });
     choose.dataset.pmmCompareSelect = '1';
-    const cycle = button(toolbar, '', () => { mode = {replace:'insert',insert:'off',off:'replace'}[mode]; multi = false; selected.clear(); query=''; revision++; refresh(); });
+    const cycle = button(toolbar, '', () => { mode = {replace:'insert',insert:'off',off:'replace'}[mode]; adapter.setMode?.(mode); multi = false; selected.clear(); query=''; revision++; refresh(); });
     cycle.dataset.pmmCompareMode = '1'; cycle.title = '切换：替换 → 插入 → 关闭'; cycle.setAttribute('aria-label', '切换操作模式');
     const search = node(body, 'input', '', 'pmm-ca-search'); search.type = 'search'; search.placeholder = '搜索条目'; search.setAttribute('aria-label', '搜索条目');
     search.oninput = () => { query = search.value; revision++; refresh(); };

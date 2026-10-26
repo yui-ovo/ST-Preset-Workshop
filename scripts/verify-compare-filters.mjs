@@ -20,6 +20,7 @@ export async function verifyCompareFilters(page, frame, engine, {open,closeDetai
   const stats=await frame.evaluate(()=>({...testStores().diff.stats}));
   assert.deepEqual(stats,{contentDiffCount:1,nameDiffCount:1,partialCount:1,leftUniqueCount:1,rightUniqueCount:1,matchCount:1});
   await cycle.click();await cycle.click();
+  await verifyCompareSession(page,frame,engine,{closeDetail});
   assert.equal(await nativeRows().count(),5);
   await card('content').click();assert.equal(await nativeRows().count(),1);
   await card('name').click();assert.equal(await nativeRows().count(),2,'Category selections use union');
@@ -66,4 +67,46 @@ export async function verifyCompareFilters(page, frame, engine, {open,closeDetai
   await page.keyboard.press('Space');assert.equal(await nativeRows().count(),4);
   await closeDetail();
   console.log(`${engine}: category union, toggle reset, search/mode intersection, selection clearing and refresh retention passed`);
+}
+
+async function verifyCompareSession(page,frame,engine,{closeDetail}) {
+  const modal=page.locator('[data-pmm-compare-modal]:visible');
+  const cycle=modal.locator('[data-pmm-compare-mode]');
+  const reopen=async()=>{
+    await page.getByTitle('查看详细比对结果',{exact:true}).click();
+    if(page.viewportSize().width<=768) await page.locator('#pmm-diff-detail-portal [data-pmm-compare-mode]').waitFor();
+    await cycle.waitFor();
+  };
+  await frame.evaluate(()=>{window.compareWarnings=[];window.savedCompareWarning=toastr.warning;toastr.warning=message=>compareWarnings.push(message);});
+  try {
+    for(const width of [390,1280]) {
+      await closeDetail();await page.setViewportSize({width,height:844});await reopen();
+      assert.equal(await cycle.textContent(),'关闭');
+      for(const [key,label] of [['content','内容不同'],['partial','正文相似']]) {
+        const card=modal.locator(`[data-pmm-diff-filter="${key}"]`),text=card.getByText(label,{exact:true});
+        assert.equal(await text.evaluate(el=>getComputedStyle(el).textDecorationLine),'none','Category labels have no entry underline');
+        await text.click();assert.equal(await card.getAttribute('aria-pressed'),'true','Clicking the label filters');
+        assert.equal(await modal.locator('[data-pmm-diff-row]:visible').count(),1);
+        assert.equal(await page.locator('.pmm-content-diff').count(),0,'Category label does not open a body editor');
+        assert.deepEqual(await frame.evaluate(()=>compareWarnings),[],'Category label never emits an entry lookup warning');
+        await modal.locator('[data-pmm-diff-row]:visible').getByText(label,{exact:true}).click();
+        await page.locator('.pmm-content-diff-back').waitFor();
+        await page.locator('.pmm-content-diff-back').click();
+        await text.click();assert.equal(await card.getAttribute('aria-pressed'),'false');
+      }
+      for(const expected of ['替换','插入','关闭']) {
+        await cycle.click();assert.equal(await cycle.textContent(),expected);
+        await closeDetail();await reopen();
+        assert.equal(await cycle.textContent(),expected,'Closing only details retains the current operation mode');
+      }
+      await cycle.click();await cycle.click();assert.equal(await cycle.textContent(),'插入');
+      await closeDetail();await frame.evaluate(()=>testStores().diff.clearCompareResult());
+      await page.locator('.preset-panel').nth(1).getByTitle('比对',{exact:true}).click();await reopen();
+      assert.equal(await cycle.textContent(),'关闭','Ending and restarting comparison resets operation mode');
+    }
+    await closeDetail();await page.setViewportSize({width:390,height:844});await reopen();
+  } finally {
+    await frame.evaluate(()=>{toastr.warning=savedCompareWarning;delete window.savedCompareWarning;});
+  }
+  console.log(`${engine}: mobile/desktop category label clicks and comparison-session mode retention passed`);
 }

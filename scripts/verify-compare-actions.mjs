@@ -31,12 +31,13 @@ export async function verifyCompareActions(page, frame, engine) {
     if(await choose.getAttribute('aria-pressed')!=='true') await choose.click();
   }
   async function open() {
-    if(!await frame.evaluate(()=>testStores().diff.isCompared)) await page.locator('.preset-panel').nth(1).getByTitle('比对',{exact:true}).click();
+    const fresh=!await frame.evaluate(()=>testStores().diff.isCompared);
+    if(fresh) await page.locator('.preset-panel').nth(1).getByTitle('比对',{exact:true}).click();
     await page.getByTitle('查看详细比对结果',{exact:true}).click();
     if (page.viewportSize().width <= 768) await page.locator('#pmm-diff-detail-portal [data-pmm-compare-mode]').waitFor();
     await modal.locator('[data-pmm-compare-mode]').waitFor();
-    assert.equal(await modal.locator('[data-pmm-compare-mode]').textContent(),'关闭','Comparison opens without an operation');
-    await modal.locator('[data-pmm-compare-mode]').click();
+    if(fresh) assert.equal(await modal.locator('[data-pmm-compare-mode]').textContent(),'关闭','New comparison opens without an operation');
+    for(let i=0;i<3 && await modal.locator('[data-pmm-compare-mode]').textContent()!=='替换';i++) await modal.locator('[data-pmm-compare-mode]').click();
     assert.equal(await modal.locator('input[type=checkbox]:visible').count(),0,'Selection starts collapsed');
     assert.equal(await modal.locator('.pmm-ca-single').count(),0,'No per-row replacement button');
     await selectMode();
