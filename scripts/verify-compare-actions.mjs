@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { verifyCompareFilters } from './verify-compare-filters.mjs';
 export async function verifyCompareActions(page, frame, engine) {
   await frame.evaluate(() => {
     const row = (id, content=id) => ({id,name:id,enabled:false,content,role:'system',position:{type:'relative'},extra:{keep:true}});
@@ -282,6 +283,7 @@ export async function verifyCompareActions(page, frame, engine) {
   assert.equal(await frame.evaluate(()=>testStores().groups.getPanelState('Second').pendingBaiBaiAssignments.new),undefined);
   assert.deepEqual((await read()).target.map(p=>p.id),['a','b','tail']);
   await page.evaluate(()=>{SillyTavern.getContext().getPresetManager=savedCompareManager;});
+  await verifyCompareFilters(page,frame,engine,{open,closeDetail});
   await frame.evaluate(()=>{testStores().main.prompts[0].content+='未保存修改';});
   await page.evaluate(async()=>{
     const mode=await import('/workshop-mode.js');window.modeReloads=0;

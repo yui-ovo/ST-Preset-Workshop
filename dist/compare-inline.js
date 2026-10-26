@@ -17,7 +17,7 @@ export function createCompareActions(adapter) {
   let sides = adapter.read();
   if (!sides || sides[0].name === sides[1].name) return null;
   let signature = draftSignature(sides);
-  const selected = new Set(), placements = new Map(), mounts = new Set();
+  const selected = new Set(), categories = new Set(), placements = new Map(), mounts = new Set();
   let direction = 0, mode = 'off', multi = false, query = '', busy = false, error = '', actions = [], prepared = [], revision = 0;
   const source = () => sides[direction], target = () => sides[1 - direction];
   const resolved = a => ({ ...a, ...placements.get(a.si) });
@@ -35,7 +35,9 @@ export function createCompareActions(adapter) {
     });
     revision++;
   }
-  const rows = () => prepared.filter(row => row.action?.kind === mode && (!query || row.name.toLowerCase().includes(query.toLowerCase())));
+  const category = row => row.status === 'unique' ? (row.leftId ? 'leftUnique' : 'rightUnique') : row.status;
+  const matchesCategory = row => !!row && (!categories.size || categories.has(category(row)));
+  const rows = () => prepared.filter(row => matchesCategory(row) && row.action?.kind === mode && (!query || row.name.toLowerCase().includes(query.toLowerCase())));
   async function apply(list, reveal = false) {
     if (busy || !list.length || list.some(a => !ready(a))) return;
     busy = true; error = ''; refresh();
@@ -123,6 +125,23 @@ export function createCompareActions(adapter) {
     const search = node(body, 'input', '', 'pmm-ca-search'); search.type = 'search'; search.placeholder = '搜索条目'; search.setAttribute('aria-label', '搜索条目');
     search.oninput = () => { query = search.value; revision++; refresh(); };
     const list = node(body, 'div', '', 'pmm-ca-list');
+    const nativeEmpty = own(nativeList, 'p', '没有符合筛选条件的条目。', 'pmm-ca-empty');
+    if(nativeList.children[1]!==nativeEmpty)pmmRuntimeResource(nativeList).insertBefore(nativeEmpty,nativeList.children[1]);
+    const filterCards = Array.from(modal.querySelectorAll('[data-pmm-diff-filter]'));
+    for (const card of filterCards) {
+      const key = card.dataset.pmmDiffFilter;
+      card.setAttribute('role','button');card.tabIndex=0;
+      card.style.setProperty('--pmm-ca-category-color',win.getComputedStyle(card.querySelector('i') || card).color);
+      const toggle = () => {
+        if(busy)return;
+        categories.has(key) ? categories.delete(key) : categories.add(key);
+        selected.clear();revision++;refresh();
+        list.scrollTop=0;nativeList.scrollTop=0;
+        const nativeRows=nativeList.querySelector('[data-pmm-diff-row]')?.parentElement;if(nativeRows)nativeRows.scrollTop=0;
+      };
+      card.onclick=e=>{e.preventDefault();e.stopPropagation();toggle();};
+      card.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();toggle();}};
+    }
     const status = node(body, 'div', '', 'pmm-ca-status'); status.setAttribute('role','status');
     const submit = own(footer, 'button', '', 'pmm-ca-submit'); submit.type = 'button'; pmmRuntimeResource(footer).prepend(submit);
     const count = own(footer, 'span', '', 'pmm-ca-count'); count.setAttribute('role','status'); pmmRuntimeResource(footer).prepend(count);
@@ -132,6 +151,10 @@ export function createCompareActions(adapter) {
     function render() {
       const enabled = mode !== 'off', visible = rows(), eligible = visible.filter(r => ready(r.action));
       body.setAttribute('aria-busy',String(busy));
+      for(const card of filterCards) {
+        const active=categories.has(card.dataset.pmmDiffFilter);
+        card.setAttribute('aria-pressed',String(active));card.setAttribute('aria-disabled',String(busy));
+      }
       from.textContent=presetVersionLabel(source().name); to.textContent=presetVersionLabel(target().name);
       dir.title = `${source().name} → ${target().name}（点击反转，长按查看完整名称）`; dir.setAttribute('aria-description',dir.title); dir.hidden = !enabled; dir.disabled = busy;
       cycle.textContent = label(); cycle.disabled = busy;
@@ -153,8 +176,14 @@ export function createCompareActions(adapter) {
         return;
       }
       renderedRevision=revision; rowControls.length=0;
+      let nativeVisible=0;
+      for(const row of nativeList.querySelectorAll('[data-pmm-diff-row]')) {
+        const show=matchesCategory(prepared[Number(row.dataset.pmmDiffRow)]);
+        row.toggleAttribute('data-pmm-category-hidden',!show);if(show)nativeVisible++;
+      }
+      nativeEmpty.hidden=enabled || nativeVisible>0;
       pmmRuntimeResource(list).replaceChildren(); if (!enabled) return;
-      if (!visible.length) node(list,'p','没有符合搜索条件的条目。');
+      if (!visible.length) node(list,'p','没有符合筛选条件的条目。');
       for (const row of visible) {
         const a = row.action, canAct = a?.kind === mode;
         const article = node(list, 'article', '', 'pmm-ca-row'); article.dataset.sourceIndex = row.si;
@@ -204,6 +233,11 @@ export function createCompareActions(adapter) {
 
 const CSS = `
 [data-pmm-diff-title]{min-width:0;flex-shrink:0}
+[data-pmm-diff-filter]{cursor:pointer;touch-action:manipulation}
+[data-pmm-diff-filter][aria-pressed=true]{background:color-mix(in srgb,var(--pmm-ca-category-color) 14%,transparent)!important}
+[data-pmm-diff-filter]:focus-visible{outline:2px solid var(--pmm-ca-category-color);outline-offset:-2px}
+[data-pmm-category-hidden]{display:none!important}
+.pmm-ca-empty{font-size:12px;color:var(--pm-text-secondary,var(--pmm-ca-text));padding:8px}
 .pmm-ca-direction{display:inline-grid!important;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:3px;margin-left:auto;margin-right:6px;max-width:48%;min-width:0;text-align:center;white-space:nowrap;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:manipulation}
 .pmm-ca-direction span{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .pmm-ca-body{flex:1;min-height:0;display:flex;flex-direction:column;padding:0 12px 10px;color:var(--pm-text-primary,var(--pmm-ca-text,#e2e8f0));font-size:12px}
