@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {verifyTouchData} from './verify-touch-data.mjs';
+import {verifySnapshotAppearance} from './verify-snapshot-appearance.mjs';
 
 export async function verifyTouchTheme(page,frame,engine) {
   await verifyTouchData(page,frame,engine);
@@ -86,6 +87,7 @@ export async function verifyTouchTheme(page,frame,engine) {
   assert.equal(await world.locator('.pmm-wbs-foot').evaluate(el=>getComputedStyle(el).borderTopWidth),'0px','Worldbook footer separator is removed');
   await page.screenshot({path:process.env.PMM_BROWSER_ASSET_DIR+'/snapshot-border-'+engine+'.png'});
   await world.locator('[data-wbs="close"]').click();
+  await verifySnapshotAppearance(page,engine);
   await page.evaluate(()=>__PMM_TOUCH_ACTION_GUARD__.cleanup());
   assert.equal(await page.locator('html').getAttribute('data-pmm-touch-tools'),null);
   console.log(`${engine}: hidden-action two-tap, scroll, mouse, visible toggle, live theme and snapshot borders passed`);

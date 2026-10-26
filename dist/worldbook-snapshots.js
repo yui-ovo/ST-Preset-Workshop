@@ -344,8 +344,12 @@ style.textContent = `
 .pmm-wbs-head .pmm-wbs-icon { border:0; background:transparent!important; box-shadow:none; width:28px; height:28px; min-height:28px!important; padding:5px!important; }
 .pmm-wbs-head h2 { font-size:16px; font-weight:700; }
 .pmm-wbs-dialog button { border-radius:8px; }
-.pmm-wbs-primary,.pmm-wbs-row [data-wbs="apply"],.pmm-wbs-default button { color:var(--wbs-ink)!important; border:1px solid color-mix(in srgb,var(--pm-accent) 45%,transparent)!important; background:color-mix(in srgb,var(--pm-accent) 12%,transparent)!important; box-shadow:none; }
-.pmm-wbs-dialog [data-wbs="new"],.pmm-wbs-dialog [data-wbs="new-group"] { justify-content:center; font-weight:600; border-radius:999px!important; padding:9px!important; border-color:color-mix(in srgb,var(--pm-accent) 45%,transparent)!important; background:color-mix(in srgb,var(--pm-accent) 10%,transparent)!important; }
+.pmm-wbs-dialog .pmm-switch-snapshot-create,.pmm-snapshot-hub-preset .pmm-switch-snapshot-create { border:0!important; background:transparent!important; box-shadow:none!important; }
+.pmm-wbs-primary,.pmm-wbs-row [data-wbs="apply"],.pmm-wbs-default button,
+.pmm-snapshot-hub-preset .pmm-switch-snapshot-create>button,
+.pmm-snapshot-hub-preset .pmm-switch-snapshot-actions>button:first-of-type,
+.pmm-snapshot-hub-preset .pmm-switch-snapshot-default-actions>button:first-child { color:var(--wbs-ink)!important; border:1px solid color-mix(in srgb,var(--pm-accent) 45%,transparent)!important; background:color-mix(in srgb,var(--pm-accent) 12%,transparent)!important; box-shadow:none!important; }
+.pmm-wbs-dialog [data-wbs="new"],.pmm-wbs-dialog [data-wbs="new-group"],.pmm-snapshot-hub-preset .pmm-switch-snapshot-create>button { justify-content:center; font-weight:600; border-radius:999px!important; padding:9px!important; border-color:color-mix(in srgb,var(--pm-accent) 45%,transparent)!important; background:color-mix(in srgb,var(--pm-accent) 10%,transparent)!important; }
 .pmm-wbs-subnav .pmm-wbs-primary { border:0!important; border-radius:999px; background:var(--wbs-raised)!important; box-shadow:0 2px 5px var(--wbs-shadow); font-weight:600; }
 .pmm-wbs-default.pmm-wbs-row { border-radius:0!important; box-shadow:none; background:color-mix(in srgb,var(--pm-accent) 7%,transparent)!important; border-width:1px 0!important; }
 .pmm-wbs-row [data-wbs="group-menu"] { border:0; background:transparent; padding:6px; font-size:20px; }
