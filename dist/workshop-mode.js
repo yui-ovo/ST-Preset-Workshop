@@ -42,19 +42,18 @@ export function installWorkshopModeSettings(host = globalThis) {
     const arrow = doc.createElement('div'); arrow.className = 'inline-drawer-icon fa-solid fa-circle-chevron-down down';
     header.append(title, arrow);
     const content = doc.createElement('div'); content.className = 'inline-drawer-content'; content.style.display = 'none';
-    const select = doc.createElement('select'); select.className = 'text_pole'; select.setAttribute('aria-label', '预设工坊运行模式');
-    for (const [value, label] of [['full', '完整模式'], ['snapshots', '快照模式']]) {
-      const option = doc.createElement('option'); option.value = value; option.textContent = label; select.append(option);
-    }
-    select.value = readWorkshopMode(host);
+    const label = doc.createElement('label'); label.className = 'checkbox_label';
+    const select = doc.createElement('input'); select.type = 'checkbox'; select.setAttribute('aria-label', '完整模式');
+    select.checked = readWorkshopMode(host) === 'full';
+    const caption = doc.createElement('span'); caption.textContent = '完整模式'; label.append(select, caption);
     const note = doc.createElement('small');
-    note.textContent = '切换无需刷新酒馆。快照模式保留预设快照及绑定联动；已有数据保留。';
-    content.append(select, note); box.append(header, content); container.append(box);
+    note.textContent = '取消勾选为快照模式，保留预设快照及绑定联动。切换无需刷新酒馆，已有数据保留。';
+    content.append(label, note); box.append(header, content); container.append(box);
     select.onchange = async () => {
       select.disabled = true;
-      try { await changeWorkshopMode(host, select.value); }
+      try { await changeWorkshopMode(host, select.checked ? 'full' : 'snapshots'); }
       catch (error) { host.toastr?.warning?.(error.message); }
-      finally { select.value = readWorkshopMode(host); select.disabled = false; }
+      finally { select.checked = readWorkshopMode(host) === 'full'; select.disabled = false; }
     };
     return true;
   };

@@ -15,11 +15,18 @@ export async function verifyCompareActions(page, frame, engine) {
   const guard=page.locator('[data-pmm-editing-dialog]');
   const read=()=>frame.evaluate(()=>({main:JSON.parse(JSON.stringify(testStores().main.prompts)),target:JSON.parse(JSON.stringify(testStores().merge.rightPrompts))}));
   const original=await read();
+  async function selectMode() {
+    const choose=modal.locator('[data-pmm-compare-select]');
+    if(await choose.getAttribute('aria-pressed')!=='true') await choose.click();
+  }
   async function open() {
     await page.locator('.preset-panel').nth(1).getByTitle('比对',{exact:true}).click();
     await page.getByTitle('查看详细比对结果',{exact:true}).click();
     if (page.viewportSize().width <= 768) await page.locator('#pmm-diff-detail-portal [data-pmm-compare-mode]').waitFor();
     await modal.locator('[data-pmm-compare-mode]').waitFor();
+    assert.equal(await modal.locator('input[type=checkbox]:visible').count(),0,'Selection starts collapsed');
+    assert.equal(await modal.locator('.pmm-ca-single').count(),0,'No per-row replacement button');
+    await selectMode();
   }
   await open();
   assert.equal(await page.locator('[data-pmm-editing-dialog]').count(),0,'Actions stay inside the comparison');
@@ -55,12 +62,30 @@ export async function verifyCompareActions(page, frame, engine) {
   assert.ok(await modal.getByRole('searchbox').isHidden());
   assert.ok(await modal.locator('.pmm-ca-submit').isHidden());
   assert.ok(await modal.locator('[data-pmm-diff-list]').isVisible());
-  await cycle.click();
+  await cycle.click();await selectMode();
   await modal.getByRole('searchbox').fill('N1');
-  assert.ok(await modal.getByRole('checkbox',{name:'全选可操作的搜索结果'}).isDisabled(),'Ineligible search results cannot be selected');
+  assert.ok(await modal.locator('[data-pmm-compare-all]').isDisabled(),'Ineligible search results cannot be selected');
   await modal.getByRole('searchbox').fill('');
   await modal.locator('.pmm-ca-badge[data-status="content"]').first().click();
   await page.locator('.pmm-content-diff-back').waitFor();
+  const content=page.locator('.pmm-content-diff');
+  const left=content.locator('[data-side="left"]'),right=content.locator('[data-side="right"]');
+  await right.getByRole('button',{name:'B→A',exact:true}).click();
+  assert.equal(await left.locator('textarea').inputValue(),'old');
+  assert.equal(await right.locator('textarea').inputValue(),'old');
+  await left.locator('.pmm-diff-edit-btn').click();
+  await left.locator('textarea').fill('edited draft body');
+  await left.getByRole('button',{name:'A→B',exact:true}).click();
+  assert.equal(await right.locator('textarea').inputValue(),'edited draft body','Copy uses latest edited body');
+  assert.equal(await content.locator('.pmm-diff-save-btn').isEnabled(),true);
+  assert.deepEqual(await read(),original,'Copy is local to the content editor until saving');
+  assert.equal(await page.evaluate(()=>compareWrites.length),0);
+  const actionSize=await right.evaluate(side=>{
+    const a=side.querySelector('.pmm-diff-copy-btn'),b=side.querySelector('.pmm-diff-edit-btn');
+    return {a:a.getBoundingClientRect().height,b:b.getBoundingClientRect().height,colorA:getComputedStyle(a).color,colorB:getComputedStyle(b).color};
+  });
+  assert.equal(actionSize.a,actionSize.b);assert.equal(actionSize.colorA,actionSize.colorB);
+  await page.screenshot({path:process.env.PMM_BROWSER_ASSET_DIR+'/compare-body-copy-'+engine+'.png'});
   await page.locator('.pmm-content-diff-back').click();
   for (const width of [320,390,768,1280]) {
     await page.setViewportSize({width,height:844});
@@ -75,19 +100,19 @@ export async function verifyCompareActions(page, frame, engine) {
     assert.ok(dirBox.x>=titleBox.x+titleBox.width-1,'Direction stays on the right of the title');
   }
   await page.setViewportSize({width:390,height:844});
-  await modal.getByRole('checkbox',{name:'全选可操作的搜索结果'}).check();
+  await modal.locator('[data-pmm-compare-all]').click();
   await modal.getByRole('button',{name:'替换（1）',exact:true}).click();await modal.waitFor({state:'detached'});
   assert.deepEqual((await read()).target[0],{...original.target[0],content:'new'});
   assert.deepEqual((await read()).main,original.main);
   assert.equal(await page.evaluate(()=>compareWrites.length),0);
   await page.locator('.preset-panel').nth(1).getByTitle('撤销：对比替换正文',{exact:true}).click();
   assert.deepEqual((await read()).target,original.target);
-  await open();await modal.locator('[data-pmm-compare-mode]').click();
-  await modal.getByRole('checkbox',{name:'全选可操作的搜索结果'}).check();
+  await open();await modal.locator('[data-pmm-compare-mode]').click();await selectMode();
+  await modal.locator('[data-pmm-compare-all]').click();
   await modal.getByRole('searchbox').fill('N');
-  await modal.getByRole('checkbox',{name:'全选可操作的搜索结果'}).uncheck();
+  await modal.locator('[data-pmm-compare-all]').click();
   assert.equal(await modal.locator('.pmm-ca-submit').textContent(),'插入（0）','Unchecking all also clears previously selected hidden rows');
-  await modal.getByRole('searchbox').fill('N');await modal.getByRole('checkbox',{name:'全选可操作的搜索结果'}).check();
+  await modal.getByRole('searchbox').fill('N');await modal.locator('[data-pmm-compare-all]').click();
   await page.screenshot({path:process.env.PMM_BROWSER_ASSET_DIR+'/compare-insert-'+engine+'.png'});
   await modal.getByRole('button',{name:'插入（2）',exact:true}).click();await modal.waitFor({state:'detached'});
   assert.deepEqual((await read()).target.map(p=>p.id),['A','N1','N2','B']);
@@ -97,11 +122,11 @@ export async function verifyCompareActions(page, frame, engine) {
   // Desktop reverse, followed by stale-draft rejection.
   await page.setViewportSize({width:1280,height:844});await open();
   await modal.getByRole('button',{name:'反转方向'}).click();
-  await modal.locator('.pmm-ca-single').first().click();await modal.waitFor({state:'detached'});
+  await modal.locator('[data-pmm-compare-all]').click();await modal.locator('.pmm-ca-submit').click();await modal.waitFor({state:'detached'});
   assert.equal((await read()).main[0].content,'old');
   await page.locator('.preset-panel').first().getByTitle('撤销：对比替换正文',{exact:true}).click();
   await open();await frame.evaluate(()=>{testStores().merge.rightPrompts[0].content='changed elsewhere';});
-  await modal.locator('.pmm-ca-single').first().click();
+  await modal.locator('[data-pmm-compare-all]').click();await modal.locator('.pmm-ca-submit').click();
   await modal.getByText(/预设或分组已变化/).waitFor();
   assert.equal((await read()).target[0].content,'changed elsewhere');
   await modal.getByRole('button',{name:'关闭',exact:true}).click();
@@ -114,8 +139,8 @@ export async function verifyCompareActions(page, frame, engine) {
       await groups.restorePresetSnapshot(name,{...state,groupSource:'manual',sections:[{id:'g',displayName:'测试分组',itemIds:prompts.map(p=>p.id)}]},prompts);
     }
   });
-  await open();await modal.locator('[data-pmm-compare-mode]').click();
-  await modal.getByRole('searchbox').fill('N');await modal.getByRole('checkbox',{name:'全选可操作的搜索结果'}).check();
+  await open();await modal.locator('[data-pmm-compare-mode]').click();await selectMode();
+  await modal.getByRole('searchbox').fill('N');await modal.locator('[data-pmm-compare-all]').click();
   await modal.getByRole('button',{name:'插入（2）',exact:true}).click();await modal.waitFor({state:'detached'});
   assert.deepEqual(await frame.evaluate(()=>testStores().groups.getPanelState('Second').sections[0].itemIds),['A','N1','N2','B']);
   await page.locator('.preset-panel').nth(1).getByTitle('撤销：对比插入条目',{exact:true}).click();
@@ -125,11 +150,11 @@ export async function verifyCompareActions(page, frame, engine) {
     await groups.restorePresetSnapshot('First',{...groups.getPanelState('First'),sections:[]},main.prompts);
   });
   await page.setViewportSize({width:390,height:844});await open();
-  await modal.locator('[data-pmm-compare-mode]').click();
+  await modal.locator('[data-pmm-compare-mode]').click();await selectMode();
   assert.ok(await modal.getByRole('button',{name:'插入（0）',exact:true}).isDisabled());
   await modal.getByRole('combobox',{name:'目标分组'}).selectOption('g');
   await modal.getByRole('combobox',{name:'插入位置'}).selectOption('0');
-  await modal.getByRole('checkbox',{name:'全选可操作的搜索结果'}).check();
+  await modal.locator('[data-pmm-compare-all]').click();
   await modal.getByRole('button',{name:'插入（1）',exact:true}).click();await modal.waitFor({state:'detached'});
   assert.deepEqual((await read()).target.map(p=>p.id),['Z','A','B']);
   assert.deepEqual(await frame.evaluate(()=>testStores().groups.getPanelState('Second').sections[0].itemIds),['Z','A','B']);
@@ -148,8 +173,9 @@ export async function verifyCompareActions(page, frame, engine) {
   const theme=await page.addStyleTag({content:`body input[type=checkbox]{appearance:none;width:18px;height:18px;border:2px solid rgb(180,120,220);border-radius:6px;box-shadow:0 0 0 1px rgb(80,70,90);background:rgb(40,35,50)}body input[type=checkbox]:checked{background:rgb(180,120,220)}`});
   for(const width of [320,390,768,1280]) {
     await page.setViewportSize({width,height:844});await open();
+    assert.equal(await direction.textContent(),'v1.25→v1.26');
     assert.equal(await modal.locator('.pmm-ca-row').count(),120);
-    await modal.getByRole('checkbox',{name:'全选可操作的搜索结果'}).check();
+    await modal.locator('[data-pmm-compare-all]').click();
     assert.equal(await modal.locator('.pmm-ca-count').textContent(),'已选 120 条');
     const geometry=await modal.evaluate(root=>{
       const list=root.querySelector('.pmm-ca-list'), footer=root.querySelector('[data-pmm-diff-footer]'), count=root.querySelector('.pmm-ca-count'), submit=root.querySelector('.pmm-ca-submit');

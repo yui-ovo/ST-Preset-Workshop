@@ -21,16 +21,29 @@ export async function verifyRuntimeModes(page, engine) {
   await page.waitForFunction(()=>document.querySelector('iframe[id^="TH-script--"]')?.contentWindow?.testOpen);
   await page.waitForFunction(()=>document.getElementById('preset-manager-floating-panel'));
   await page.locator('#pmm-runtime-mode-settings .inline-drawer-header').click();
-  assert.ok(await page.getByRole('combobox',{name:'预设工坊运行模式'}).isVisible());
+  assert.ok(await page.getByRole('checkbox',{name:'完整模式'}).isVisible());
   const marker=await page.evaluate(()=>modeBootMarker);
   let snapshotListenerCount;
   for(let pass=0;pass<3;pass++) {
     // Exercise the actual full app before teardown, including lazy modules.
     await runtime().evaluate(async()=>{testOpen();await __PMM_LOAD_WORLDBOOK_STITCH__();await __PMM_LOAD_REGEX_MANAGER__();});
     await page.waitForFunction(()=>document.getElementById('preset-manager-main-panel'));
+    if(pass===0) {
+      await runtime().evaluate(()=>{testStores().main.prompts[0].content+='dirty mode guard';});
+      // The open workshop covers the settings in this bare fixture. Dispatch a
+      // settings change to exercise the checkbox's cancellation/rollback path.
+      await page.getByRole('checkbox',{name:'完整模式'}).evaluate(input=>{input.checked=false;input.dispatchEvent(new Event('change',{bubbles:true}));});
+      await page.locator('[data-pmm-editing-dialog]').getByRole('button',{name:'继续编辑'}).click();
+      await page.waitForFunction(()=>document.querySelector('[aria-label="完整模式"]').checked&&!document.querySelector('[aria-label="完整模式"]').disabled);
+      assert.equal(await page.locator('#preset-manager-main-panel').count(),1,'Cancel retains the full workshop');
+      await runtime().evaluate(()=>testStores().main.discardChanges());
+    }
+    // Like a user, close the foreground workshop before clicking settings behind it.
+    await page.evaluate(()=>__PMM_WORKSHOP_EDITING__.closeMain());
+    await page.locator('#preset-manager-main-panel').waitFor({state:'detached'});
     await page.evaluate(()=>{window.previousScope=document.querySelector('iframe[id^="TH-script--"]').contentWindow.__PMM_RUNTIME_SCOPE__;});
-    await page.getByRole('combobox',{name:'预设工坊运行模式'}).selectOption('snapshots');
-    await page.waitForFunction(()=>!document.getElementById('preset-manager-floating-panel')&&document.querySelector('iframe[id^="TH-script--"]')?.contentWindow?.__PMM_RUNTIME_SCOPE__?.active && !document.querySelector('[aria-label="预设工坊运行模式"]').disabled);
+    await page.getByRole('checkbox',{name:'完整模式'}).uncheck();
+    await page.waitForFunction(()=>!document.getElementById('preset-manager-floating-panel')&&document.querySelector('iframe[id^="TH-script--"]')?.contentWindow?.__PMM_RUNTIME_SCOPE__?.active && !document.querySelector('[aria-label="完整模式"]').disabled);
     assert.deepEqual(await page.evaluate(()=>previousScope.stats()),{listeners:0,observers:0,timers:0,emitters:0});
     assert.equal(await page.evaluate(()=>previousScope.active),false);
     assert.equal(await page.locator('#preset-manager-main-panel').count(),0);
@@ -49,8 +62,8 @@ export async function verifyRuntimeModes(page, engine) {
     assert.equal(await page.evaluate(()=>otherExtensionCalls),pass+1,'Other extension listeners survive teardown');
     assert.deepEqual(await page.evaluate(()=>modeBootMarker),marker);
     await page.evaluate(()=>{window.previousScope=document.querySelector('iframe[id^="TH-script--"]').contentWindow.__PMM_RUNTIME_SCOPE__;});
-    await page.getByRole('combobox',{name:'预设工坊运行模式'}).selectOption('full');
-    await page.waitForFunction(()=>document.getElementById('preset-manager-floating-panel')&&!document.querySelector('[aria-label="预设工坊运行模式"]').disabled);
+    await page.getByRole('checkbox',{name:'完整模式'}).check();
+    await page.waitForFunction(()=>document.getElementById('preset-manager-floating-panel')&&!document.querySelector('[aria-label="完整模式"]').disabled);
     assert.deepEqual(await page.evaluate(()=>previousScope.stats()),{listeners:0,observers:0,timers:0,emitters:0});
     assert.equal(await page.locator('[data-pmm-native-preset-action="snapshot"]').count(),1);
     assert.equal(await page.locator('#preset-manager-floating-panel').count(),1);

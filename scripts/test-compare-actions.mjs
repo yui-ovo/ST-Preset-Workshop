@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { planCompareActions as plan, applyCompareActions as apply } from '../dist/compare-actions-core.js';
 import { changeWorkshopMode, readWorkshopMode, MODE_KEY } from '../dist/workshop-mode.js';
+import { presetVersionLabel } from '../dist/compare-inline.js';
+for (const [name,label] of [['【万事成真】 v1.25','v1.25'],['标题 版本 2.98.52','v2.98.52'],['标题1 1.26','1.26'],['G4 写作预设','G4 写作预设'],['名字没有版本','名字没有版本']]) assert.equal(presetVersionLabel(name),label);
 import fs from 'node:fs';
 const entry = fs.readFileSync(new URL('../dist/index.js',import.meta.url),'utf8');
 const builder = entry.slice(entry.indexOf('function buildRuntimeDocument()'),entry.indexOf('export async function startPresetWorkshop'))
