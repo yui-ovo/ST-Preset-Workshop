@@ -1,6 +1,7 @@
 function pmmRuntimeResource(target) { return globalThis.__PMM_RUNTIME_SCOPE__?.own(target) || target; }
 import { draftSignature } from './workshop-editing-core.js?v=2.98.49';
 import { planCompareActions, applyCompareActions } from './compare-actions-core.js?v=2.98.49';
+import { dialog, dialogs, element, button as dialogButton } from './workshop-editing.js?v=2.98.49';
 
 // Both the Vue modal and its mobile portal share one comparison transaction.
 export function createCompareActions(adapter) {
@@ -61,7 +62,38 @@ export function createCompareActions(adapter) {
     own(modal, 'style', CSS);
     const dir = own(title.parentElement, 'button', '', 'pmm-ca-button pmm-ca-direction'); dir.type = 'button'; pmmRuntimeResource(title).after(dir);
     const from = node(dir,'span'); node(dir,'span','→'); const to = node(dir,'span');
-    dir.setAttribute('aria-label', '反转方向'); dir.onclick = e => { e.stopPropagation(); if (!busy) { direction = 1-direction; reset(); refresh(); } };
+    const win = modal.ownerDocument.defaultView;
+    let holdTimer = 0, press = null, suppressClick = false;
+    const cancelHold = () => { if (holdTimer) pmmRuntimeResource(win).clearTimeout(holdTimer); holdTimer = 0; press = null; };
+    function showNames() {
+      cancelHold();
+      if (busy || !dir.isConnected || dir.hidden || dialogs.has(modal.ownerDocument)) return;
+      suppressClick = true;
+      const host = modal.closest('#preset-manager-main-panel') || modal;
+      const view = dialog(host, '完整预设名称', () => view.finish());
+      dialogs.set(modal.ownerDocument, true);
+      const names = element(view.main, 'div', '', 'direction');
+      element(names, 'span', '旧预设', 'preset-role');
+      element(names, 'strong', source().name);
+      element(names, 'span', '新预设', 'preset-role');
+      element(names, 'strong', target().name);
+      dialogButton(view.footer, '知道了', () => view.finish()).focus({preventScroll:true});
+    }
+    dir.setAttribute('aria-label', '反转方向'); dir.setAttribute('aria-haspopup', 'dialog');
+    dir.onclick = e => {
+      e.stopPropagation(); cancelHold();
+      if (suppressClick && e.detail !== 0) { suppressClick = false; return; }
+      if (!busy) { direction = 1-direction; reset(); refresh(); }
+    };
+    dir.onpointerdown = e => {
+      if (!e.isPrimary || e.button !== 0 || busy) return;
+      cancelHold(); suppressClick = false; press = {x:e.clientX,y:e.clientY};
+      holdTimer = pmmRuntimeResource(win).setTimeout(showNames, 500);
+    };
+    dir.onpointermove = e => { if (press && Math.hypot(e.clientX-press.x,e.clientY-press.y)>10) cancelHold(); };
+    dir.onpointerup = dir.onpointercancel = dir.onpointerleave = cancelHold;
+    dir.oncontextmenu = e => { e.preventDefault(); e.stopPropagation(); showNames(); };
+    dir.onkeydown = e => { if (e.key === 'F10' && e.shiftKey) { e.preventDefault(); showNames(); } };
     const body = own(modal, 'div', '', 'pmm-ca-body'); pmmRuntimeResource(nativeList).before(body);
     const toolbar = node(body, 'div', '', 'pmm-ca-toolbar'); node(toolbar, 'strong', '差异条目列表');
     const allSlot = node(toolbar, 'span', '', 'pmm-ca-check-slot');
@@ -81,7 +113,7 @@ export function createCompareActions(adapter) {
     function render() {
       const enabled = mode !== 'off', visible = rows(), eligible = visible.filter(r => ready(r.action));
       from.textContent=source().name; to.textContent=target().name;
-      dir.title = `${source().name} → ${target().name}（点击反转）`; dir.setAttribute('aria-description',dir.title); dir.hidden = !enabled; dir.disabled = busy;
+      dir.title = `${source().name} → ${target().name}（点击反转，长按查看完整名称）`; dir.setAttribute('aria-description',dir.title); dir.hidden = !enabled; dir.disabled = busy;
       cycle.textContent = label(); cycle.disabled = busy;
       allSlot.hidden = !enabled; all.disabled = busy || !eligible.length; all.checked = !!eligible.length && eligible.every(r => selected.has(r.si));
       all.indeterminate = !all.checked && eligible.some(r => selected.has(r.si));
@@ -148,7 +180,7 @@ export function createCompareActions(adapter) {
 
 const CSS = `
 [data-pmm-diff-title]{min-width:0;flex-shrink:0}
-.pmm-ca-direction{display:inline-grid!important;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:3px;margin-left:auto;margin-right:6px;max-width:48%;min-width:0;text-align:center;white-space:nowrap}
+.pmm-ca-direction{display:inline-grid!important;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:3px;margin-left:auto;margin-right:6px;max-width:48%;min-width:0;text-align:center;white-space:nowrap;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:manipulation}
 .pmm-ca-direction span{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .pmm-ca-body{flex:1;min-height:0;display:flex;flex-direction:column;padding:0 12px 10px;color:var(--pm-text-primary,var(--pmm-ca-text,#e2e8f0));font-size:12px}
 .pmm-ca-toolbar{display:flex;align-items:center;gap:8px;padding:8px 0;flex:none}.pmm-ca-toolbar strong{flex:1;font-size:11px}

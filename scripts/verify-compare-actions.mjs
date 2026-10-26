@@ -23,6 +23,27 @@ export async function verifyCompareActions(page, frame, engine) {
   }
   await open();
   assert.equal(await page.locator('[data-pmm-editing-dialog]').count(),0,'Actions stay inside the comparison');
+  const direction=modal.locator('.pmm-ca-direction');
+  await modal.getByRole('checkbox',{name:'选择 A',exact:true}).check();
+  await direction.click({delay:650});
+  await guard.getByRole('heading',{name:'完整预设名称'}).waitFor();
+  assert.deepEqual(await guard.locator('.preset-role').allTextContents(),['旧预设','新预设']);
+  assert.deepEqual(await guard.locator('.direction strong').allTextContents(),['First','Second']);
+  await guard.getByRole('button',{name:'知道了'}).click();
+  assert.equal(await direction.textContent(),'First→Second','Long press never reverses the direction');
+  assert.equal(await modal.getByRole('checkbox',{name:'选择 A',exact:true}).isChecked(),true,'Inspecting names preserves selection');
+  await direction.click();
+  assert.equal(await direction.textContent(),'Second→First','The next short press still reverses');
+  await direction.click({button:'right'});
+  assert.deepEqual(await guard.locator('.direction strong').allTextContents(),['Second','First']);
+  await page.keyboard.press('Escape');
+  await direction.click();
+  assert.equal(await direction.textContent(),'First→Second');
+  await direction.dispatchEvent('pointerdown',{isPrimary:true,button:0,clientX:10,clientY:10,pointerType:'touch'});
+  await direction.dispatchEvent('pointermove',{isPrimary:true,clientX:35,clientY:10,pointerType:'touch'});
+  await page.waitForTimeout(550);
+  assert.equal(await page.locator('[data-pmm-editing-dialog]').count(),0,'Moving a finger cancels long press');
+  await direction.dispatchEvent('pointercancel',{isPrimary:true,pointerType:'touch'});
   const cycle=modal.locator('[data-pmm-compare-mode]');
   assert.equal(await cycle.textContent(),'替换');
   assert.deepEqual(await modal.locator('.pmm-ca-name').allTextContents(),['A'],'Replace mode only lists replaceable entries');
@@ -117,11 +138,12 @@ export async function verifyCompareActions(page, frame, engine) {
   assert.deepEqual((await read()).target.map(p=>p.id),['A','B']);
   // A long real comparison must fill the available space, with theme-owned
   // checkbox visuals and the selection count sharing the footer with actions.
-  await frame.evaluate(()=>{
+  const longNames=await frame.evaluate(()=>{
     const rows=Array.from({length:120},(_,i)=>({id:'long'+i,name:'长列表条目 '+i,content:'来源正文 '+i,enabled:true,role:'system',position:{type:'relative'}}));
-    parent.comparePresets.First={prompts:rows};
-    parent.comparePresets.Second={prompts:rows.map(p=>({...p,content:'目标正文 '+p.id}))};
-    const {main,merge}=testStores();main.loadPresetContent('First');merge.loadRightPreset('Second');
+    const names=['【万事成真】同名前缀的完整预设名称·'+ '长名称'.repeat(18)+' v1.25','【万事成真】同名前缀的完整预设名称·'+ '长名称'.repeat(18)+' v1.26'];
+    parent.comparePresets[names[0]]={prompts:rows};
+    parent.comparePresets[names[1]]={prompts:rows.map(p=>({...p,content:'目标正文 '+p.id}))};
+    const {main,merge}=testStores();main.switchPreset(names[0]);merge.loadRightPreset(names[1]);return names;
   });
   const theme=await page.addStyleTag({content:`body input[type=checkbox]{appearance:none;width:18px;height:18px;border:2px solid rgb(180,120,220);border-radius:6px;box-shadow:0 0 0 1px rgb(80,70,90);background:rgb(40,35,50)}body input[type=checkbox]:checked{background:rgb(180,120,220)}`});
   for(const width of [320,390,768,1280]) {
@@ -140,6 +162,17 @@ export async function verifyCompareActions(page, frame, engine) {
     assert.ok(geometry.countLeft<=16&&geometry.footerBottom<=geometry.modalBottom+1);
     assert.equal(geometry.appearance,'none');assert.equal(geometry.radius,'6px');assert.notEqual(geometry.shadow,'none');
     if(width===390)await page.screenshot({path:process.env.PMM_BROWSER_ASSET_DIR+'/compare-layout-'+engine+'.png'});
+    await direction.click({delay:650});
+    await guard.getByRole('heading',{name:'完整预设名称'}).waitFor();
+    assert.deepEqual(await guard.locator('.direction strong').allTextContents(),longNames,'Version suffixes remain visible in full names');
+    const nameLayout=await guard.getByRole('dialog').evaluate(el=>{
+      const r=el.getBoundingClientRect(), main=el.querySelector('main');
+      return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,overflow:main.scrollWidth>main.clientWidth};
+    });
+    assert.ok(nameLayout.left>=0&&nameLayout.right<=width&&nameLayout.top>=0&&nameLayout.bottom<=844&&!nameLayout.overflow);
+    if(width===390)await page.screenshot({path:process.env.PMM_BROWSER_ASSET_DIR+'/compare-full-names-'+engine+'.png'});
+    await guard.getByRole('button',{name:'知道了'}).click();
+    assert.equal(await modal.locator('.pmm-ca-count').textContent(),'已选 120 条');
     await modal.getByRole('button',{name:'关闭',exact:true}).click();
     await frame.evaluate(()=>testStores().diff.clearCompareResult());
     await page.waitForFunction(()=>!document.querySelector('[data-pmm-compare-modal]'));
