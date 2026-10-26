@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { planCompareActions as plan, applyCompareActions as apply } from '../dist/compare-actions-core.js';
+import { planCompareActions as plan, applyCompareActions as apply, buildCompareResult } from '../dist/compare-actions-core.js';
 import { changeWorkshopMode, readWorkshopMode, MODE_KEY } from '../dist/workshop-mode.js';
 import { presetVersionLabel } from '../dist/compare-inline.js';
 for (const [name,label] of [['【万事成真】 v1.25','v1.25'],['标题 版本 2.98.52','v2.98.52'],['标题1 1.26','1.26'],['G4 写作预设','G4 写作预设'],['名字没有版本','名字没有版本']]) assert.equal(presetVersionLabel(name),label);
@@ -27,6 +27,14 @@ const modified = side(['a']); modified.prompts[0].content='new body'; modified.p
 result = apply(modified,target,plan(modified,target));
 assert.deepEqual(result.prompts[0],{...target.prompts[0],content:'new body'});
 const grouped = side(['a','b'],[{id:'baibai_g',displayName:'组',itemIds:['a','b']}]);
+const crossedLeft=[{...row('one','left one'),name:'同名'},{...row('two','same'),name:'同名'}];
+const crossedRight=[{...row('two','same'),name:'同名'},{...row('one','right one'),name:'同名'}];
+const compared=buildCompareResult(crossedLeft,crossedRight);
+assert.equal(compared.stats.contentDiffCount,1);assert.equal(compared.stats.matchCount,1);
+assert.equal(compared.diffItems[0].leftId,'one');assert.equal(compared.diffItems[0].rightId,'one');
+assert.equal(plan({prompts:crossedLeft},{prompts:crossedRight})[0].ti,1,'Statistics and replacement share stable IDs');
+const boundary=plan(side(['a','x','z'],[{id:'g',displayName:'组',itemIds:['a','x']}]),side(['a','outside','z'],[{id:'g',displayName:'组',itemIds:['a']}]))[0];
+assert.equal(boundary.sectionId,'g');assert.equal(boundary.at,1,'Insertion stays after its group anchor, before ungrouped intervening entries');
 const groupedSource = side(['a','x','b'],[{id:'different-g',displayName:'组',itemIds:['a','x','b']}]);
 actions=plan(groupedSource,grouped); assert.equal(actions[0].sectionId,'baibai_g');
 result=apply(groupedSource,grouped,actions);assert.deepEqual(result.sections[0].itemIds,['a','x','b']);

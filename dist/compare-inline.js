@@ -1,6 +1,6 @@
 function pmmRuntimeResource(target) { return globalThis.__PMM_RUNTIME_SCOPE__?.own(target) || target; }
 import { draftSignature } from './workshop-editing-core.js?v=2.98.49';
-import { planCompareActions, applyCompareActions } from './compare-actions-core.js?v=2.98.49';
+import { planCompareActions, applyCompareActions } from './compare-actions-core.js?v=2.98.53';
 import { dialog, dialogs, element, button as dialogButton } from './workshop-editing.js?v=2.98.49';
 
 export function presetVersionLabel(name) {
@@ -14,19 +14,21 @@ export function presetVersionLabel(name) {
 
 // Both the Vue modal and its mobile portal share one comparison transaction.
 export function createCompareActions(adapter) {
-  const sides = adapter.read();
+  let sides = adapter.read();
   if (!sides || sides[0].name === sides[1].name) return null;
-  const signature = draftSignature(sides), selected = new Set(), placements = new Map(), mounts = new Set();
-  let direction = 0, mode = 'replace', multi = false, query = '', busy = false, error = '', actions = [], prepared = [], revision = 0;
+  let signature = draftSignature(sides);
+  const selected = new Set(), placements = new Map(), mounts = new Set();
+  let direction = 0, mode = 'off', multi = false, query = '', busy = false, error = '', actions = [], prepared = [], revision = 0;
   const source = () => sides[direction], target = () => sides[1 - direction];
   const resolved = a => ({ ...a, ...placements.get(a.si) });
   const ready = a => a && a.kind === mode && (a.kind === 'replace' || Number.isInteger(resolved(a).at));
   const label = () => ({replace:'替换',insert:'插入',off:'关闭'})[mode];
   function reset() {
     selected.clear(); placements.clear();
-    actions = planCompareActions(source(), target(), adapter.pairs.map(p => direction ? {si:p.ti,ti:p.si} : p));
+    const comparison = adapter.comparison();
+    actions = planCompareActions(source(), target(), comparison.pairs.map(p => direction ? {si:p.ti,ti:p.si} : p));
     const indices = new Map(source().prompts.map((p,si)=>[p.id,si])), byIndex = new Map(actions.map(a=>[a.si,a]));
-    prepared = adapter.rows.map(row => {
+    prepared = comparison.rows.map(row => {
       const id = direction ? row.rightId : row.leftId;
       const si = indices.get(id) ?? -1;
       return { ...row, si, action:byIndex.get(si), comparisonName:row.name, name:source().prompts[si]?.name || row.name };
@@ -34,13 +36,13 @@ export function createCompareActions(adapter) {
     revision++;
   }
   const rows = () => prepared.filter(row => row.action?.kind === mode && (!query || row.name.toLowerCase().includes(query.toLowerCase())));
-  async function apply(list) {
+  async function apply(list, reveal = false) {
     if (busy || !list.length || list.some(a => !ready(a))) return;
     busy = true; error = ''; refresh();
     try {
       if (draftSignature(adapter.read()) !== signature) throw Error('预设或分组已变化，请重新打开比对');
       const result = applyCompareActions(source(), target(), list.map(resolved));
-      await adapter.apply(1 - direction, result, mode === 'replace' ? '对比替换正文' : '对比插入条目');
+      await adapter.apply(1 - direction, result, mode === 'replace' ? '对比替换正文' : '对比插入条目', reveal);
       adapter.notice(`已${label()} ${result.changed} 条，请保存目标预设；可在目标面板撤销。`);
     } catch (e) { error = e.message || String(e); }
     finally { busy = false; refresh(); }
@@ -129,6 +131,7 @@ export function createCompareActions(adapter) {
     const rowControls = [];
     function render() {
       const enabled = mode !== 'off', visible = rows(), eligible = visible.filter(r => ready(r.action));
+      body.setAttribute('aria-busy',String(busy));
       from.textContent=presetVersionLabel(source().name); to.textContent=presetVersionLabel(target().name);
       dir.title = `${source().name} → ${target().name}（点击反转，长按查看完整名称）`; dir.setAttribute('aria-description',dir.title); dir.hidden = !enabled; dir.disabled = busy;
       cycle.textContent = label(); cycle.disabled = busy;
@@ -166,11 +169,11 @@ export function createCompareActions(adapter) {
         const name = node(first, 'span', row.name || '未命名条目', 'pmm-ca-name'); name.title = row.name || '';
         let single;
         if (canAct && mode === 'insert') {
-          single = button(first, label(), () => void apply([a]), 'pmm-ca-single'); single.disabled = busy || !ready(a);
+          single = button(first, label(), () => void apply([a], true), 'pmm-ca-single'); single.disabled = busy || !ready(a);
         }
         if (canAct) rowControls.push({a,check,single});
         const percent = row.similarity === undefined ? '' : `${Math.round((row.status === 'content' ? 1-row.similarity : row.similarity)*100)}%`;
-        node(first, 'span', percent, 'pmm-ca-percent');
+        if(mode !== 'insert') node(first, 'span', percent, 'pmm-ca-percent');
         const names = {content:'内容不同',name:'已改名',partial:'正文相似',unique:row.leftId?'仅上侧存在':'仅下侧存在'};
         const badge = node(first, 'span', names[row.status] || '', 'pmm-ca-badge'); badge.dataset.status = row.status;
         if (['content','partial'].includes(row.status)) { badge.tabIndex=0; badge.setAttribute('role','button'); badge.title='查看正文差异'; badge.onclick=()=>adapter.inspect?.(row); badge.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();adapter.inspect?.(row);}}; }
@@ -195,7 +198,8 @@ export function createCompareActions(adapter) {
     }
     mounts.add({modal,render}); render();
   }
-  const api = {mount}; reset(); return api;
+  function reload() { sides=adapter.read();signature=draftSignature(sides);reset();refresh(); }
+  const api = {mount,reload}; reset(); return api;
 }
 
 const CSS = `
@@ -213,8 +217,8 @@ const CSS = `
 .pmm-ca-row{padding:8px 7px;border:0!important;box-shadow:none!important}
 .pmm-ca-first{display:grid!important;grid-template-columns:minmax(0,1fr) 4ch 64px;align-items:center;gap:6px;font-size:11px}
 .pmm-ca-multi .pmm-ca-first{grid-template-columns:20px minmax(0,1fr) 4ch 64px}
-.pmm-ca-insert .pmm-ca-first{grid-template-columns:minmax(0,1fr) 34px 4ch 64px}
-.pmm-ca-insert.pmm-ca-multi .pmm-ca-first{grid-template-columns:20px minmax(0,1fr) 34px 4ch 64px}
+.pmm-ca-insert .pmm-ca-first{grid-template-columns:minmax(0,1fr) 34px 64px}
+.pmm-ca-insert.pmm-ca-multi .pmm-ca-first{grid-template-columns:20px minmax(0,1fr) 34px 64px}
 .pmm-ca-single{padding:3px 4px!important;width:34px}.pmm-ca-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .pmm-ca-check-slot{display:flex;align-items:center;justify-content:center;width:20px}.pmm-ca-percent{text-align:right;font-size:10px;font-variant-numeric:tabular-nums;white-space:nowrap;opacity:.75}
 .pmm-ca-badge{font-size:9px;text-align:center;border-radius:4px;padding:2px 0;color:#e19540;background:#a973111a;white-space:nowrap}.pmm-ca-badge[data-status=content]{color:#ef6666;background:#ef44441a}.pmm-ca-badge[data-status=name]{color:#22b55e;background:#22c55e1a}.pmm-ca-badge[data-status=unique]{color:#9c8be9;background:#a855f71a}.pmm-ca-badge[role=button]{cursor:pointer}

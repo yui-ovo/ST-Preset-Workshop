@@ -15,15 +15,27 @@ export async function verifyCompareActions(page, frame, engine) {
   const guard=page.locator('[data-pmm-editing-dialog]');
   const read=()=>frame.evaluate(()=>({main:JSON.parse(JSON.stringify(testStores().main.prompts)),target:JSON.parse(JSON.stringify(testStores().merge.rightPrompts))}));
   const original=await read();
+  async function closeDetail() {
+    await modal.getByRole('button',{name:'关闭',exact:true}).click();
+    await page.waitForFunction(()=>!document.querySelector('[data-pmm-compare-modal]'));
+  }
+  async function applied() {
+    await modal.locator('.pmm-ca-body[aria-busy="false"]').waitFor();
+    assert.equal(await frame.evaluate(()=>testStores().diff.isCompared),true,'Actions retain comparison state');
+    assert.ok(await modal.isVisible(),'Batch actions retain details');
+    await closeDetail();
+  }
   async function selectMode() {
     const choose=modal.locator('[data-pmm-compare-select]');
     if(await choose.getAttribute('aria-pressed')!=='true') await choose.click();
   }
   async function open() {
-    await page.locator('.preset-panel').nth(1).getByTitle('比对',{exact:true}).click();
+    if(!await frame.evaluate(()=>testStores().diff.isCompared)) await page.locator('.preset-panel').nth(1).getByTitle('比对',{exact:true}).click();
     await page.getByTitle('查看详细比对结果',{exact:true}).click();
     if (page.viewportSize().width <= 768) await page.locator('#pmm-diff-detail-portal [data-pmm-compare-mode]').waitFor();
     await modal.locator('[data-pmm-compare-mode]').waitFor();
+    assert.equal(await modal.locator('[data-pmm-compare-mode]').textContent(),'关闭','Comparison opens without an operation');
+    await modal.locator('[data-pmm-compare-mode]').click();
     assert.equal(await modal.locator('input[type=checkbox]:visible').count(),0,'Selection starts collapsed');
     assert.equal(await modal.locator('.pmm-ca-single').count(),0,'No per-row replacement button');
     await selectMode();
@@ -101,7 +113,7 @@ export async function verifyCompareActions(page, frame, engine) {
   }
   await page.setViewportSize({width:390,height:844});
   await modal.locator('[data-pmm-compare-all]').click();
-  await modal.getByRole('button',{name:'替换（1）',exact:true}).click();await modal.waitFor({state:'detached'});
+  await modal.getByRole('button',{name:'替换（1）',exact:true}).click();await applied();
   assert.deepEqual((await read()).target[0],{...original.target[0],content:'new'});
   assert.deepEqual((await read()).main,original.main);
   assert.equal(await page.evaluate(()=>compareWrites.length),0);
@@ -114,7 +126,7 @@ export async function verifyCompareActions(page, frame, engine) {
   assert.equal(await modal.locator('.pmm-ca-submit').textContent(),'插入（0）','Unchecking all also clears previously selected hidden rows');
   await modal.getByRole('searchbox').fill('N');await modal.locator('[data-pmm-compare-all]').click();
   await page.screenshot({path:process.env.PMM_BROWSER_ASSET_DIR+'/compare-insert-'+engine+'.png'});
-  await modal.getByRole('button',{name:'插入（2）',exact:true}).click();await modal.waitFor({state:'detached'});
+  await modal.getByRole('button',{name:'插入（2）',exact:true}).click();await applied();
   assert.deepEqual((await read()).target.map(p=>p.id),['A','N1','N2','B']);
   assert.equal(await page.evaluate(()=>compareWrites.length),0);
   await page.locator('.preset-panel').nth(1).getByTitle('撤销：对比插入条目',{exact:true}).click();
@@ -122,7 +134,7 @@ export async function verifyCompareActions(page, frame, engine) {
   // Desktop reverse, followed by stale-draft rejection.
   await page.setViewportSize({width:1280,height:844});await open();
   await modal.getByRole('button',{name:'反转方向'}).click();
-  await modal.locator('[data-pmm-compare-all]').click();await modal.locator('.pmm-ca-submit').click();await modal.waitFor({state:'detached'});
+  await modal.locator('[data-pmm-compare-all]').click();await modal.locator('.pmm-ca-submit').click();await applied();
   assert.equal((await read()).main[0].content,'old');
   await page.locator('.preset-panel').first().getByTitle('撤销：对比替换正文',{exact:true}).click();
   await open();await frame.evaluate(()=>{testStores().merge.rightPrompts[0].content='changed elsewhere';});
@@ -141,7 +153,7 @@ export async function verifyCompareActions(page, frame, engine) {
   });
   await open();await modal.locator('[data-pmm-compare-mode]').click();await selectMode();
   await modal.getByRole('searchbox').fill('N');await modal.locator('[data-pmm-compare-all]').click();
-  await modal.getByRole('button',{name:'插入（2）',exact:true}).click();await modal.waitFor({state:'detached'});
+  await modal.getByRole('button',{name:'插入（2）',exact:true}).click();await applied();
   assert.deepEqual(await frame.evaluate(()=>testStores().groups.getPanelState('Second').sections[0].itemIds),['A','N1','N2','B']);
   await page.locator('.preset-panel').nth(1).getByTitle('撤销：对比插入条目',{exact:true}).click();
   assert.deepEqual(await frame.evaluate(()=>testStores().groups.getPanelState('Second').sections[0].itemIds),['A','B']);
@@ -155,7 +167,7 @@ export async function verifyCompareActions(page, frame, engine) {
   await modal.getByRole('combobox',{name:'目标分组'}).selectOption('g');
   await modal.getByRole('combobox',{name:'插入位置'}).selectOption('0');
   await modal.locator('[data-pmm-compare-all]').click();
-  await modal.getByRole('button',{name:'插入（1）',exact:true}).click();await modal.waitFor({state:'detached'});
+  await modal.getByRole('button',{name:'插入（1）',exact:true}).click();await applied();
   assert.deepEqual((await read()).target.map(p=>p.id),['Z','A','B']);
   assert.deepEqual(await frame.evaluate(()=>testStores().groups.getPanelState('Second').sections[0].itemIds),['Z','A','B']);
   assert.equal(await page.evaluate(()=>compareWrites.length),0,'All operations remain drafts');
@@ -205,6 +217,71 @@ export async function verifyCompareActions(page, frame, engine) {
     await page.locator('#pmm-diff-detail-portal').waitFor({state:'detached'});
   }
   await theme.evaluate(node=>node.remove());
+  // Duplicate titles and reordered IDs must read the exact compared bodies,
+  // without revealing either main-panel group or inline editor.
+  await frame.evaluate(async()=>{
+    const row=(id,name,content)=>({id,name,content,enabled:false,role:'assistant',position:{type:'relative'},extra:{keep:true}});
+    parent.comparePresets.First={prompts:[row('one','优质写作','left one'),row('two','优质写作','left two'),row('gender','男女平等','left gender')]};
+    parent.comparePresets.Second={prompts:[row('two','优质写作','right two'),row('one','优质写作','right one'),row('gender','男女平等','right gender')]};
+    const {main,merge,groups,diff}=testStores();main.currentPresetName='First';main.loadPresetContent('First');merge.loadRightPreset('Second');diff.clearCompareResult();
+    main.expandedIds.clear();merge.rightExpandedIds.clear();
+    for(const [name,prompts] of [['First',main.prompts],['Second',merge.rightPrompts]]) await groups.restorePresetSnapshot(name,{groupSource:'manual',sections:[{id:'g',displayName:'折叠分组',itemIds:prompts.map(p=>p.id)}],collapsedSections:['g']},prompts);
+  });
+  const beforeDuplicate=await read();
+  await page.setViewportSize({width:390,height:844});await open();
+  assert.deepEqual(await modal.locator('.pmm-ca-name').allTextContents(),['优质写作','优质写作','男女平等']);
+  // Inspect the ordinary off-mode row, not only the new action list.
+  await cycle.click();await cycle.click();
+  await modal.locator('[data-pmm-diff-row="0"]').getByText('内容不同',{exact:true}).click();
+  await content.waitFor();
+  assert.equal(await left.locator('textarea').inputValue(),'left one');
+  assert.equal(await right.locator('textarea').inputValue(),'right one');
+  await left.getByRole('button',{name:'A→B',exact:true}).click();
+  await content.locator('.pmm-diff-save-btn').click();
+  await content.getByText('已保存',{exact:true}).waitFor();
+  const savedDuplicate=await read();
+  assert.deepEqual(savedDuplicate.target[1],{...beforeDuplicate.target[1],content:'left one'});
+  assert.deepEqual(savedDuplicate.target[0],beforeDuplicate.target[0]);
+  assert.deepEqual(await frame.evaluate(()=>({left:[...testStores().main.expandedIds],right:[...testStores().merge.rightExpandedIds],collapsed:['First','Second'].map(n=>[...testStores().groups.getPanelState(n).collapsedSections])})),{left:[],right:[],collapsed:[['g'],['g']]});
+  await content.locator('.pmm-content-diff-back').click();
+  await cycle.click();await selectMode();
+  assert.deepEqual(await modal.locator('.pmm-ca-name').allTextContents(),['优质写作','男女平等']);
+  for(const name of ['男女平等','优质写作']) {
+    await modal.getByRole('checkbox',{name:'选择 '+name,exact:true}).check();
+    await modal.locator('.pmm-ca-submit').click();
+    await modal.locator('.pmm-ca-body[aria-busy="false"]').waitFor();
+    assert.ok(await modal.isVisible());
+    assert.equal(await frame.evaluate(()=>testStores().diff.isCompared),true);
+  }
+  assert.equal(await modal.locator('.pmm-ca-row').count(),0);
+  assert.equal(await frame.evaluate(()=>testStores().diff.stats.contentDiffCount),0);
+  await closeDetail();
+  // Native BaiBai metadata remains stale until saving. Pending assignment must
+  // survive reimport, and a single insertion reveals only the target group.
+  await frame.evaluate(async()=>{
+    const row=id=>({id,name:id,content:id,enabled:true,role:'system',position:{type:'relative'}});
+    parent.comparePresets.First={prompts:['a','new','b','tail'].map(row)};parent.comparePresets.Second={prompts:['a','b','tail'].map(row)};
+    const context=parent.SillyTavern.getContext();parent.savedCompareManager=context.getPresetManager;
+    context.getPresetManager=()=>({readPresetExtensionField:({name})=>({groups:[{id:'g',name:'柏宝箱分组',collapsed:true}],prompts:Object.fromEntries((name==='First'?['a','new','b']:['a','b']).map(id=>[id,{groupId:'g'}]))})});
+    const {main,merge,groups,diff}=testStores();main.loadPresetContent('First');merge.loadRightPreset('Second');diff.clearCompareResult();
+    for(const [name,prompts] of [['First',main.prompts],['Second',merge.rightPrompts]]) await groups.restorePresetSnapshot(name,{groupSource:'baibai',sections:[{id:'baibai_g',displayName:'柏宝箱分组',itemIds:prompts.filter(p=>p.id!=='tail').map(p=>p.id)}],collapsedSections:['baibai_g']},prompts);
+  });
+  await open();await cycle.click();
+  assert.equal(await modal.locator('.pmm-ca-percent').count(),0,'Insert mode reserves no percentage column');
+  await modal.locator('.pmm-ca-single').click();
+  await page.waitForFunction(()=>!document.querySelector('[data-pmm-compare-modal]'));
+  assert.equal(await frame.evaluate(()=>testStores().diff.isCompared),true);
+  const insertedCard=page.locator('.preset-panel').nth(1).locator('.prompt-card[data-prompt-id="new"]');
+  assert.ok(await insertedCard.isVisible(),'Single insertion reveals its target card');
+  const insertedRect=await insertedCard.boundingBox();assert.ok(insertedRect.y>=0&&insertedRect.y+insertedRect.height<=844,'Inserted card is scrolled into view');
+  assert.deepEqual((await read()).target.map(p=>p.id),['a','new','b','tail']);
+  await frame.evaluate(async()=>{const {groups,merge}=testStores();await groups.initialize('Second',merge.rightPrompts);});
+  assert.deepEqual(await frame.evaluate(()=>testStores().groups.getPanelState('Second').sections.find(s=>s.id==='baibai_g').itemIds),['a','new','b']);
+  assert.equal(await frame.evaluate(()=>testStores().groups.getPanelState('Second').pendingBaiBaiAssignments.new),'g');
+  await page.locator('.preset-panel').nth(1).getByTitle('撤销：对比插入条目',{exact:true}).click();
+  assert.equal(await frame.evaluate(()=>testStores().groups.getPanelState('Second').pendingBaiBaiAssignments.new),undefined);
+  assert.deepEqual((await read()).target.map(p=>p.id),['a','b','tail']);
+  await page.evaluate(()=>{SillyTavern.getContext().getPresetManager=savedCompareManager;});
   await frame.evaluate(()=>{testStores().main.prompts[0].content+='未保存修改';});
   await page.evaluate(async()=>{
     const mode=await import('/workshop-mode.js');window.modeReloads=0;

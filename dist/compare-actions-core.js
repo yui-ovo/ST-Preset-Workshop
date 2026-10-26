@@ -3,6 +3,39 @@ const copy = value => JSON.parse(JSON.stringify(value));
 const text = value => String(value ?? '').trim();
 const sectionOf = (side, index) => side.sections?.find(s => s.itemIds?.includes(side.prompts[index]?.id))?.id || '';
 
+// One identity mapping for statistics, the body editor and replacement actions.
+export function buildCompareResult(left, right, similarity = (a,b) => a === b ? 1 : 0) {
+  const result = {leftStatus:new Map(),rightStatus:new Map(),pairLabels:new Map(),similarities:new Map(),diffItems:[],stats:{contentDiffCount:0,nameDiffCount:0,partialCount:0,leftUniqueCount:0,rightUniqueCount:0,matchCount:0}};
+  const paired = new Map([...planSwitchTransfer(left,right).matches].map(([ti,si])=>[si,ti]));
+  const used = new Set(paired.values());
+  const body = p => String(p.content ?? '');
+  for (let si=0;si<left.length;si++) if(!paired.has(si)) {
+    const ti=right.findIndex((p,ti)=>!used.has(ti)&&body(p)!==''&&body(p)===body(left[si]));
+    if(ti>=0){paired.set(si,ti);used.add(ti);}
+  }
+  for (let si=0;si<left.length;si++) if(!paired.has(si)) {
+    let best=-1,score=.6;
+    right.forEach((p,ti)=>{if(!used.has(ti)){const value=similarity(body(left[si]),body(p));if(value>=score){best=ti;score=value;}}});
+    if(best>=0){paired.set(si,best);used.add(best);}
+  }
+  let labelIndex=0;
+  for(let si=0;si<left.length;si++) {
+    const a=left[si],ti=paired.get(si),b=right[ti];
+    if(!b){result.leftStatus.set(a.id,'unique');result.stats.leftUniqueCount++;result.diffItems.push({leftId:a.id,name:a.name,status:'unique'});continue;}
+    const equal=body(a)===body(b),sameName=a.name===b.name;
+    const status=equal?(sameName?'match':'name'):(sameName||a.id===b.id?'content':'partial');
+    result.leftStatus.set(a.id,status);result.rightStatus.set(b.id,status);
+    result.stats[{match:'matchCount',name:'nameDiffCount',content:'contentDiffCount',partial:'partialCount'}[status]]++;
+    if(status==='match')continue;
+    let label='',n=labelIndex++;for(;n>=0;n=Math.floor(n/26)-1)label=String.fromCharCode(65+n%26)+label;
+    result.pairLabels.set(a.id,label);result.pairLabels.set(b.id,label);
+    const score=similarity(body(a),body(b));result.similarities.set(a.id,score);result.similarities.set(b.id,score);
+    result.diffItems.push({leftId:a.id,rightId:b.id,name:sameName?a.name:`${a.name} ${equal?'/':'≈'} ${b.name}`,status,...(!equal?{similarity:score}:{})});
+  }
+  right.forEach((b,ti)=>{if(!used.has(ti)){result.rightStatus.set(b.id,'unique');result.stats.rightUniqueCount++;result.diffItems.push({rightId:b.id,name:b.name,status:'unique'});}});
+  return result;
+}
+
 export function planCompareActions(source, target, pairs = []) {
   const { matches } = planSwitchTransfer(source.prompts, target.prompts);
   const reliable = new Map([...matches].map(([ti, si]) => [si, ti]));
@@ -42,6 +75,7 @@ export function planCompareActions(source, target, pairs = []) {
     if (matchingGroups.length === 1) {
       sectionId = matchingGroups[0].id;
       if (previousGroup !== sectionId && nextGroup !== sectionId) { at = null; reason ||= '对应分组内没有可靠的定位条目'; }
+      else if (!reason && previousGroup === sectionId && nextGroup !== sectionId) at = before + 1;
     } else if ((ownGroup && matchingGroups.length !== 1) || (previousGroup !== null && nextGroup !== null && previousGroup !== nextGroup)) {
       at = null; reason ||= '需要确认目标分组';
     }
