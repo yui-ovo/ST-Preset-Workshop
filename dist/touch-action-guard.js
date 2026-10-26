@@ -14,7 +14,9 @@ export function installTouchActionGuard(host) {
     html[data-pmm-touch-tools] ${root} .prompt-card > .prompt-card__actions[data-pmm-tools-shown],
     html[data-pmm-touch-tools] ${root} .prompt-card > .prompt-card__actions[data-pmm-tools-shown] > .prompt-card__action{display:flex!important;visibility:visible!important;pointer-events:auto!important}
     html[data-pmm-touch-tools] ${root} .prompt-card--favorited > .prompt-card__actions{opacity:1!important}
-    html[data-pmm-touch-tools] ${root} .prompt-card--favorited > .prompt-card__actions:not([data-pmm-tools-shown]) > .prompt-card__action:not(.prompt-card__action--favorited){visibility:hidden!important;pointer-events:none!important}`;
+    html[data-pmm-touch-tools] ${root} .prompt-card--favorited > .prompt-card__actions:not([data-pmm-tools-shown]) > .prompt-card__action:not(.prompt-card__action--favorited){visibility:hidden!important;pointer-events:none!important}
+    html[data-pmm-touch-tools] ${root} .prompt-card__action--favorite:not([aria-pressed="true"]){background:transparent!important;border-color:var(--pm-border,transparent)!important}
+    html[data-pmm-touch-tools] ${root} .prompt-card__action--favorite:not([aria-pressed="true"]) i{color:var(--pm-text-secondary)!important;opacity:.6!important}`;
   own(doc.head).append(style);
   if(host.matchMedia('(hover:none), (pointer:coarse)').matches) doc.documentElement.setAttribute('data-pmm-touch-tools','');
   let shown=[], activeCard=null, gesture=null, pending=null;
@@ -31,6 +33,21 @@ export function installTouchActionGuard(host) {
     for(const area of shown) area.setAttribute('data-pmm-tools-shown','');
   }
   function block(event) {event.preventDefault();event.stopImmediatePropagation();}
+  function hiddenQuickToggleOverlap(card,target,point) {
+    if(!card.closest(root)?.classList.contains('pmm-mobile-layout-enabled'))return false;
+    const rect=card.getBoundingClientRect(),width=host.__PMM_MOBILE_QUICK_TOGGLE_TEST72__?.HOT_ZONE_WIDTH || 72;
+    if(point.x<rect.right-width || point.x>rect.right || point.y<rect.top || point.y>rect.bottom)return false;
+    const toggle=host.__PMM_MOBILE_QUICK_TOGGLE_TEST72__?.toggleFor(card);
+    if(!toggle)return false;
+    const hit=toggle.getBoundingClientRect();
+    // Keep the real visible switch one-tap. The extra blank hot zone overlaps
+    // the star's future position while the mobile toolbar is display:none.
+    if(toggle.contains(target) || (hit.width>0 && point.x>=hit.left && point.x<=hit.right && point.y>=hit.top && point.y<=hit.bottom))return false;
+    return Array.from(card.querySelectorAll(areas)).some(area=>{
+      const css=host.getComputedStyle(area);
+      return area.closest(cards)===card && (css.display==='none' || Number(css.opacity)<.99);
+    });
+  }
   function start(event,point,id) {
     pending=null;gesture=null;
     doc.documentElement.setAttribute('data-pmm-touch-tools','');
@@ -38,7 +55,7 @@ export function installTouchActionGuard(host) {
     if(card!==activeCard)clear();
     if(!card || card.matches('.prompt-card--expanded'))return;
     const ready=area && (event.target.closest('.prompt-card__action--favorited') || (activeCard===card && area.hasAttribute('data-pmm-tools-shown'))) && Number(host.getComputedStyle(area).opacity)>=.99;
-    gesture={id,card,area,start:point,firstReveal:activeCard!==card,blocked:!!area&&!ready,moved:false};
+    gesture={id,card,area,start:point,firstReveal:activeCard!==card,blocked:(!!area&&!ready)||(!area&&hiddenQuickToggleOverlap(card,event.target,point)),moved:false};
     // Do not stop touch scrolling, or the always-visible toggle outside actions.
     if(gesture.blocked)event.stopImmediatePropagation();
   }

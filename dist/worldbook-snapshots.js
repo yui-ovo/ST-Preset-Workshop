@@ -378,7 +378,7 @@ style.textContent = `
 .pmm-wbs-default-actions { display:flex; align-items:center; gap:6px; }
 .pmm-wbs-default-actions .pmm-switch-snapshot-reset-all { width:32px; min-width:32px; min-height:32px!important; padding:5px!important; display:grid; place-items:center; }
 .pmm-wbs-default-actions .pmm-switch-snapshot-reset-all .pmm-wbs-svg { width:14px; height:14px; }
-.pmm-switch-snapshot-dialog .pmm-wbs-foot { opacity:1!important; }
+.pmm-switch-snapshot-dialog .pmm-wbs-foot { opacity:1!important; border-top:0!important; }
 .pmm-switch-snapshot-dialog .pmm-wbs-foot>small { opacity:.55!important; }
 .pmm-native-worldbook-actions { margin-left:auto; display:flex; align-items:center; gap:3px; flex:none; }
 .pmm-native-worldbook-action { width:30px!important; height:30px!important; min-width:30px!important; min-height:30px!important; margin:0!important; padding:0!important; display:grid!important; place-items:center; border-radius:8px!important; }

@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
+import {verifyTouchData} from './verify-touch-data.mjs';
 
 export async function verifyTouchTheme(page,frame,engine) {
+  await verifyTouchData(page,frame,engine);
   // Observe actual native actions without writing or deleting user-like fixtures.
   const card=page.locator('.prompt-card[data-prompt-id]').first();
   await card.waitFor();
@@ -68,11 +70,20 @@ export async function verifyTouchTheme(page,frame,engine) {
   const preset=page.locator('.pmm-switch-snapshot-dialog');await preset.waitFor();
   const presetBorder=await preset.evaluate(el=>getComputedStyle(el).borderTopColor);
   assert.ok(/0\.1\)|\/\s*0\.1\)/.test(presetBorder),`Preset outer border should be subtle: ${presetBorder}`);
+  assert.deepEqual(await preset.evaluate(el=>{
+    // Check the saved-default/create/footer variants in the real snapshot style
+    // context even when this fixture opens the first-default onboarding screen.
+    return ['pmm-switch-snapshot-default','pmm-switch-snapshot-create','pmm-switch-snapshot-footer'].map(name=>{
+      const probe=document.createElement(name.endsWith('footer')?'footer':'section');probe.className=name;el.append(probe);
+      const css=getComputedStyle(probe),border=[css.borderTopWidth,css.borderBottomWidth];probe.remove();return border;
+    });
+  }),[['0px','0px'],['0px','0px'],['0px','0px']],'Preset default/create/footer have no full-width separators');
   await page.evaluate(()=>__PMM_SWITCH_SNAPSHOTS_TEST52__.close());
   await page.evaluate(()=>__PMM_WORLDBOOK_SNAPSHOTS__.open());
   const world=page.locator('.pmm-wbs-dialog');await world.waitFor();
   const worldBorder=await world.evaluate(el=>getComputedStyle(el).borderTopColor);
   assert.ok(/0\.1\)|\/\s*0\.1\)/.test(worldBorder),`Worldbook outer border should match batch dialog: ${worldBorder}`);
+  assert.equal(await world.locator('.pmm-wbs-foot').evaluate(el=>getComputedStyle(el).borderTopWidth),'0px','Worldbook footer separator is removed');
   await page.screenshot({path:process.env.PMM_BROWSER_ASSET_DIR+'/snapshot-border-'+engine+'.png'});
   await world.locator('[data-wbs="close"]').click();
   await page.evaluate(()=>__PMM_TOUCH_ACTION_GUARD__.cleanup());
