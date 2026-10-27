@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const source = await readFile(new URL('../dist/workshop-v2.92.js', import.meta.url), 'utf8');
+const source = (await readFile(new URL('../dist/workshop-v3.02.js', import.meta.url), 'utf8')).replace(/pmmRuntimeResource\((\w+)\)/g,'$1');
 const start = source.indexOf('/* ===== PMM_TAURITAVERN_ADAPTER_V290');
 assert.ok(start >= 0, '缺少 v2.90 TauriTavern 条件适配模块');
 const patch = source.slice(start);

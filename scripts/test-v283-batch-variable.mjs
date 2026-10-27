@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const source = await readFile(new URL('../dist/workshop-v2.92.js', import.meta.url), 'utf8');
+const source = (await readFile(new URL('../dist/workshop-v3.02.js', import.meta.url), 'utf8')).replace(/pmmRuntimeResource\((\w+)\)/g, '$1');
 
 const bridgeStart = source.indexOf('function _pmmBatchVariableState()');
 const bridgeEnd = source.indexOf('return n({openFullEditor:', bridgeStart);
@@ -23,7 +23,7 @@ assert.ok(
 
 const setStart = source.indexOf('async function handleSetButton(group)');
 const getStart = source.indexOf('async function handleGetButton(group)', setStart);
-const badgeStart = source.indexOf('function updateBasketBadges', getStart);
+const badgeStart = source.indexOf('async function handleStripButton', getStart);
 assert.ok(setStart >= 0 && getStart > setStart && badgeStart > getStart, '无法定位 S/G 按钮处理器');
 const setHandler = source.slice(setStart, getStart);
 const getHandler = source.slice(getStart, badgeStart);
@@ -31,8 +31,10 @@ const getHandler = source.slice(getStart, badgeStart);
 assert.ok(setHandler.includes('const selectedBatch = selectedBatchContext(ctx.editor, ctx.panel)'), 'S 没有读取当前面板多选状态');
 assert.ok(setHandler.includes('selectedBatch?.state?.active && selectedBatch.state.count > 0'), 'S 没有限定多选且已勾选时才批量处理');
 assert.ok(setHandler.indexOf('selectedBatchContext') < setHandler.indexOf('const existing = extractSetVariables'), '批量分支必须先于原单条 S 菜单');
-assert.ok(setHandler.includes('条目名称、开关与排序不变'), '批量确认弹窗缺少不改其他字段的说明');
-assert.ok(setHandler.includes('addVariables(ctx.panel, [name], { quiet: true })'), '批量生成的变量名没有加入本次新增变量记录');
+assert.ok(source.includes('条目名称、开关与排序不变'), '批量确认弹窗缺少不改其他字段的说明');
+const batchHandler = source.slice(source.indexOf('async function batchVariableizeSelected('), source.indexOf('async function batchRenameSelectedVariables('));
+assert.ok(setHandler.includes('batchVariableizeSelected(ctx, selectedBatch)'), 'S must dispatch to the current batch handler');
+assert.ok(batchHandler.includes('addVariables(ctx.panel, [name], { quiet: true })'), '批量生成的变量名没有加入本次新增变量记录');
 assert.ok(!getHandler.includes('selectedBatchContext'), 'G 不应被批量变量功能改变');
 assert.ok(source.includes('V2.83 已加载：多选模式复用条目 S 批量变量化，G 保持不变。'), '缺少 v2.83 加载标记');
 

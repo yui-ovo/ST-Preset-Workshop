@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFile } from 'node:fs/promises';
 
-const source = await readFile(new URL('../dist/workshop-v2.92.js', import.meta.url), 'utf8');
+const source = (await readFile(new URL('../dist/workshop-v3.02.js', import.meta.url), 'utf8')).replace(/pmmRuntimeResource\((\w+)\)/g, '$1');
 const start = source.indexOf('function _pmmBindAndroidRangeGestureGuard');
 const end = source.indexOf('function makeControl(control)', start);
 assert.ok(start >= 0 && end > start, '无法定位安卓滑杆手势保护');

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFile } from 'node:fs/promises';
 
-const source = await readFile(new URL('../dist/workshop-v2.92.js', import.meta.url), 'utf8');
+const source = (await readFile(new URL('../dist/workshop-v3.02.js', import.meta.url), 'utf8')).replace(/pmmRuntimeResource\((\w+)\)/g, '$1');
 const start = source.indexOf('function selectedBatchContext(editor, panel)');
 const end = source.indexOf('function applyTheme(dialog, panel)', start);
 assert.ok(start >= 0 && end > start, '无法定位从展开编辑器读取多选面板的桥');
@@ -18,7 +18,7 @@ assert.ok(
 );
 assert.ok(!source.includes('const selectedBatch = selectedBatchContext(ctx.panel);'), '旧的错误面板入口仍然存在');
 assert.ok(source.includes("ref_key:'pmmBatchRoot',ref:_pmmBatchRoot,class:'preset-panel'"), 'PresetPanel 根节点没有注册批量桥引用');
-assert.ok(source.includes('__pmmBatchVariableBridge={state:_pmmBatchVariableState,apply:_pmmBatchVariableize,reveal:_pmmRevealPromptForCompare,record:le}'), 'PresetPanel 没有把批量与撤销能力直接绑定到当前面板节点');
+assert.ok(source.includes('__pmmBatchVariableBridge={state:_pmmBatchVariableState,apply:_pmmBatchVariableize,reveal:_pmmRevealPromptForCompare,record:le,'), 'PresetPanel 没有把批量与撤销能力直接绑定到当前面板节点');
 
 const selectedBatchContext = vm.runInNewContext(
   `(() => { ${bridgeSource}; return selectedBatchContext; })()`,

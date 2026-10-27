@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 
-const source = await readFile(new URL('../dist/workshop-v2.73.js', import.meta.url), 'utf8');
+const source = (await readFile(new URL('../dist/workshop-v3.02.js', import.meta.url), 'utf8')).replace(/pmmRuntimeResource\((\w+)\)/g, '$1');
 
 assert.ok(source.includes('function completePromptContentsInPanel(panel)'), '缺少完整预设数据读取');
 assert.ok(source.includes('component.props?.prompts'), '没有优先读取面板的完整 prompts 数据');
@@ -16,10 +16,7 @@ const blockEnd = source.indexOf('\n;(()=>{\n  /* 预设工坊 V2.58', blockStart
 assert.ok(blockStart >= 0 && blockEnd > blockStart, '无法隔离变量助手运行块');
 
 let runnable = source.slice(blockStart, blockEnd);
-runnable = runnable.replace(
-  "  console.info('[预设工坊] V2.73 已加载：新增变量稳定保留，仅在撤销或删除后用完整预设数据安全校准。');\n})();",
-  '  globalThis.__safeVariableTest = { addVariables, basketFor, reconcileBasket };\n})();',
-);
+runnable = runnable.replace(/\}\)\(\);\s*$/, 'globalThis.__safeVariableTest = { addVariables, basketFor, reconcileBasket };\n})();');
 
 const fakeDocument = {
   body: {},
@@ -33,6 +30,7 @@ const fakeDocument = {
   createElement() { return { id: '', style: { setProperty() {} }, textContent: '' }; },
 };
 const sandbox = {
+  pmmRuntimeResource: target => target,
   console,
   document: fakeDocument,
   requestAnimationFrame(callback) { callback(); },

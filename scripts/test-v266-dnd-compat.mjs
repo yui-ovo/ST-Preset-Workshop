@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const workshop = await readFile(new URL('../dist/workshop-v2.66.js', import.meta.url), 'utf8');
+const workshop = (await readFile(new URL('../dist/workshop-v3.02.js', import.meta.url), 'utf8')).replace(/pmmRuntimeResource\((\w+)\)/g, '$1');
 
 const compatStart = workshop.indexOf('PMM_MOBILE_DND_COMPAT_V266');
 const compatEnd = workshop.indexOf('PMM_MOBILE_LAYOUT_TUNER_V1', compatStart);

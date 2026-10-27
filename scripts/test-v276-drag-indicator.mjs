@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const source = await readFile(new URL('../dist/workshop-v2.92.js', import.meta.url), 'utf8');
+const source = (await readFile(new URL('../dist/workshop-v3.02.js', import.meta.url), 'utf8')).replace(/pmmRuntimeResource\((\w+)\)/g, '$1');
 const guardStart = source.indexOf('/* ===== PMM_MOBILE_PERFORMANCE_GUARD_V275');
 const guardEnd = source.indexOf('/* ===== PMM_VARIABLE_MACRO_ASSISTANT_V263', guardStart);
 assert.ok(guardStart >= 0 && guardEnd > guardStart, '无法隔离移动端性能保护样式');

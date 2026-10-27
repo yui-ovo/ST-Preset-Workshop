@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const source = await readFile(new URL('../dist/workshop-v2.58.js', import.meta.url), 'utf8');
+const source = (await readFile(new URL('../dist/workshop-v3.02.js', import.meta.url), 'utf8')).replace(/pmmRuntimeResource\((\w+)\)/g, '$1');
 const start = source.indexOf("const STYLE_ID='pmm-unified-layout-range-v258'");
-const end = source.indexOf("console.info('[预设工坊] V2.58 已加载", start);
+const end = source.indexOf("/* ===== PMM_FLOATING_PANEL_BATCH_V1", start);
 
 assert.notEqual(start, -1, '缺少统一滑杆样式');
 assert.notEqual(end, -1, '无法定位统一滑杆样式结尾');

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const source = await readFile(new URL('../dist/workshop-v2.92.js', import.meta.url), 'utf8');
+const source = (await readFile(new URL('../dist/workshop-v3.02.js', import.meta.url), 'utf8')).replace(/pmmRuntimeResource\((\w+)\)/g, '$1');
 const selector = '#preset-manager-main-panel.pmm-layout-custom-item-height .prompt-item:not(.prompt-item--expanded){';
 const blocks = source.split(selector).slice(1).map(part => part.slice(0, part.indexOf('}')));
 

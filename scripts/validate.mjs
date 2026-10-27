@@ -4,7 +4,6 @@ import { createHash } from 'node:crypto';
 const manifest = JSON.parse(await readFile(new URL('../manifest.json', import.meta.url), 'utf8'));
 const entry = await readFile(new URL('../dist/index.js', import.meta.url), 'utf8');
 const workshop = await readFile(new URL('../dist/workshop-v3.02.js', import.meta.url), 'utf8');
-const migrationBase = await readFile(new URL('../dist/workshop-v2.53.js', import.meta.url), 'utf8');
 const bridge = await readFile(new URL('../bridge/predefine.js', import.meta.url), 'utf8');
 const legacy = JSON.parse(await readFile(new URL('../legacy/🧩预设工坊｜双端适配v2.53.json', import.meta.url), 'utf8'));
 const expectedWorkshopHash = '35a0f76b35d8fea5bedcf5b266e1baad5bbec5aedadc00a6c8a1560bc12efa6d';
@@ -45,11 +44,8 @@ if (!workshop.includes("String(n).startsWith('branch:')") ||
   throw new Error('v2.99 缺少分支快照读取隔离修复');
 }
 
-if (legacy.content !== migrationBase) {
-  throw new Error('dist/workshop-v2.53.js 与原始 v2.53 JSON 内容不一致');
-}
-
-const workshopHash = createHash('sha256').update(migrationBase).digest('hex');
+// Keep one migration source in legacy/; do not ship a duplicate executable bundle.
+const workshopHash = createHash('sha256').update(legacy.content.replaceAll('\r\n', '\n')).digest('hex');
 if (workshopHash !== expectedWorkshopHash) {
   throw new Error(`v2.53 业务入口校验失败：${workshopHash}`);
 }

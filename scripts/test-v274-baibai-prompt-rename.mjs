@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 
-const source = await readFile(new URL('../dist/workshop-v2.74.js', import.meta.url), 'utf8');
+const source = (await readFile(new URL('../dist/workshop-v3.02.js', import.meta.url), 'utf8')).replace(/pmmRuntimeResource\((\w+)\)/g, '$1');
 
 assert.ok(source.includes('function readCurrentPromptNames(presetName)'), '保存后没有读取当前预设的新条目名称');
 assert.ok(source.includes('function patchVuePromptNamesDirectly(manager, promptNames)'), '缺少柏宝箱 Vue 条目名称直补逻辑');

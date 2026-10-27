@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFile } from 'node:fs/promises';
 
-const source = await readFile(new URL('../dist/workshop-v2.92.js', import.meta.url), 'utf8');
+const source = (await readFile(new URL('../dist/workshop-v3.02.js', import.meta.url), 'utf8')).replace(/pmmRuntimeResource\((\w+)\)/g, '$1');
 const entry = await readFile(new URL('../dist/index.js', import.meta.url), 'utf8');
 const marker = '/* ===== PMM_MOBILE_PERFORMANCE_GUARD_V275';
 const nextMarker = '/* ===== PMM_VARIABLE_MACRO_ASSISTANT_V263';
@@ -79,6 +79,7 @@ fakeWindow.top = fakeWindow;
 fakeDocument.defaultView = fakeWindow;
 
 const context = {
+  pmmRuntimeResource: target => target,
   window: fakeWindow,
   document: fakeDocument,
   console: { info() {}, warn() {}, error() {} },

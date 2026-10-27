@@ -2,23 +2,23 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 
-const source = await readFile(new URL('../dist/workshop-v2.92.js', import.meta.url), 'utf8');
+const source = (await readFile(new URL('../dist/workshop-v3.02.js', import.meta.url), 'utf8')).replace(/pmmRuntimeResource\((\w+)\)/g,'$1');
 
 const floatingStart = source.indexOf('PMM_FLOATING_PANEL_BATCH_V1');
 assert.ok(floatingStart >= 0, '缺少手机悬浮入口模块');
 const floatingNextModule = source.indexOf('/* =====', floatingStart + 30);
 const floatingPatch = source.slice(floatingStart, floatingNextModule > floatingStart ? floatingNextModule : undefined);
-assert.ok(floatingPatch.includes("pmmFloatingNativeMouseBound"), '手机入口没有隔离原组件的鼠标展开状态');
-assert.ok(floatingPatch.includes("edge.addEventListener('mousedown'"), '手机入口没有拦截原生 mousedown 切换');
-assert.ok(floatingPatch.includes("if (!isMobile()) return;"), '入口状态隔离没有限制在手机环境');
+assert.ok(floatingPatch.includes("listen('mousedown'"), '手机入口没有隔离原组件的鼠标展开状态');
+assert.ok(floatingPatch.includes("listen('mousedown'"), '手机入口没有拦截原生 mousedown 切换');
+assert.ok(floatingPatch.includes("if (!usesTouchFloatingEntry()) return;"), '入口状态隔离没有限制在手机环境');
 assert.ok(floatingPatch.includes('event.stopImmediatePropagation();'), '手机入口仍可能触发原组件的第二套展开状态');
 assert.ok(
-  floatingPatch.indexOf('pmmFloatingNativeMouseBound') < floatingPatch.indexOf('pmmFloatingClickBound'),
+  floatingPatch.indexOf("listen('mousedown'") < floatingPatch.indexOf("listen('click'"),
   '必须先隔离原组件状态，再由手机 click 展开',
 );
 
 assert.ok(
-  source.includes('__pmmBatchVariableBridge={state:_pmmBatchVariableState,apply:_pmmBatchVariableize,reveal:_pmmRevealPromptForCompare,record:le}'),
+  source.includes('__pmmBatchVariableBridge={state:_pmmBatchVariableState,apply:_pmmBatchVariableize,reveal:_pmmRevealPromptForCompare,record:le,'),
   '主面板没有向编辑控件暴露已有撤销历史入口',
 );
 
@@ -73,6 +73,7 @@ const dispatch = (type, event) => {
 };
 
 vm.runInNewContext(source.slice(source.indexOf(';(() => {', undoStart), nextModule), {
+    pmmRuntimeResource:target=>target,
   document: fakeDocument,
   top: null,
   setTimeout: callback => callback(),
