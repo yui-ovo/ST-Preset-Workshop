@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import vm from 'node:vm';
 
 const workshop = (await readFile(new URL('../dist/workshop-v3.02.js', import.meta.url), 'utf8')).replace(/pmmRuntimeResource\((\w+)\)/g, '$1');
 
@@ -7,6 +8,29 @@ const compatStart = workshop.indexOf('PMM_MOBILE_DND_COMPAT_V266');
 const compatEnd = workshop.indexOf('PMM_MOBILE_LAYOUT_TUNER_V1', compatStart);
 assert.ok(compatStart >= 0 && compatEnd > compatStart, '无法隔离 v2.66 轻量拖拽兼容模块');
 const compat = workshop.slice(compatStart, compatEnd);
+
+// Execute the production handler with both possible event orderings.
+const handler = compat.slice(compat.indexOf('function onNativeDragStart(event)'), compat.indexOf('function onContextMenu(event)'));
+const child = {}, unrelated = {};
+const session = { source: { contains: node => node === child } };
+for (const state of ['pending', 'active', 'idle', 'disabled']) {
+  for (const isTrusted of [true, false]) {
+    for (const target of [child, unrelated]) {
+      let cleared = false, prevented = false, stopped = false;
+      const context = vm.createContext({ installed: state !== 'disabled',
+        pending: ['pending', 'disabled'].includes(state) ? session : null,
+        active: state === 'active' ? session : null,
+        clearPending() { cleared = true; },
+        event: { isTrusted, target, preventDefault() { prevented = true; }, stopImmediatePropagation() { stopped = true; } },
+      });
+      vm.runInContext(handler + '\nonNativeDragStart(event);', context);
+      const owned = ['pending', 'active'].includes(state) && isTrusted && target === child;
+      assert.equal(prevented, owned, `${state}: only the owned native drag is cancelled`);
+      assert.equal(stopped, owned, `${state}: cancelled native drag cannot reach Vue handlers`);
+      assert.equal(cleared, false, 'Native drag must not cancel the compatibility timer');
+    }
+  }
+}
 
 for (const snippet of [
   "const STORAGE_KEY = 'pmm_mobile_drag_compat_v1'",

@@ -121,6 +121,11 @@ try {
       return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0.9 && rect.width > 100 && rect.height > 100;
     });
     assert.ok(visible, 'Panel must be painted, not merely present in the DOM');
+    if (process.env.PMM_TEST_DND_COMPAT) {
+      const {verifyDndCompat}=await import('./verify-dnd-compat.mjs');
+      await verifyDndCompat(page,frame,engine);
+      assert.deepEqual(errors,[]);continue;
+    }
     if (process.env.PMM_TEST_TOUCH_THEME) {
       const {verifyTouchTheme}=await import('./verify-touch-theme.mjs');
       try {await verifyTouchTheme(page,frame,engine);} catch(error) {await page.screenshot({path:assets+'/touch-theme-failure-'+engine+'.png'});throw error;}

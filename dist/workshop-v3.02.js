@@ -9961,8 +9961,12 @@ console.info('[预设工坊] V2.98.10 已加载：收藏多选拖入文件夹改
   }
 
   function onNativeDragStart(event) {
-    if (!event.isTrusted || !pending) return;
-    clearPending();
+    const session = active || pending;
+    if (!installed || !event.isTrusted || !session || !session.source.contains(event.target)) return;
+    // Compatibility owns this touch gesture, including the long-press delay.
+    // Do not let native drag cancel it or initialise a second drag in Vue.
+    event.preventDefault();
+    event.stopImmediatePropagation();
   }
 
   function onContextMenu(event) {

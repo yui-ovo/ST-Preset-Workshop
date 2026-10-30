@@ -1,6 +1,6 @@
 {
   "name": "st-preset-workshop",
-  "version": "2.98.59",
+  "version": "2.98.60",
   "private": true,
   "type": "module",
   "scripts": {
@@ -40,6 +40,7 @@
     "test:compare-actions-browser": "node scripts/test-compare-actions-browser.mjs",
     "test:snapshot-only-browser": "node scripts/test-snapshot-only-browser.mjs",
     "test:runtime-modes-browser": "node scripts/test-runtime-modes-browser.mjs",
+    "test:dnd-compat-browser": "node scripts/test-dnd-compat-browser.mjs",
     "test:touch-theme-browser": "node scripts/test-touch-theme-browser.mjs"
   }
 }
