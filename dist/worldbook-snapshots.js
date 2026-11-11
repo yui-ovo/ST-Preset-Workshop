@@ -465,7 +465,7 @@ function theme(target = overlay) {
   const useFloating = !main && !!floating;
   let mode = ''; try { mode = TOP.localStorage.getItem('preset-manager-theme-mode') || ''; } catch (_) {}
   const defaults = mode === 'dark'
-    ? { ink:'#e6e8ed', surface:'#20232b', card:'#282d36', border:'#424752' }
+    ? { ink:'#f4f4f4', surface:'#000000', card:'#1c1c1c', border:'#444444' }
     : { ink:'#35363b', surface:'#fafafa', card:'#f3f4f6', border:'#dadce1' };
   // Resolve in the source tree: --fp-* and magic-theme references do not exist on a body-mounted modal.
   const probe = pmmRuntimeResource(source.ownerDocument).createElement('span');

@@ -56,13 +56,37 @@ export async function verifyGlassEffects(page, frame, engine, pass = 0) {
   await close();
   // Theme updates must flow through the existing Vue store while glass is off.
   const backgrounds = new Set();
+  let checkedNight = false;
   for (let step = 0; step < 3; step++) {
     await page.locator('.pmm-mobile-theme-toggle').click();
     await page.waitForTimeout(350);
     const bg = await page.locator('.preset-panel').first().evaluate(node => getComputedStyle(node).backgroundColor);
     assert.ok(opaque(bg), `Theme ${step} must have an opaque panel (${bg})`);
+    if (await page.evaluate(() => localStorage.getItem('preset-manager-theme-mode') === 'dark')) {
+      checkedNight = true;
+      await page.waitForFunction(() => {
+        const panel = document.querySelector('.preset-panel');
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = 1;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = getComputedStyle(panel).backgroundColor;
+        ctx.fillRect(0, 0, 1, 1);
+        return ctx.getImageData(0, 0, 1, 1).data.join(',') === '0,0,0,255';
+      }, null, { timeout:3000 });
+      await open();
+      await toggle.click();
+      await close();
+      await page.locator('#pmm-mobile-layout-card').waitFor({ state:'hidden' });
+      const header = page.locator('.preset-panel .pm-header').first();
+      assert.equal(await header.evaluate(el => getComputedStyle(el).backgroundColor), 'rgba(14, 14, 14, 0.95)');
+      if (saved) await page.screenshot({ path:resolve(saved, `moon-${engine}.png`) });
+      await open();
+      await toggle.click();
+      await close();
+    }
     backgrounds.add(bg);
   }
+  assert.ok(checkedNight, 'The theme cycle reached moon mode');
   assert.ok(backgrounds.size >= 2, 'Day/night still change the opaque panel color');
   for (const width of [320, 820, 1280]) {
     await page.setViewportSize({ width, height:900 });
