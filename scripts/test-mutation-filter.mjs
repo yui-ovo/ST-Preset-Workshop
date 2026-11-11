@@ -55,6 +55,10 @@ assert.equal(affects([attribute(otherBody)], '#panel', true), false, 'Theme/styl
 message.querySelector = () => { throw Error('Unrelated attributes must not scan descendants'); };
 assert.equal(affects([attribute(message)], '#panel', true), false);
 assert.equal(affects([mutation(message), mutation(row)], '#panel'), true);
+const renderedMessage = new Element('markdown');
+renderedMessage.querySelector = () => { throw Error('Rendered chat content was traversed'); };
+assert.equal(affects([mutation(message, [renderedMessage], [renderedMessage])], '#panel'), false);
+assert.equal(affects([mutation(message, [renderedMessage]), mutation(body, [panel])], '#panel'), true);
 // Plain node-like objects from another realm must work without instanceof checks.
 assert.equal(affects([mutation(body, [{ nodeType:1, matches:()=>true }])], '#panel'), true);
 assert.ok(source.includes('#preset-manager-floating-panel,#settings_preset_openai,select[data-preset-manager-for*="openai"]'), 'Floating synchronization must retain native preset dependencies');

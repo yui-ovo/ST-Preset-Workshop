@@ -11,6 +11,9 @@ function pmmMutationsAffect(records, selector, includePageAttributes = false) {
         (target === target.ownerDocument?.documentElement || target === target.ownerDocument?.body) &&
         target.ownerDocument.querySelector?.(selector)) return true;
     if (record.type !== 'childList') continue;
+    // Workshop panels and native preset controls mount outside the chat log.
+    // Streaming Markdown can replace a large message subtree on every update.
+    if (target?.closest?.('#chat')) continue;
     // Discover newly mounted roots and wrappers, and also handle their removal.
     for (const nodes of [record.addedNodes, record.removedNodes]) {
       for (const node of nodes || []) {
@@ -3648,18 +3651,9 @@ export{xo as mountMainPanel,fo as toggleMainPanel,bo as unmountMainPanel};
       return;
     }
 
-    /* 一定找原 Vue modal，不找我们自己的 clone。 */
-    const titleSpan = Array.from(doc.querySelectorAll('span')).find(s => {
-      if ((s.textContent || '').trim() !== '比对结果详情') return false;
-      return !s.closest('#' + portalId);
-    });
-    if (!titleSpan) return;
-
-    const title = titleSpan.parentElement;
-    const header = title && title.parentElement;
-    const modal = header && header.parentElement;
-    const overlay = modal && modal.parentElement;
-    if (!modal || !overlay) return;
+    const modal = root.querySelector('[data-pmm-compare-modal]:not([data-pmm-diff-portal-modal])');
+    const overlay = modal?.parentElement;
+    if (!overlay) return;
 
     /* Vue 原件不移动，只隐藏。Vue 仍然完全拥有它。 */
     overlay.dataset.pmmDiffOriginal = '1';
@@ -4002,7 +3996,7 @@ export{xo as mountMainPanel,fo as toggleMainPanel,bo as unmountMainPanel};
     });
 
     const originalClose =
-      header.querySelector('.fa-xmark')?.closest('button') ||
+      modal.firstElementChild?.querySelector('.fa-xmark')?.closest('button') ||
       Array.from(modal.querySelectorAll('button')).find(btn => (btn.textContent || '').trim() === '关闭');
 
     function closePortal() {
@@ -4338,7 +4332,10 @@ export{xo as mountMainPanel,fo as toggleMainPanel,bo as unmountMainPanel};
         if (pmmMutationsAffect(records, '#preset-manager-main-panel,#preset-manager-floating-panel,#extensionsMenu,#extensionsMenuButton,#pm-mobile-fab-standalone,#pmm-diff-detail-portal,[data-pmm-compare-modal],[data-pmm-diff-detail="1"],.pmm-content-diff-overlay')) requestScan();
       });
       pmmRuntimeResource(mo).observe(doc.body, { childList: true, subtree: true });
-      pmmRuntimeResource(globalThis).setInterval(requestScan, 1200);
+      const view = doc.defaultView || window;
+      pmmRuntimeResource(view).addEventListener('pageshow', requestScan);
+      const breakpoint = view.matchMedia('(max-width: 768px)');
+      pmmRuntimeResource(breakpoint).addEventListener('change', requestScan);
     };
     if (doc.readyState === 'loading') pmmRuntimeResource(doc).addEventListener('DOMContentLoaded', boot, { once:true });
     else boot();
@@ -10107,14 +10104,23 @@ html.pmm-dnd-compat-active #preset-manager-main-panel{user-select:none!important
   try { enabled = TOP.localStorage?.getItem(STORAGE_KEY) !== '0'; } catch (_) {}
 
   // Portals are outside the main panel; enumerate only surfaces owned by the workshop.
-  const scope = ':is(#preset-manager-main-panel,#preset-manager-floating-panel,.pmm-variable-overlay,.pmm-preset-batch-overlay,.pmm-switch-snapshot-overlay,.pmm-switch-editor-overlay,.pmm-wbs-overlay,#pmm-preset-regex-transfer-overlay,#pmm-flat-drop-group-chooser,#pmm-snapshot-backup,.pmm-content-diff-overlay,[data-pmm-glass-portal],[data-pmm-multi-drag-tone],.pmm-wb-multi-drag-float)';
+  const surfaces = [
+    '#preset-manager-main-panel', '#preset-manager-floating-panel', '.pmm-variable-overlay',
+    '.pmm-preset-batch-overlay', '.pmm-switch-snapshot-overlay', '.pmm-switch-editor-overlay',
+    '.pmm-wbs-overlay', '#pmm-preset-regex-transfer-overlay', '#pmm-flat-drop-group-chooser',
+    '#pmm-snapshot-backup', '.pmm-content-diff-overlay', '[data-pmm-glass-portal]',
+    '[data-pmm-multi-drag-tone]', '.pmm-wb-multi-drag-float',
+  ];
+  const scope = ':is(' + surfaces.join(',') + ')';
   const off = 'html[data-pmm-glass="off"]';
+  // A concrete ancestor per selector lets the browser reject unrelated chat nodes cheaply.
+  const blurSelectors = surfaces.flatMap(surface =>
+    ['', ' *', '::before', '::after', ' *::before', ' *::after'].map(suffix => off + ' ' + surface + suffix)
+  ).join(',\n');
   const css = `
     /* Important layer rules also override the theme's unlayered important rules. */
     @layer pmm-glass-preference {
-      ${off} ${scope}, ${off} ${scope} *,
-      ${off} ${scope}::before, ${off} ${scope}::after,
-      ${off} ${scope} *::before, ${off} ${scope} *::after {
+      ${blurSelectors} {
         backdrop-filter:none!important; -webkit-backdrop-filter:none!important;
       }
       /* Do not start deferred blur transitions as offscreen cards enter the viewport. */
