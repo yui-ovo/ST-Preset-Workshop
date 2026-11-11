@@ -4,7 +4,7 @@
 
 ## 实现边界
 
-`workshop-v3.02.js` 的 `pmmMutationsAffect()` 过滤移动入口、变量编辑器、布局调节、悬浮入口、分组、iOS 编辑器布局和桌面尺寸控制的 7 处全页观察器回调。
+`workshop-v3.02.js` 的 7 处全页观察器会过滤无关变化。移动入口、变量编辑器、布局调节、悬浮入口、分组和 iOS 编辑器使用 `pmmMutationsAffect()`。桌面缩放只在发现面板容器、容器自身切换样式或丢失缩放控件时重新检查，另监听桌面和窄屏之间的切换。
 
 保留以下相关变化：
 
@@ -31,6 +31,7 @@ npm run test:mutation-filter
 
 ```sh
 npm run test:workshop-mutations-browser
+npm run test:desktop-resize-layout
 npm run test:workshop-idle
 npm run test:ipad-floating-entry
 ```

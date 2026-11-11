@@ -58,6 +58,46 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   const mobileWidth = await page.locator('.pm-panel-container').evaluate(node => node.getBoundingClientRect().width);
   assert.ok(closeEnough(mobileWidth, 600), '窄视口不应套用桌面自定义尺寸规则');
+  // Run the production observer against actual DOM mutations and count its
+  // document queries; frame counts alone miss this synchronous scan.
+  const start = source.lastIndexOf('(() => {', moduleStart);
+  const end = source.indexOf('/* ===== PMM_SEARCH_REPEAT_JUMP_V29818', moduleStart);
+  assert.ok(start >= 0 && end > start);
+  await page.addScriptTag({content: source.slice(0, source.indexOf('let pmmEditingContext')) + source.slice(start, end)});
+  const handles = page.locator('.pmm-desktop-resize-handle');
+  await page.setViewportSize({width:1440,height:900});
+  await handles.nth(3).waitFor({state:'attached'});
+  const scans = await page.evaluate(async () => {
+    const container = document.querySelector('.pm-panel-container');
+    const row = container.querySelector('.preset-panel');
+    const query = document.querySelectorAll;
+    let count = 0;
+    document.querySelectorAll = function(selector) {
+      if (selector === '#preset-manager-main-panel .pm-panel-container') count++;
+      return query.call(this, selector);
+    };
+    try {
+      for (let i = 0; i < 30; i++) {
+        row.classList.toggle('selected');
+        row.replaceChildren(document.createTextNode(String(i)));
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+      return count;
+    } finally { document.querySelectorAll = query; }
+  });
+  assert.equal(scans, 0, 'Row highlight and content changes must not rescan resize handles');
+  await handles.first().evaluate(el => el.remove());
+  await handles.nth(3).waitFor({state:'attached'});
+  await page.locator('.pm-panel-container').evaluate(el => el.classList.add('pm-panel-container--merge-mode'));
+  await page.waitForFunction(() => document.querySelector('.pm-panel-container').dataset.pmmDesktopSizeMode === 'dual');
+  await page.locator('#preset-manager-main-panel').evaluate(el => {
+    const wrapper = document.createElement('section');
+    wrapper.innerHTML = '<div id="preset-manager-main-panel"><div class="pm-panel-container"></div></div>';
+    el.replaceWith(wrapper);
+  });
+  await handles.nth(3).waitFor({state:'attached'});
+  await page.setViewportSize({width:390,height:844});
+  await handles.first().waitFor({state:'detached'});
   await page.close();
 
   console.log('test.100 回归通过：桌面缩放同步实际主面板和侧栏锚点，带有移动布局类时仍生效，窄视口不套用桌面尺寸。');

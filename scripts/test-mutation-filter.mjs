@@ -58,7 +58,8 @@ assert.equal(affects([mutation(message), mutation(row)], '#panel'), true);
 // Plain node-like objects from another realm must work without instanceof checks.
 assert.equal(affects([mutation(body, [{ nodeType:1, matches:()=>true }])], '#panel'), true);
 assert.ok(source.includes('#preset-manager-floating-panel,#settings_preset_openai,select[data-preset-manager-for*="openai"]'), 'Floating synchronization must retain native preset dependencies');
-assert.equal((source.match(/pmmMutationsAffect\(records,/g) || []).length, 8, 'All seven full-page UI observers use the filter');
+assert.equal((source.match(/pmmMutationsAffect\(records,/g) || []).length, 7, 'The six other observers must retain their mutation filters');
+assert.ok(source.includes('records.some(resizeNeedsSync)'), 'Desktop resize must filter panel-internal changes before scanning');
 for (const file of ['test24-group-select-nesting.js','test26-tauri-editor-overflow.js']) {
   assert.ok((await readFile(new URL('../patches/' + file, import.meta.url), 'utf8')).includes('pmmMutationsAffect(records, PANEL_SELECTOR, true)'), 'Patch source must retain the filter: ' + file);
 }

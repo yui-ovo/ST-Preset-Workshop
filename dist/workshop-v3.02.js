@@ -18085,13 +18085,25 @@ console.info('[预设工坊] V2.97.21 已加载：快照模式仅保留条目与
     }
   }
 
+  // Vue reuses the container when switching between single and split layouts.
+  // Only its own class changes and the loss of its direct handles affect sizing.
+  function resizeNeedsSync(record) {
+    const target = record.target;
+    if (record.type === 'attributes') return target.matches(CONTAINER_SELECTOR);
+    if (!target.closest?.(CONTAINER_SELECTOR)) {
+      return pmmMutationsAffect([record], CONTAINER_SELECTOR);
+    }
+    return target.matches(CONTAINER_SELECTOR) &&
+      Array.from(record.removedNodes).some(node => node.classList?.contains(HANDLE_CLASS));
+  }
+
+  const desktopMedia = TOP.matchMedia?.('(min-width: 769px) and (any-pointer: fine), (min-width: 769px) and (any-hover: hover)');
   let observer = null;
   function startObserver() {
     if (observer || typeof TOP.MutationObserver !== 'function') return;
     try {
       observer = new TOP.MutationObserver(records => {
-        if (!pmmMutationsAffect(records, '#preset-manager-main-panel', true)) return;
-        scanAndMount();
+        if (records.some(resizeNeedsSync)) scanAndMount();
       });
       pmmRuntimeResource(observer).observe(DOC.body || DOC.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
     } catch (_) {}
@@ -18099,6 +18111,7 @@ console.info('[预设工坊] V2.97.21 已加载：快照模式仅保留条目与
 
   function cleanup() {
     activeSessionCleanup?.();
+    if (desktopMedia) pmmRuntimeResource(desktopMedia).removeEventListener?.('change', scanAndMount);
     activeSessionCleanup = null;
     pmmRuntimeResource(observer)?.disconnect();
     observer = null;
@@ -18115,6 +18128,7 @@ console.info('[预设工坊] V2.97.21 已加载：快照模式仅保留条目与
   }
   scanAndMount();
   startObserver();
+  if (desktopMedia) pmmRuntimeResource(desktopMedia).addEventListener?.('change', scanAndMount);
 
   TOP[API_KEY] = {
     cleanup,
