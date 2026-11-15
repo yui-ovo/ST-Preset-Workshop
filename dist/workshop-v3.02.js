@@ -684,10 +684,12 @@ export{xo as mountMainPanel,fo as toggleMainPanel,bo as unmountMainPanel};
   .pmm-content-diff-title { text-align:center; min-width:0; text-overflow:ellipsis; white-space:nowrap; overflow:hidden; }
   .pmm-diff-nav { display:flex; justify-content:flex-end; gap:4px; }
   .pmm-diff-nav button {
-    width:32px; height:32px; padding:0; font:inherit; font-size:17px; line-height:1;
-    color:var(--pmm-diff-text,currentColor); background:var(--pmm-diff-card,var(--pm-card-bg,transparent));
+    display:grid; place-items:center; width:32px; height:32px; padding:0;
+    color:var(--pmm-diff-text,currentColor); background:transparent; box-shadow:none;
     border:0; border-radius:6px; cursor:pointer; touch-action:manipulation;
   }
+  .pmm-diff-nav svg { display:block; width:18px; height:18px; pointer-events:none; }
+  .pmm-diff-nav button:focus-visible { outline:2px solid currentColor; outline-offset:-2px; }
   .pmm-diff-nav button:disabled { opacity:.3; cursor:default; }
   #preset-manager-main-panel.pmm-worldbook-mode .pmm-switch-transfer-entry{display:none!important}
 
@@ -3454,8 +3456,12 @@ export{xo as mountMainPanel,fo as toggleMainPanel,bo as unmountMainPanel};
         <button class="pmm-content-diff-back" type="button" title="返回比对详情"><i class="fa-solid fa-arrow-left"></i></button>
         <div class="pmm-content-diff-title"><i class="fa-solid fa-code-compare" style="margin-right:5px"></i>${esc(name || '内容差异')}</div>
         <div class="pmm-diff-nav" role="group" aria-label="切换对比条目">
-          <button type="button" aria-label="上一个条目" title="上一个条目">↑</button>
-          <button type="button" aria-label="下一个条目" title="下一个条目">↓</button>
+          <button type="button" aria-label="上一个条目" title="上一个条目">
+            <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="m3 13 7-7 7 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button type="button" aria-label="下一个条目" title="下一个条目">
+            <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="m3 7 7 7 7-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
         </div>
       </div>
       <div class="pmm-content-diff-body">
