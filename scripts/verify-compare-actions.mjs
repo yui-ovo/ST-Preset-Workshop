@@ -33,6 +33,19 @@ export async function verifyCompareActions(page, frame, engine) {
   async function open() {
     const fresh=!await frame.evaluate(()=>testStores().diff.isCompared);
     if(fresh) await page.locator('.preset-panel').nth(1).getByTitle('比对',{exact:true}).click();
+    if (page.viewportSize().width <= 768) {
+      const sizes = await page.getByTitle('查看详细比对结果',{exact:true}).evaluate(detail => {
+        const actions = detail.parentElement, exit = actions.querySelector('.diff-bar-close');
+        const size = el => [el.offsetWidth, el.offsetHeight];
+        const rendered = [size(detail), size(exit)];
+        // Measure the reference button in the original flex toolbar too.
+        actions.style.setProperty('display', 'flex', 'important');
+        const original = size(exit);
+        actions.style.removeProperty('display');
+        return {rendered, original};
+      });
+      assert.deepEqual(sizes.rendered, [sizes.original,sizes.original], 'Both mobile buttons match the original exit button');
+    }
     await page.getByTitle('查看详细比对结果',{exact:true}).click();
     if (page.viewportSize().width <= 768) await page.locator('#pmm-diff-detail-portal [data-pmm-compare-mode]').waitFor();
     await modal.locator('[data-pmm-compare-mode]').waitFor();

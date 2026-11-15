@@ -1543,7 +1543,21 @@ export{xo as mountMainPanel,fo as toggleMainPanel,bo as unmountMainPanel};
   .diff-bar-card { min-height: 30px !important; padding: 3px 5px !important; gap: 4px !important; }
   .diff-bar-card__stats { gap: 4px !important; }
   .diff-stat { font-size: 9px !important; gap: 2px !important; }
-  .diff-bar-btn { padding: 3px 5px !important; font-size: 8px !important; }
+  /* Size both tracks from the exit button, including theme font and padding. */
+  .diff-bar-card .diff-bar-card__actions {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr);
+    align-items: stretch;
+  }
+  .diff-bar-card__actions .diff-bar-btn {
+    contain: size;
+    align-self: stretch;
+    justify-content: center;
+    gap: 3px !important;
+    padding: 0 3px !important;
+    font-size: 8px !important;
+    white-space: nowrap;
+  }
   .diff-bar-close {
     width: auto !important;
     min-width: 38px !important;
