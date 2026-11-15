@@ -29,10 +29,16 @@ export function createCompareActions(adapter) {
     const comparison = adapter.comparison();
     actions = planCompareActions(source(), target(), comparison.pairs.map(p => direction ? {si:p.ti,ti:p.si} : p));
     const indices = new Map(source().prompts.map((p,si)=>[p.id,si])), byIndex = new Map(actions.map(a=>[a.si,a]));
-    prepared = comparison.rows.map(row => {
+    const counts = sides.map(side => {
+      const ids = new Map();
+      for (const prompt of side.prompts) ids.set(prompt.id, (ids.get(prompt.id) || 0) + 1);
+      return ids;
+    });
+    prepared = comparison.rows.map((row, diffIndex) => {
       const id = direction ? row.rightId : row.leftId;
       const si = indices.get(id) ?? -1;
-      return { ...row, si, action:byIndex.get(si), comparisonName:row.name, name:source().prompts[si]?.name || row.name };
+      const inspectable = ['content','partial'].includes(row.status) && counts[0].get(row.leftId) === 1 && counts[1].get(row.rightId) === 1;
+      return { ...row, diffIndex, inspectable, si, action:byIndex.get(si), comparisonName:row.name, name:source().prompts[si]?.name || row.name };
     });
     revision++;
   }
@@ -188,6 +194,7 @@ export function createCompareActions(adapter) {
       for (const row of visible) {
         const a = row.action, canAct = a?.kind === mode;
         const article = node(list, 'article', '', 'pmm-ca-row'); article.dataset.sourceIndex = row.si;
+        article.dataset.pmmBodyRow = row.diffIndex;
         const first = node(article, 'div', '', 'pmm-ca-first');
         const checkSlot = node(first, 'span', '', 'pmm-ca-check-slot');
         checkSlot.hidden = !multi;
@@ -229,7 +236,54 @@ export function createCompareActions(adapter) {
     mounts.add({modal,render}); render();
   }
   function reload() { sides=adapter.read();signature=draftSignature(sides);reset();refresh(); }
-  const api = {mount,reload}; reset(); return api;
+  function bodyRows() {
+    const visible = mode === 'off' ? prepared.filter(matchesCategory) : rows();
+    return visible.filter(row => row.inspectable);
+  }
+  const api = {mount,reload,bodyRows}; reset(); return api;
+}
+
+export function bodyNavigation(doc, detail) {
+  const modal = () => doc.querySelector('[data-pmm-diff-portal-modal]') || doc.querySelector('[data-pmm-compare-modal]');
+  const visible = () => modal()?.__pmmCompareController?.bodyRows() || [];
+  const key = row => JSON.stringify([row.leftId, row.rightId]);
+  const current = key(detail);
+  const initial = visible().map(key);
+  function neighbor(step) {
+    const live = visible();
+    const index = live.findIndex(row => key(row) === current);
+    if (index >= 0) return live[index + step];
+    // Saving can resolve this difference. Continue from its former position.
+    const old = initial.indexOf(current);
+    if (old < 0) return;
+    const remaining = new Map(live.map(row => [key(row), row]));
+    for (let i = old + step; i >= 0 && i < initial.length; i += step) {
+      if (remaining.has(initial[i])) return remaining.get(initial[i]);
+    }
+  }
+  function reveal() {
+    const row = visible().find(row => key(row) === current) || neighbor(1) || neighbor(-1);
+    if (!row) return;
+    const root = modal();
+    const list = root.querySelector('.pmm-ca-list');
+    const el = list && !list.hidden ? list.querySelector('[data-pmm-body-row="' + row.diffIndex + '"]')
+      : root.querySelector('[data-pmm-diff-row="' + row.diffIndex + '"]');
+    el?.scrollIntoView({block:'nearest', inline:'nearest'});
+  }
+  return {neighbor,reveal};
+}
+
+export function chooseBeforeBodySwitch(host) {
+  if (dialogs.has(host.ownerDocument)) return Promise.resolve('cancel');
+  return new Promise(resolve => {
+    const finish = choice => { view.finish(); resolve(choice); };
+    const view = dialog(host, '当前条目的正文有未保存的修改', () => finish('cancel'));
+    dialogs.set(host.ownerDocument, true);
+    view.footer.className = 'close-actions';
+    dialogButton(view.footer, '继续编辑', () => finish('cancel')).focus({preventScroll:true});
+    dialogButton(view.footer, '放弃修改并切换', () => finish('discard'));
+    dialogButton(view.footer, '保存并切换', () => finish('save'), 'primary');
+  });
 }
 
 const CSS = `

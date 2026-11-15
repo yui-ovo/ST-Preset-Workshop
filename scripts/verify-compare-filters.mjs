@@ -91,9 +91,19 @@ async function verifyCompareSession(page,frame,engine,{closeDetail}) {
         assert.deepEqual(await frame.evaluate(()=>compareWarnings),[],'Category label never emits an entry lookup warning');
         await modal.locator('[data-pmm-diff-row]:visible').getByText(label,{exact:true}).click();
         await page.locator('.pmm-content-diff-back').waitFor();
+        assert.equal(await page.locator('.pmm-diff-nav button:disabled').count(),2,'Only one inspectable row in the current category');
         await page.locator('.pmm-content-diff-back').click();
         await text.click();assert.equal(await card.getAttribute('aria-pressed'),'false');
       }
+      const labels = modal.locator('[data-pmm-diff-row]:visible span').filter({hasText:/^(内容不同|正文相似)$/});
+      await labels.first().click();
+      const viewer = page.locator('.pmm-content-diff');
+      assert.ok(await viewer.getByRole('button',{name:'上一个条目'}).isDisabled());
+      const firstTitle = await viewer.locator('.pmm-content-diff-title').textContent();
+      await viewer.getByRole('button',{name:'下一个条目'}).click();
+      assert.notEqual(await viewer.locator('.pmm-content-diff-title').textContent(),firstTitle);
+      assert.ok(await viewer.getByRole('button',{name:'下一个条目'}).isDisabled(),'Skip one-sided and rename-only entries');
+      await viewer.locator('.pmm-content-diff-back').click();
       for(const expected of ['替换','插入','关闭']) {
         await cycle.click();assert.equal(await cycle.textContent(),expected);
         await closeDetail();await reopen();

@@ -213,6 +213,43 @@ export async function verifyCompareActions(page, frame, engine) {
     if(width===390)await page.screenshot({path:process.env.PMM_BROWSER_ASSET_DIR+'/compare-full-names-'+engine+'.png'});
     await guard.getByRole('button',{name:'知道了'}).click();
     assert.equal(await modal.locator('.pmm-ca-count').textContent(),'已选 120 条');
+    if (width === 320 || width === 1280) {
+      const search = modal.getByRole('searchbox');
+      await search.fill('条目 11');
+      const entries = await modal.locator('.pmm-ca-name').allTextContents();
+      const up = content.getByRole('button',{name:'上一个条目'});
+      const down = content.getByRole('button',{name:'下一个条目'});
+      const title = content.locator('.pmm-content-diff-title');
+      await modal.locator('.pmm-ca-badge').first().click();
+      assert.ok(await up.isDisabled());
+      await down.click();
+      assert.equal((await title.innerText()).trim(),entries[1]);
+      await up.click();
+      await left.locator('.pmm-diff-edit-btn').click();
+      await left.locator('textarea').fill('暂存正文');
+      await down.click();
+      await guard.getByRole('button',{name:'继续编辑'}).click();
+      assert.equal(await left.locator('textarea').inputValue(),'暂存正文');
+      await down.click();
+      await guard.getByRole('button',{name:'放弃修改并切换'}).click();
+      await up.click();
+      assert.notEqual(await left.locator('textarea').inputValue(),'暂存正文');
+      if (width === 1280) {
+        await right.getByRole('button',{name:'B→A',exact:true}).click();
+        await down.click();
+        await guard.getByRole('button',{name:'保存并切换'}).click();
+        await page.waitForFunction(name => document.querySelector('.pmm-content-diff-title')?.textContent.trim() === name, entries[1]);
+        assert.ok(await up.isDisabled(),'Resolved difference disappears from filtered navigation');
+      }
+      while (!await down.isDisabled()) await down.click();
+      assert.equal((await title.innerText()).trim(),entries.at(-1));
+      await content.locator('.pmm-content-diff-back').click();
+      const visibleLast = await modal.locator('.pmm-ca-row').last().evaluate(el => {
+        const row = el.getBoundingClientRect(), list = el.parentElement.getBoundingClientRect();
+        return row.bottom <= list.bottom + 1 && row.top >= list.top - 1;
+      });
+      assert.ok(visibleLast,'Return reveals the last inspected search result');
+    }
     await modal.getByRole('button',{name:'关闭',exact:true}).click();
     await frame.evaluate(()=>testStores().diff.clearCompareResult());
     await page.waitForFunction(()=>!document.querySelector('[data-pmm-compare-modal]'));
