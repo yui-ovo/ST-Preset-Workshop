@@ -25,6 +25,33 @@ export function embeddedBook(world, embedded, binding) {
   return { ...template, name:template.name || binding, extensions:template.extensions ?? {}, entries };
 }
 
+// The same worldbook controls edit both embedded character books and native world-info rows.
+export function worldEntryView(e,index) {
+  const row = { ...e, uid:e.id ?? e.uid ?? index, key:e.keys ?? e.key ?? [], comment:e.comment || e.name || '',
+    disable:e.enabled === undefined ? !!e.disable : !e.enabled, order:e.insertion_order ?? e.order ?? 100 };
+  for (const [field,ext] of Object.entries(extensionFields)) if (ext in (e.extensions || {})) row[field] = e.extensions[ext];
+  row.position = e.extensions?.position ?? (typeof e.position === 'number' ? e.position : e.position === 'before_char' ? 0 : 1);
+  return row;
+}
+
+export function editBookFields(entry, changes) {
+  const edited = { ...entry };
+  for (const [key,value] of Object.entries(changes)) {
+    if (key === 'disable') edited.enabled = !value;
+    else if (key === 'key') edited.keys = value;
+    else if (key === 'order') edited.insertion_order = value;
+    else if (key === 'comment') {
+      edited.comment = value;
+      if (!entry.comment && entry.name || entry.name === entry.comment) edited.name = value;
+    } else if (key in extensionFields) {
+      edited.extensions = { ...edited.extensions, [extensionFields[key]]:value };
+      if (key === 'position') edited.position = value === 0 ? 'before_char' : 'after_char';
+    } else edited[key] = value;
+    if (key in entry && key !== 'position') edited[key] = value;
+  }
+  return edited;
+}
+
 export function updatedWorld(context, world, book) {
   const entries = Object.values(book.entries).map((entry,index) => ({
     ...entry, id:entry.id ?? entry.uid ?? index, comment:entry.comment ?? entry.name ?? '',
@@ -39,7 +66,11 @@ export function updatedWorld(context, world, book) {
       if (!context.convertCharacterBook) throw Error('此酒馆版本缺少世界书条目转换功能，无法同步新增条目。');
       row = context.convertCharacterBook({ entries:[structuredClone(e)] }).entries[id];
     }
-    return [id,{ ...row, comment:e.comment || e.name || '', content:e.content, displayIndex:index }];
+    const view = worldEntryView(e,index);
+    const settings = { key:view.key, disable:view.disable, order:view.order, position:view.position };
+    for (const key of ['constant','depth','role','outletName','vectorized']) if (key in view) settings[key] = view[key];
+    return [id,{ ...row, ...settings, comment:view.comment, content:e.content, displayIndex:index,
+      ...(row.extensions ? { extensions:{...row.extensions,...e.extensions} } : {}) }];
   });
   if (new Set(native.map(([id]) => id)).size !== native.length) throw Error('世界书中存在重复的条目编号，无法同步。');
   return { ...world, entries:Object.fromEntries(native), ...(world.originalData ? { originalData:embedded } : {}) };

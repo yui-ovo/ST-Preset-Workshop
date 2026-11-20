@@ -36,18 +36,20 @@ function sorted(value) {
 
 export function readBook(book) {
   if (!book?.entries || typeof book.entries !== 'object') throw new Error('文件中没有世界书条目。');
-  return Object.values(book.entries).map((entry, i) => {
-    if (!entry || typeof entry !== 'object') throw new Error('无法读取世界书条目。');
-    const { name, comment, content, id, uid, keys, key, secondary_keys, keysecondary,
-      disable, enabled, insertion_order, order, extensions = {}, ...other } = entry;
-    const title = String(comment || name || (keys ?? key)?.[0] || '');
-    const settings = { ...other, ...extensions, 关键词: keys ?? key ?? [], 辅助词: secondary_keys ?? keysecondary ?? [],
-      启用: enabled ?? !disable, 顺序: insertion_order ?? order ?? 100 };
-    if (name && comment && name !== comment) settings.name = name;
-    return { ...section(title || '未命名条目 ' + (i + 1), {
-      正文: String(content ?? ''), 条目设置: JSON.stringify(sorted(settings), null, 2),
-    }, id ?? uid), matchName: title, index: i };
-  });
+  return Object.values(book.entries).map(readBookEntry);
+}
+
+export function readBookEntry(entry,i) {
+  if (!entry || typeof entry !== 'object') throw new Error('无法读取世界书条目。');
+  const { name, comment, content, id, uid, keys, key, secondary_keys, keysecondary,
+    disable, enabled, insertion_order, order, extensions = {}, ...other } = entry;
+  const title = String(comment || name || (keys ?? key)?.[0] || '');
+  const settings = { ...other, ...extensions, 关键词: keys ?? key ?? [], 辅助词: secondary_keys ?? keysecondary ?? [],
+    启用: enabled ?? !disable, 顺序: insertion_order ?? order ?? 100 };
+  if (name && comment && name !== comment) settings.name = name;
+  return { ...section(title || '未命名条目 ' + (i + 1), {
+    正文: String(content ?? ''), 条目设置: JSON.stringify(sorted(settings), null, 2),
+  }, id ?? uid), matchName: title, index: i };
 }
 
 export async function readCardFile(file) {

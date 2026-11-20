@@ -1,14 +1,29 @@
-import { personaFields, readCard } from './character-card-core.js?v=2.98.67-card.3';
-import { embeddedBook, updatedWorld } from './character-card-world.js?v=2.98.67-card.3';
+import { personaFields, readCard, readBookEntry } from './character-card-core.js?v=2.98.67-card.4';
+import { embeddedBook, updatedWorld } from './character-card-world.js?v=2.98.67-card.4';
 
 export const dataOf = card => card.raw.data ?? card.raw;
-export function changeCard(card, fields) {
+function rawWithFields(card, fields) {
   const raw = { ...card.raw };
   if (raw.data) {
     raw.data = { ...raw.data, ...fields };
     for (const key of Object.keys(fields)) if (key in raw) raw[key] = fields[key];
   } else Object.assign(raw, fields);
-  return readCard(raw);
+  return raw;
+}
+
+export function changeCard(card, fields) {
+  return readCard(rawWithFields(card,fields));
+}
+
+// Inline typing only needs to rebuild the edited row, including for legacy object-shaped books.
+export function changeBookEntry(card,index,entry) {
+  const book = dataOf(card).character_book;
+  const entries = Array.isArray(book.entries) ? book.entries.slice() : {...book.entries};
+  const key = Array.isArray(entries) ? index : Object.keys(entries)[index];
+  entries[key] = entry;
+  const rows = card.book.slice();
+  rows[index] = readBookEntry(entry,index);
+  return {...card, raw:rawWithFields(card,{character_book:{...book,entries}}), book:rows};
 }
 
 export function itemsOf(card, book) {
@@ -223,7 +238,11 @@ export async function saveInstalled(win, context, avatar, baseline, next, source
     }
   }
   if (syncBook) {
-    try { await context.reloadWorldInfoEditor?.(baseline.binding,false); }
+    try {
+      const worldUI = win.__PMM_WORLDBOOK_STITCH_TEST3__;
+      if (worldUI?.reloadOpenNativeWorldbook) await worldUI.reloadOpenNativeWorldbook(baseline.binding);
+      else await context.reloadWorldInfoEditor?.(baseline.binding,false);
+    }
     catch { /* The world has already been saved. */ }
   }
   return syncBook;

@@ -1200,7 +1200,7 @@ function pmmRuntimeResource(target) { return globalThis.__PMM_RUNTIME_SCOPE__?.o
     </div>`;
   }
 
-  function openTextEditor({ host, title, original, sourceField, themeNodes, ariaLabel, onSave, searchable = false }) {
+  function openTextEditor({ host, title, original, sourceField, themeNodes, ariaLabel, onSave, searchable = false, sections }) {
     if (!host || !sourceField) return;
     installStyle();
     host.querySelector('.pmm-wb-editor-overlay')?.remove();
@@ -1246,7 +1246,7 @@ function pmmRuntimeResource(target) { return globalThis.__PMM_RUNTIME_SCOPE__?.o
     const replaceAll = overlay.querySelector('[data-wb-editor-replace-all]');
     const editorBody = overlay.querySelector('.pmm-wb-editor-body');
     const searchPreview = overlay.querySelector('.pmm-wb-editor-search-preview');
-    const undoStack = [];
+    let undoStack = [];
     let previousValue = text;
     let lastInputAt = 0;
     let editorSearchOpen = false;
@@ -1329,10 +1329,33 @@ function pmmRuntimeResource(target) { return globalThis.__PMM_RUNTIME_SCOPE__?.o
       return true;
     };
     const closeEditor = () => overlay.remove();
+    const values = sections?.map(section => String(section.value ?? ''));
+    let active = 0;
+    if (sections?.length) {
+      const histories = sections.map(() => []);
+      undoStack = histories[0];
+      const select = DOC.createElement('select');
+      select.setAttribute('aria-label', '人设字段');
+      sections.forEach(({label}, i) => select.add(new TOP.Option(label, String(i))));
+      overlay.querySelector('header strong').append(select);
+      textarea.setAttribute('aria-label', sections[0].label);
+      select.onchange = () => {
+        values[active] = textarea.value;
+        active = select.selectedIndex;
+        textarea.value = previousValue = values[active];
+        textarea.setAttribute('aria-label', sections[active].label);
+        undoStack = histories[active];
+        lastInputAt = editorSearchIndex = textarea.scrollTop = 0;
+        syncEditorValue();
+      };
+    }
     const saveEditor = () => {
       const next = String(textarea.value || '');
       overlay.remove();
-      if (next !== text) onSave(next);
+      if (values) {
+        values[active] = next;
+        if (values.some((v,i) => v !== sections[i].value)) onSave(values);
+      } else if (next !== text) onSave(next);
     };
     pmmRuntimeResource(textarea).addEventListener('input', () => {
       const now = Date.now();
@@ -2998,6 +3021,8 @@ function pmmRuntimeResource(target) { return globalThis.__PMM_RUNTIME_SCOPE__?.o
   pmmRuntimeResource(DOC).addEventListener('dragend', clearDrag, true);
   pmmRuntimeResource(DOC).addEventListener('pmm-favorites-changed', onFavoritesChanged);
   TOP[API_KEY] = { open, close, cleanup, state, openFavorites, dropFavorites, dirtyDrafts,
+    entryUI: { installStyle, renderEntry, openTextEditor, refreshFavoriteIndex },
+    reloadOpenNativeWorldbook,
     async refreshSnapshotBook(name, data, skipNative = false) {
       if (!state.open) return;
       saveScrolls();

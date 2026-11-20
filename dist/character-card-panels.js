@@ -1,12 +1,14 @@
-import { personaFields, readCard, readCardFile } from './character-card-core.js?v=2.98.67-card.3';
-import { attachBook, changeCard, dataOf, exportBlob, installedRaw, itemsOf, localCards, putItems, saveInstalled, transferItems, openInstalled } from './character-card-draft.js?v=2.98.67-card.3';
-import { showCharacterResults } from './character-card-compare.js?v=2.98.67-card.3';
+import { personaFields, readCard, readCardFile } from './character-card-core.js?v=2.98.67-card.4';
+import { attachBook, changeBookEntry, changeCard, dataOf, exportBlob, installedRaw, itemsOf, localCards, putItems, saveInstalled, transferItems, openInstalled } from './character-card-draft.js?v=2.98.67-card.4';
+import { showCharacterResults } from './character-card-compare.js?v=2.98.67-card.4';
 import { confirmWorkshopClose } from './workshop-editing.js?v=2.98.49';
 import { runtimeResource } from './runtime-resources.js';
 
+import { editBookFields, worldEntryView, embeddedBook } from './character-card-world.js?v=2.98.67-card.4';
+
 const names = ['A 旧卡', 'B 新卡'];
-const fresh = () => ({ card: null, saved: null, avatar: '', key: '', png: null, undo: [], selected: new Set(), multi: false, search: false, query: '', notice: '' });
-export function openCharacterCompare(opener) {
+const fresh = () => ({ card: null, saved: null, avatar: '', key: '', png: null, undo: [], selected: new Set(), multi: false, expanded: -1, search: false, query: '', notice: '' });
+export function openCharacterCompare(opener, entryUI) {
   const doc = opener.ownerDocument, win = doc.defaultView;
   const host = opener.closest('#preset-manager-main-panel'), container = host?.querySelector('.pm-panel-container');
   const wrapper = container?.querySelector('.pm-main-wrapper');
@@ -31,6 +33,8 @@ export function openCharacterCompare(opener) {
   runtimeResource(observe).observe(host.parentNode, { childList: true });
   host.addEventListener('click', switchMode, true);
   win.__PMM_CHARACTER_CARDS__ = { host, dirtyDrafts, cleanup, get busy() { return busy; }, exit: () => guard([0,1], cleanup) };
+  entryUI.installStyle();
+  entryUI.refreshFavoriteIndex();
   draw();
 
   function node(tag, text = '', cls = '') {
@@ -45,6 +49,7 @@ export function openCharacterCompare(opener) {
     el.onclick = fn; return el;
   }
   function cleanup() {
+    host.querySelector('.pmm-wb-editor-overlay')?.remove();
     endDrag(); observe.disconnect(); popup?.remove(); popup = null;
     host.querySelector('dialog.pmm-character-compare[open]')?.close();
     host.removeEventListener('click',switchMode,true);
@@ -97,6 +102,23 @@ export function openCharacterCompare(opener) {
     let bookSynced = false;
     if (s.avatar) bookSynced = await saveInstalled(win, ctx, s.avatar, s.saved, s.card, s.source);
     else await localCards(win, 'put', s.key, { raw: s.card.raw, png: s.png }, s.saved.raw);
+    if (bookSynced) {
+      const peer = states[1-i];
+      if (peer.avatar && peer.card.binding === s.card.binding) {
+        if (JSON.stringify(dataOf(peer.card).character_book) === JSON.stringify(dataOf(peer.saved).character_book)) {
+          const fields = { character_book:embeddedBook(s.source.world,dataOf(peer.card).character_book,s.card.binding) };
+          const previousSaved = peer.saved;
+          peer.saved = changeCard(previousSaved,fields);
+          const rebase = card => card === previousSaved ? peer.saved : changeCard(card,fields);
+          peer.card = rebase(peer.card);
+          peer.undo = peer.undo.map(rebase);
+          peer.source.world = structuredClone(s.source.world);
+          if (peer.avatar === s.avatar) peer.source.disk = s.source.disk;
+        } else peer.notice = '另一侧已保存这本世界书，这里的草稿仍保留。';
+      }
+      try { await win.__PMM_WORLDBOOK_STITCH_TEST3__?.refreshSnapshotBook(s.card.binding,s.source.world,true); }
+      catch (error) { console.warn('世界书已保存，刷新世界书面板失败',error); }
+    }
     s.saved = s.card; s.notice = s.avatar ? (bookSynced ? '已保存角色卡，同步世界书「' + s.card.binding + '」' : '已保存到酒馆角色卡') : '已保存在本机，可从卡名菜单重新打开';
     draw();
   }
@@ -183,34 +205,108 @@ export function openCharacterCompare(opener) {
     const swap = button('交换新旧卡', () => { dlg.close(); states.reverse(); draw(); });
     swap.disabled = !states.some(s => s.card); dlg.append(swap);
   }
-  function editor(i, entry, index) {
-    const s = states[i], persona = !book && index < 0;
-    const dlg = modal(entry.title), fields = new Map();
-    const definitions = persona ? personaFields.map(([label,key]) => [label,key,entry.fields[label]])
-      : [...(book ? [['条目名称','title',entry.title]] : []),['正文','body',entry.fields.正文]];
-    for (const [label,key,value] of definitions) {
-      const field = node('label',label), input = node('textarea'); input.value = value;
-      input.rows = key === 'body' ? 9 : 3; field.append(input); dlg.append(field); fields.set(key,input);
-    }
-    dlg.append(button('应用到草稿', () => {
-      if (persona) commit(i,changeCard(s.card,Object.fromEntries([...fields].filter(([key,input]) => input.value !== (dataOf(s.card)[key] || '')).map(([key,input])=>[key,input.value]))));
-      else {
-        const items = itemsOf(s.card,book).slice();
-        if (book) {
-          const original = items[index];
-          items[index] = { ...original, content:fields.get('body').value };
-          if (fields.get('title').value !== entry.title) items[index][original.comment || !original.name ? 'comment' : 'name'] = fields.get('title').value;
-        } else items[index] = fields.get('body').value;
-        commit(i,putItems(s.card,book,items));
+  function editor(i,entry,index,field) {
+    const s = states[i], start = s.card;
+    const persona = !book && index < 0;
+    const sections = persona ? personaFields.map(([label]) => ({label,value:entry.fields[label]})) : undefined;
+    entryUI.openTextEditor({
+      host, title:entry.title, original:sections?.[0].value ?? entry.fields.正文, sections,
+      ariaLabel:'编辑' + entry.title, sourceField:field, themeNodes:[panels[i]], searchable:true,
+      onSave(value) {
+        if (s.card !== start) { s.notice = '角色卡已变化，请重新打开条目。'; draw(); return; }
+        if (persona) {
+          const changes = {};
+          personaFields.forEach(([,key],n) => { if (sections[n].value !== value[n]) changes[key] = value[n]; });
+          commit(i,changeCard(s.card,changes));
+        } else {
+          const items = itemsOf(s.card,book).slice();
+          items[index] = book ? {...items[index],content:value} : value;
+          commit(i,putItems(s.card,book,items));
+        }
       }
-      dlg.close();
-    }));
+    });
+  }
+  function bookRow(i,index,entry,raw) {
+    const s = states[i], sideName = s.avatar && s.card.binding ? s.card.binding : s.key;
+    const view = worldEntryView(raw,index), key = String(view.uid);
+    const side = { name:sideName, multi:s.multi, selected:new Set(s.selected.has(index) ? [key] : []),
+      expanded:new Set(s.expanded === index ? [key] : []) };
+    const template = node('template');
+    template.innerHTML = entryUI.renderEntry('character',side,view);
+    const row = template.content.firstElementChild;
+    row.classList.add('cc-work-row');
+    row.draggable = false; row.dataset.ccIndex = String(index);
+    row.removeAttribute('data-wb-drag-side'); row.removeAttribute('data-wb-drag-key');
+    const gear = row.querySelector('.pmm-wb-expand');
+    gear.classList.add('cc-grip'); gear.setAttribute('aria-label','编辑' + entry.title);
+    gear.setAttribute('aria-expanded',String(s.expanded === index));
+    gear.onpointerdown = e => beginDrag(e,i,index);
+    for (const el of row.querySelectorAll('[data-wb-action],[data-wb-field]')) {
+      if (el.dataset.wbAction) el.dataset.ccAction = el.dataset.wbAction;
+      if (el.dataset.wbField) el.dataset.ccField = el.dataset.wbField;
+      for (const attr of ['data-wb-action','data-wb-field','data-wb-key','data-wb-side']) el.removeAttribute(attr);
+      el.disabled = busy;
+    }
+    function update(changes, input) {
+      const current = itemsOf(s.card,true)[index];
+      const next = changeBookEntry(s.card,index,editBookFields(current,changes));
+      if (!input) return commit(i,next);
+      // Keep the focused field and its caret alive. One editing session is one panel undo.
+      if (!input.dataset.ccEditing) { s.undo.push(s.card); if (s.undo.length > 24) s.undo.shift(); input.dataset.ccEditing = '1'; }
+      s.card = next; s.notice = '';
+      const panel = panels[i];
+      panel.querySelector('[aria-label="撤回"]').disabled = false;
+      const save = panel.querySelector('[aria-label="保存"]'); save.disabled = false; save.classList.add('cc-dirty');
+      panel.querySelector('[role=status]')?.remove();
+    }
+    row.onfocusout = e => {
+      const input = e.target;
+      delete input.dataset.ccEditing;
+      if (input.type === 'number' && !Number.isFinite(input.valueAsNumber)) {
+        const current = worldEntryView(itemsOf(s.card,true)[index],index);
+        input.value = current[input.dataset.ccField] ?? input.defaultValue;
+      }
+    };
+    row.oninput = e => {
+      const input = e.target, field = input.dataset.ccField;
+      if (!field || field === 'positionRole' || busy) return;
+      let value = input.value;
+      if (input.type === 'number') { if (!Number.isFinite(input.valueAsNumber)) return; value = input.valueAsNumber; }
+      if (field === 'key') value = value.split(/[,，]/).map(k=>k.trim()).filter(Boolean);
+      update({[field]:value},input);
+      if (field === 'content') row.querySelector('.pmm-wb-content-tools small').textContent = value.length + ' 字符';
+      if (field === 'comment') row.querySelector('.pmm-wb-entry-title').textContent = value || '未命名条目';
+    };
+    row.onchange = e => {
+      if (busy || e.target.dataset.ccField !== 'positionRole') return;
+      const [position,role] = e.target.value.split(':').map(Number);
+      update(position === 4 ? {position,role} : {position});
+    };
+    row.onclick = e => {
+      const action = e.target.closest('[data-cc-action]')?.dataset.ccAction;
+      if (!action || busy) return;
+      const items = itemsOf(s.card,true), current = worldEntryView(items[index],index);
+      switch (action) {
+        case 'expand': s.expanded = s.expanded === index ? -1 : index; return drawSide(i);
+        case 'select': s.selected.has(index) ? s.selected.delete(index) : s.selected.add(index); return drawSide(i);
+        case 'strategy': return update(current.constant ? {constant:false} : {constant:true,vectorized:false});
+        case 'toggle': return update({disable:!current.disable});
+        case 'content-expand': return editor(i,s.card.book[index],index,row.querySelector('textarea'));
+        case 'duplicate-entry': return commit(i,transferItems(s.card,s.card,true,[index],index+1,false));
+        case 'delete-entry': s.expanded = -1; return commit(i,putItems(s.card,true,items.filter((_,n)=>n !== index)));
+        case 'favorite': case 'update-favorite': return run(i,async () => {
+          s.notice = await win.__PMM_SHARED_FAVORITES__.saveWorld(sideName,current,action === 'update-favorite');
+          entryUI.refreshFavoriteIndex();
+        });
+      }
+    };
+    return row;
   }
   function draw() { panels.forEach((_,i) => drawSide(i)); }
   function drawSide(i) {
     const panel = panels[i], s = states[i], card = s.card;
     const previousScroll = panel.querySelector('.cc-work-list')?.scrollTop || 0;
-    const header = node('header'), list = node('div','','cc-work-list');
+    const header = node('header','','pmm-wb-header'), list = node('div','','cc-work-list pmm-wb-list');
     panel.replaceChildren(header);
     const title = [names[i], card ? [card.name, card.version].filter(Boolean).join(' ') : '选择角色卡'].join(' · ');
     const pick = button(title,() => choose(i)); pick.className = 'cc-title'; pick.disabled = busy;
@@ -234,7 +330,7 @@ export function openCharacterCompare(opener) {
     }),
       !states.every(s => s.card && (!book || s.card.book)));
     tool('多选','check-double',() => { s.multi = !s.multi; s.selected.clear(); drawSide(i); },!card,s.multi);
-    tool('撤回','rotate-left',() => { s.card = s.undo.pop(); s.selected.clear(); s.notice = ''; draw(); },!s.undo.length);
+    tool('撤回','rotate-left',() => { s.card = s.undo.pop(); s.expanded = -1; s.selected.clear(); s.notice = ''; draw(); },!s.undo.length);
     tool('搜索','magnifying-glass',() => { s.search = !s.search; s.query = ''; drawSide(i); panel.querySelector('input[type=search]')?.focus(); },!card,s.search);
     const saveBtn = tool('保存','floppy-disk',() => run(i,() => save(i)),!card || (s.avatar && !dirty(s)));
     saveBtn.classList.toggle('cc-dirty',dirty(s));
@@ -257,25 +353,28 @@ export function openCharacterCompare(opener) {
       const entries = book ? card.book : [card.persona,...itemsOf(card,false).map((text,index) => ({
         index, title:'开场白 ' + (index+1), fields:{正文:String(text)},
       }))];
+      const rawEntries = book ? itemsOf(card,true) : null;
       for (const [pos,entry] of entries.entries()) {
         const index = book ? pos : entry.index ?? -1;
         const text = [entry.title,...Object.values(entry.fields)].join(' ');
         if (s.query && !text.toLocaleLowerCase().includes(s.query.toLocaleLowerCase())) continue;
-        const row = node('div','','cc-work-row'); row.dataset.ccIndex = String(index);
+        if (book) { list.append(bookRow(i,index,entry,rawEntries[index])); continue; }
+        const row = node('div','','cc-work-row pmm-wb-entry'); const head = node('div','','pmm-wb-entry-head'); row.append(head); row.dataset.ccIndex = String(index);
         if (index >= 0) {
           if (s.multi) {
             const check = node('input'); check.type = 'checkbox'; check.checked = s.selected.has(index);
             check.setAttribute('aria-label','选择' + entry.title);
-            check.onchange = () => check.checked ? s.selected.add(index) : s.selected.delete(index); row.append(check);
+            check.onchange = () => check.checked ? s.selected.add(index) : s.selected.delete(index); head.append(check);
           }
           const handle = button('拖动' + entry.title,() => {},'grip-vertical'); handle.className = 'cc-grip';
           handle.disabled = busy;
-          handle.onpointerdown = e => beginDrag(e,i,index); row.append(handle);
-        } else row.append(node('i','','fa-solid fa-user cc-person'));
+          handle.onpointerdown = e => beginDrag(e,i,index); head.append(handle);
+        } else head.append(node('i','','fa-solid fa-user cc-person'));
         const label = !book && index >= 0 ? entry.title + ' · ' + entry.fields.正文.trim().slice(0,60) : entry.title;
-        const edit = () => { if (!busy) editor(i,entry,index); };
-        const name = button(label,edit); name.className = 'cc-row-title';
-        row.append(name,button('编辑' + entry.title,edit,'pen')); list.append(row);
+        const name = button(label,() => { if (!busy) editor(i,entry,index,row); });
+        name.className = 'cc-row-title pmm-wb-entry-title';
+        name.setAttribute('aria-label','编辑' + entry.title);
+        head.append(name); list.append(row);
       }
       if (!list.childElementCount) list.append(node('p',s.query ? '没有匹配的条目' : '暂无条目'));
     }
@@ -318,8 +417,12 @@ export function openCharacterCompare(opener) {
     handle.addEventListener('pointerup',ev => {
       const target = moved && locate(ev); endDrag();
       if (!target) return;
+      const suppressClick = e => { e.preventDefault(); e.stopPropagation(); };
+      handle.addEventListener('click',suppressClick,{once:true,capture:true});
+      win.setTimeout(() => handle.removeEventListener('click',suppressClick,true),0);
       const source = states[side], dest = states[target.side];
       const indices = source.multi && source.selected.has(index) ? source.selected : [index];
+      dest.expanded = -1;
       commit(target.side,transferItems(source.card,dest.card,book,indices,target.at,target.side === side));
     },options);
     handle.addEventListener('lostpointercapture',endDrag,options);
@@ -339,10 +442,10 @@ const css = `
 .cc-work-mode [data-pmm-character-compare]{background:var(--pm-card-bg,#8884)!important;outline:1px solid currentColor}
 .cc-work-panel{grid-column:1;min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--pm-border,#8886);border-radius:12px;background:var(--pm-panel-bg,#202124);color:var(--pm-text-primary,#eee)}
 .cc-work-panel[data-cc-side="0"]{grid-row:1}.cc-work-panel[data-cc-side="1"]{grid-row:3}
-.cc-work-panel header,.cc-work-dialog header,.cc-work-row{display:flex;align-items:center;gap:3px}
+.cc-work-panel header,.cc-work-dialog header{display:flex;align-items:center;gap:3px}
 .cc-work-panel header{flex:none;padding:4px;border-bottom:1px solid var(--pm-border,#8885);background:var(--pm-toolbar-bg,transparent)}
-.cc-work-panel button,.cc-work-dialog button,.cc-work-dialog select{font:inherit;color:inherit;border:0;background:var(--pm-card-bg,#8882);border-radius:6px;padding:5px;cursor:pointer}
-.cc-work-panel header button,.cc-work-row button{background:transparent;font-size:clamp(12px,3vw,14px);min-width:clamp(24px,6.8vw,32px);min-height:32px;flex:none}
+.cc-work-panel header button,.cc-work-panel .cc-grip,.cc-work-panel .cc-row-title,.cc-work-dialog button,.cc-work-dialog select{font:inherit;color:inherit;border:0;background:var(--pm-card-bg,#8882);border-radius:6px;padding:5px;cursor:pointer}
+.cc-work-panel header button,.cc-work-panel .cc-grip,.cc-work-panel .cc-row-title{background:transparent;font-size:clamp(12px,3vw,14px);min-width:clamp(24px,6.8vw,32px);min-height:32px;flex:none}
 .cc-work-panel button:disabled{opacity:.38;cursor:default}
 .cc-work-panel header .cc-title,.cc-work-panel .cc-row-title{flex:1;min-width:0;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cc-work-panel header .cc-title{display:flex;align-items:center;gap:3px;background:var(--pm-card-bg,#8882)}
@@ -352,8 +455,12 @@ const css = `
 .cc-work-panel .cc-row-title{font-size:clamp(13px,3.5vw,15px)}
 .cc-title i{margin-inline-start:4px;font-size:.75em}
 .cc-work-panel [aria-pressed=true],.cc-work-panel .cc-dirty{background:var(--pm-card-bg,#8884);box-shadow:inset 0 0 0 1px var(--pm-border,#888)}
-.cc-work-panel .cc-work-list{min-height:0;flex:1;overflow:auto;overscroll-behavior:contain;padding:5px}
-.cc-work-row{border:1px solid var(--pm-border,#8885);background:var(--pm-card-bg,#8881);border-radius:8px;margin:0 0 4px;padding:3px 5px}
+.cc-work-panel .cc-work-list{min-height:0;flex:1;overflow:auto;overscroll-behavior:contain;padding:5px;gap:var(--pmm-user-item-gap,3px)}
+.cc-work-panel header .cc-title{border:1px solid var(--pm-border,#8885);padding-inline:7px}
+.cc-work-panel .cc-work-row .pmm-wb-entry-title{text-align:start;min-width:0}
+.cc-work-panel .cc-person{margin-inline:5px;color:var(--pm-text-secondary,currentColor)}
+.pmm-wb-editor-dialog header strong select{max-width:100%;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer}
+.pmm-wb-editor-dialog header strong:has(select){display:flex;flex-wrap:wrap;align-items:center;gap:3px}
 .cc-work-row .cc-grip{touch-action:none;cursor:grab}.cc-person{padding:4px}
 .cc-work-panel .cc-drop-before{box-shadow:inset 0 2px var(--pm-quote-color,#68a7e0)}.cc-work-panel .cc-drop-after{box-shadow:inset 0 -2px var(--pm-quote-color,#68a7e0)}
 .cc-work-panel input[type=search]{width:calc(100% - 10px);margin:4px 5px;color:inherit;background:var(--pm-card-bg,#8882)}

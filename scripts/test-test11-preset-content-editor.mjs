@@ -36,7 +36,7 @@ assert.ok(
 );
 
 for (const marker of [
-  'function openTextEditor({ host, title, original, sourceField, themeNodes, ariaLabel, onSave, searchable = false })',
+  'function openTextEditor({ host, title, original, sourceField, themeNodes, ariaLabel, onSave, searchable = false',
   'function openPresetContentEditor(button)',
   "event.target.closest?.('.prompt-editor__expand-btn')",
   'event.stopImmediatePropagation?.();',
