@@ -14,7 +14,7 @@ export function readCard(raw) {
   }
   const persona = Object.fromEntries(personaFields.map(([label, key]) => [label, String(data[key] ?? '')]));
   const greetings = [data.first_mes ?? '', ...(Array.isArray(data.alternate_greetings) ? data.alternate_greetings : [])]
-    .map((body, i) => section('开场白 ' + (i + 1), { 正文: String(body) }))
+    .map((body, i) => ({ ...section('开场白 ' + (i + 1), { 正文: String(body) }), index: i }))
     .filter(entry => entry.fields.正文 !== '');
   const book = data.character_book;
   const binding = String(data.extensions?.world || '');
@@ -46,7 +46,7 @@ export function readBook(book) {
     if (name && comment && name !== comment) settings.name = name;
     return { ...section(title || '未命名条目 ' + (i + 1), {
       正文: String(content ?? ''), 条目设置: JSON.stringify(sorted(settings), null, 2),
-    }, id ?? uid), matchName: title };
+    }, id ?? uid), matchName: title, index: i };
   });
 }
 

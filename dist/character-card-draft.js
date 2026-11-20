@@ -1,4 +1,4 @@
-import { readCard } from './character-card-core.js?v=2.98.67-card.1';
+import { personaFields, readCard } from './character-card-core.js?v=2.98.67-card.2';
 
 export const dataOf = card => card.raw.data ?? card.raw;
 export function changeCard(card, fields) {
@@ -13,6 +13,28 @@ export function changeCard(card, fields) {
 export function itemsOf(card, book) {
   const data = dataOf(card);
   return book ? Object.values(data.character_book?.entries || {}) : [data.first_mes ?? '', ...(data.alternate_greetings || [])];
+}
+
+// Comparison rows keep the original slot even when greetings are empty or reordered between versions.
+export function changeComparedBody(card, view, index, fields) {
+  if (view === 'book') {
+    const book = dataOf(card).character_book;
+    const entries = Array.isArray(book.entries) ? book.entries.slice() : { ...book.entries };
+    const key = Object.keys(entries)[index];
+    entries[key] = { ...entries[key], content: fields.正文 };
+    return changeCard(card, { character_book: { ...book, entries } });
+  }
+  if (index === -1) {
+    const delta = {};
+    for (const [label, key] of personaFields) {
+      if (card.persona.fields[label] !== fields[label]) delta[key] = fields[label];
+    }
+    return changeCard(card, delta);
+  }
+  if (index === 0) return changeCard(card, { first_mes: fields.正文 });
+  const alternatives = [...dataOf(card).alternate_greetings];
+  alternatives[index - 1] = fields.正文;
+  return changeCard(card, { alternate_greetings: alternatives });
 }
 
 export function putItems(card, book, items) {

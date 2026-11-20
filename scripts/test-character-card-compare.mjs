@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { compareCards, readBook, readCard, readCardFile } from '../dist/character-card-core.js';
 import { buildHighlightedDiff } from '../dist/body-highlight.js';
-import { changeCard, exportBlob, transferItems, saveInstalled } from '../dist/character-card-draft.js';
+import { changeCard, changeComparedBody, exportBlob, transferItems, saveInstalled } from '../dist/character-card-draft.js';
 
 const raw = { name: '月', description: '你好。', personality: '慢热', first_mes: '甲', alternate_greetings: ['乙', '乙'] };
 const old = readCard(raw);
@@ -50,6 +50,12 @@ const reorder = transferItems(old,old,false,[1,2],0,true);
 assert.equal(reorder.raw.first_mes,'乙');
 assert.deepEqual(reorder.raw.alternate_greetings,['乙','甲']);
 const withBook = readCard({...raw,character_book:{entries:[{id:3,name:'一',content:'原文',extensions:{sample:true}}]}});
+const sparseGreetings = readCard({...raw,first_mes:'',alternate_greetings:['','原文','相同','相同']});
+assert.deepEqual(changeComparedBody(sparseGreetings,'persona',sparseGreetings.greetings[0].index,{正文:'编辑'})
+  .raw.alternate_greetings,['','编辑','相同','相同']);
+const objectBook = readCard({...raw,character_book:{entries:{slot:withBook.raw.character_book.entries[0]}}});
+assert.deepEqual(changeComparedBody(objectBook,'book',objectBook.book[0].index,{正文:'编辑'}).raw.character_book.entries,
+  {slot:{...objectBook.raw.character_book.entries.slot,content:'编辑'}});
 const copied = transferItems(withBook,withBook,true,[0],1,false).raw.character_book.entries;
 assert.equal(copied.length,2); assert.notEqual(copied[0].id,copied[1].id); assert.deepEqual(copied[1].extensions,{sample:true});
 const record = {avatar:'月.png',data:{...raw,extensions:{sample:true}}};

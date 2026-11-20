@@ -1,6 +1,6 @@
-import { personaFields, readCard, readCardFile } from './character-card-core.js?v=2.98.67-card.1';
-import { attachBook, changeCard, dataOf, exportBlob, installedRaw, itemsOf, localCards, putItems, saveInstalled, transferItems } from './character-card-draft.js?v=2.98.67-card.1';
-import { showCharacterResults } from './character-card-compare.js?v=2.98.67-card.1';
+import { personaFields, readCard, readCardFile } from './character-card-core.js?v=2.98.67-card.2';
+import { attachBook, changeCard, dataOf, exportBlob, installedRaw, itemsOf, localCards, putItems, saveInstalled, transferItems } from './character-card-draft.js?v=2.98.67-card.2';
+import { showCharacterResults } from './character-card-compare.js?v=2.98.67-card.2';
 import { confirmWorkshopClose } from './workshop-editing.js?v=2.98.49';
 import { runtimeResource } from './runtime-resources.js';
 
@@ -46,7 +46,7 @@ export function openCharacterCompare(opener) {
   }
   function cleanup() {
     endDrag(); observe.disconnect(); popup?.remove(); popup = null;
-    host.querySelector('dialog.pmm-character-compare')?.remove();
+    host.querySelector('dialog.pmm-character-compare[open]')?.close();
     host.removeEventListener('click',switchMode,true);
     host.classList.remove('cc-work-mode'); opener.removeAttribute('aria-pressed');
     panels.forEach(p => p.remove()); style.remove();
@@ -194,7 +194,11 @@ export function openCharacterCompare(opener) {
       for (const [v,label,icon] of [[false,'人设','user'],[true,'绑定世界书','book-open']]) {
         tool(label,icon,() => { book = v; states.forEach(s => { s.selected.clear(); s.query = ''; }); draw(); },false,v === book);
       }
-    } else tool('查看对比详情','code-compare',e => showCharacterResults(e.currentTarget,states.map(s=>s.card),book ? 'book':'persona'),
+    } else tool('查看对比详情','code-compare',e => showCharacterResults(e.currentTarget,states.map(s=>s.card),book ? 'book':'persona', (before, next) => {
+      if (busy || before.some((card, i) => card !== states[i].card)) throw Error('角色卡已变化，请重新比对。');
+      next.forEach((card, i) => { if (card !== before[i]) commit(i,card); });
+      return states.map(s => s.card);
+    }),
       !states.every(s => s.card && (!book || s.card.book)));
     tool('多选','check-double',() => { s.multi = !s.multi; s.selected.clear(); drawSide(i); },!card,s.multi);
     tool('撤回','rotate-left',() => { s.card = s.undo.pop(); s.selected.clear(); s.notice = ''; draw(); },!s.undo.length);

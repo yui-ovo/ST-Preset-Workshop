@@ -4426,7 +4426,7 @@ export{xo as mountMainPanel,fo as toggleMainPanel,bo as unmountMainPanel};
     pmmRuntimeResource(button).addEventListener('click', async event => {
       event.stopPropagation();
       try {
-        const { openCharacterCompare } = await import('./character-card-panels.js?v=2.98.67-card.1');
+        const { openCharacterCompare } = await import('./character-card-panels.js?v=2.98.67-card.2');
         if (button.isConnected) openCharacterCompare(button);
       } catch (error) {
         console.error('[预设工坊] 角色卡对比加载失败', error);
