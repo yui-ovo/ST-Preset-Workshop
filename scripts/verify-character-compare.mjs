@@ -6,7 +6,8 @@ export async function verifyCharacterCompare(page) {
   const next = { ...old, character_version:'v1.1', description: '我来自月球！', first_mes: '车站重逢', alternate_greetings: ['雨夜初遇', '天台晚风'],
     character_book: { name: '月球', entries: [{ id: 1, name: '家乡', content: '月球' }, { id: 2, name: '归期', content: '明晚' }] } };
   const contextCards = await page.evaluateHandle(() => SillyTavern.getContext().characters);
-  await contextCards.evaluate((list, data) => list.push({ name: data.name, avatar: '新版.png', data }), next);
+  await contextCards.evaluate((list, data) => list.push({ name: '余嘉乐', avatar: '新版.png', data },
+    { name:'余嘉乐', avatar:'旧版.png', data },{ name:'周之逸', avatar:'周之逸.png', data }), next);
   const entry = page.getByRole('button', { name: '打开角色卡对比' });
   await entry.waitFor();
   assert.equal(await entry.evaluate(el => el.previousElementSibling.title), '世界书');
@@ -20,7 +21,16 @@ export async function verifyCharacterCompare(page) {
   await choose(top);
   await dlg.locator('input[type=file]').setInputFiles({ name:'旧猫.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({data:{...old,extensions:{custom:'keep'}}})) });
   await choose(bottom);
-  await dlg.getByRole('combobox',{name:'从酒馆选择'}).selectOption('新版.png');
+  await action(dlg,'从酒馆选择').click();
+  const search = dlg.getByRole('searchbox',{name:'搜索角色名'});
+  await search.fill('周之');
+  assert.deepEqual(await dlg.locator('.cc-character-options button').allTextContents(),['周之逸']);
+  await search.fill('查无此人');
+  await dlg.getByText('没有找到匹配的角色卡').waitFor();
+  await search.fill('余嘉');
+  assert.deepEqual(await dlg.locator('.cc-character-options button').allTextContents(),['余嘉乐 · 新版.png','余嘉乐 · 旧版.png']);
+  await search.fill('新版');
+  await action(dlg,'余嘉乐 · 新版.png').click();
   await open.click();
   const stats = key => result.locator('[data-cc-status="' + key + '"]');
   assert.match(await stats('changed').textContent(), /1$/);
@@ -130,8 +140,33 @@ export async function verifyCharacterCompare(page) {
   await choose(top); await action(dlg,'交换新旧卡').click();
   await open.click(); assert.match(await stats('old').textContent(),/1$/);
   await action(result,'返回').click();
+  assert.equal(await page.evaluate(()=>fixtureWorldWrites),0);
+  const installed = {avatar:'绑定.png',data:{...old,name:'绑定测试',extensions:{world:'Source'}}};
+  await contextCards.evaluate((chars,card)=>{chars.push({name:card.data.name,...card});SillyTavern.getContext().getRequestHeaders=()=>({});},installed);
+  await page.route('**/api/worldinfo/get',async route=>route.fulfill({json:await page.evaluate(()=>fixtureBooks.Source)}));
+  await page.route('**/api/characters/get',route=>route.fulfill({json:installed}));
+  await page.route('**/api/characters/merge-attributes',route=>{
+    const payload=route.request().postDataJSON();
+    assert.equal(payload.avatar,installed.avatar);
+    Object.assign(installed.data,payload.data);
+    return route.fulfill({json:{}});
+  });
+  await choose(top); await action(dlg,'从酒馆选择').click(); await search.fill('绑定测试');
+  await action(dlg,'绑定测试').click();
+  await action(top,'编辑人设').click();
+  await dlg.getByLabel('角色描述',{exact:true}).fill('酒馆人设更新');
+  await action(dlg,'应用到草稿').click();
+  await action(top,'绑定世界书').click();
+  await action(top,'编辑世界书同名条目').click();
+  assert.equal(await dlg.getByLabel('正文',{exact:true}).inputValue(),'世界书正文');
+  await dlg.getByLabel('正文',{exact:true}).fill('酒馆世界书更新');
+  await action(dlg,'应用到草稿').click(); await action(top,'保存').click();
+  await top.getByRole('status').filter({hasText:'同步世界书「Source」'}).waitFor();
+  assert.equal(installed.data.description,'酒馆人设更新');
+  assert.equal(installed.data.character_book.entries[0].content,'酒馆世界书更新');
+  assert.equal(await page.evaluate(()=>fixtureBooks.Source.entries[0].content),'酒馆世界书更新');
   await entry.click();
   await top.waitFor({state:'detached',timeout:5000});
   assert.equal(await panels.count(),0);
-  assert.equal(await page.evaluate(()=>fixtureWorldWrites),0);
+  assert.equal(await page.evaluate(()=>fixtureWorldWrites),1);
 }

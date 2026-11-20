@@ -1,6 +1,6 @@
-import { personaFields, readCard, readCardFile } from './character-card-core.js?v=2.98.67-card.2';
-import { attachBook, changeCard, dataOf, exportBlob, installedRaw, itemsOf, localCards, putItems, saveInstalled, transferItems } from './character-card-draft.js?v=2.98.67-card.2';
-import { showCharacterResults } from './character-card-compare.js?v=2.98.67-card.2';
+import { personaFields, readCard, readCardFile } from './character-card-core.js?v=2.98.67-card.3';
+import { attachBook, changeCard, dataOf, exportBlob, installedRaw, itemsOf, localCards, putItems, saveInstalled, transferItems, openInstalled } from './character-card-draft.js?v=2.98.67-card.3';
+import { showCharacterResults } from './character-card-compare.js?v=2.98.67-card.3';
 import { confirmWorkshopClose } from './workshop-editing.js?v=2.98.49';
 import { runtimeResource } from './runtime-resources.js';
 
@@ -94,9 +94,10 @@ export function openCharacterCompare(opener) {
   }
   async function save(i) {
     const s = states[i];
-    if (s.avatar) await saveInstalled(win, ctx, s.avatar, s.saved, s.card);
+    let bookSynced = false;
+    if (s.avatar) bookSynced = await saveInstalled(win, ctx, s.avatar, s.saved, s.card, s.source);
     else await localCards(win, 'put', s.key, { raw: s.card.raw, png: s.png }, s.saved.raw);
-    s.saved = s.card; s.notice = s.avatar ? '已保存到酒馆角色卡' : '已保存在本机，可从卡名菜单重新打开';
+    s.saved = s.card; s.notice = s.avatar ? (bookSynced ? '已保存角色卡，同步世界书「' + s.card.binding + '」' : '已保存到酒馆角色卡') : '已保存在本机，可从卡名菜单重新打开';
     draw();
   }
   async function download(i) {
@@ -133,14 +134,46 @@ export function openCharacterCompare(opener) {
       for (const [key, title] of options) sel.append(new win.Option(title,key));
       sel.onchange = () => { if (sel.value) action(sel.value); }; dlg.append(sel);
     }
-    select('从酒馆选择',(ctx?.characters || []).filter(c => c?.avatar).map(c => [c.avatar,c.name + ' · ' + c.avatar]),avatar => replace(async () => {
+    function pickInstalled(avatar) { replace(async () => {
       let record = ctx.characters.find(c => c?.avatar === avatar);
       if (!record?.data || record.shallow) {
         const res = await win.fetch('/api/characters/get',{method:'POST',headers:ctx.getRequestHeaders(),body:JSON.stringify({avatar_url:avatar})});
         if (!res.ok) throw Error('无法读取酒馆角色卡'); record = await res.json();
       }
-      return { card:readCard(structuredClone(installedRaw(record))), avatar };
-    }));
+      return { ...await openInstalled(ctx,readCard(structuredClone(installedRaw(record)))), avatar };
+    }); }
+    const tavern = button('从酒馆选择', () => {
+      if (dlg.querySelector('.cc-character-picker')) return;
+      const picker = node('div','','cc-character-picker');
+      const input = node('input'); input.type = 'search'; input.placeholder = '搜索角色名';
+      input.setAttribute('aria-label',input.placeholder);
+      const list = node('div','','cc-character-options');
+      const normalize = text => String(text || '').normalize('NFKC').trim().toLocaleLowerCase();
+      const counts = new Map(), characters = [];
+      const avatars = new Set();
+      for (const c of ctx?.characters || []) {
+        if (!c?.avatar || avatars.has(c.avatar)) continue;
+        avatars.add(c.avatar);
+        const title = c.name || c.avatar.replace(/\.png$/i,'');
+        const name = normalize(title);
+        counts.set(name,(counts.get(name) || 0) + 1);
+        characters.push({title,name,avatar:c.avatar,filename:normalize(c.avatar)});
+      }
+      function render(limit = 80) {
+        const query = normalize(input.value);
+        const matches = characters.filter(c => c.name.includes(query) || c.filename.includes(query));
+        list.replaceChildren();
+        for (const c of matches.slice(0,limit)) {
+          const label = counts.get(c.name) > 1 ? c.title + ' · ' + c.avatar : c.title;
+          list.append(button(label,() => pickInstalled(c.avatar)));
+        }
+        if (!matches.length) list.append(node('small',characters.length ? '没有找到匹配的角色卡' : '酒馆里暂无角色卡'));
+        if (matches.length > limit) list.append(button('显示更多',() => render(limit + 80)));
+      }
+      input.oninput = () => { render(); list.scrollTop = 0; };
+      picker.append(input,list); tavern.replaceWith(picker); render(); input.focus();
+    });
+    dlg.append(tavern);
     localCards(win,'list').then(keys => {
       if (dlg.open) select('打开本机保存的卡',keys.map(k => [k,k.split('｜').slice(0,-1).filter(Boolean).join(' · ')]),key => replace(async () => {
         const value = await localCards(win,'get',key);
@@ -329,4 +362,6 @@ dialog.cc-work-dialog{margin:auto;width:min(92vw,460px);max-height:80dvh;overflo
 .cc-work-dialog::backdrop{background:#0008}
 .cc-work-dialog[open]{display:grid;gap:10px}.cc-work-dialog header{justify-content:space-between}
 .cc-work-dialog label{display:grid;gap:3px}.cc-work-dialog :is(textarea,select){max-width:100%;width:100%;box-sizing:border-box;background:var(--pm-card-bg,#8882);color:inherit}.cc-work-dialog option{color:CanvasText;background:Canvas}
+.cc-character-picker{display:grid;gap:6px;min-width:0}.cc-character-picker input{width:100%;box-sizing:border-box;color:inherit;background:var(--pm-card-bg,#8882);border:1px solid var(--pm-border,#8885);border-radius:6px;padding:8px}
+.cc-character-options{max-height:34vh;max-height:34dvh;overflow:auto;overscroll-behavior:contain}.cc-character-options button{display:block;width:100%;text-align:left;overflow-wrap:anywhere;padding:8px;margin:2px 0}
 `;

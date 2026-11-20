@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { compareCards, readBook, readCard, readCardFile } from '../dist/character-card-core.js';
 import { buildHighlightedDiff } from '../dist/body-highlight.js';
-import { changeCard, changeComparedBody, exportBlob, transferItems, saveInstalled } from '../dist/character-card-draft.js';
+import { changeCard, changeComparedBody, exportBlob, transferItems, openInstalled, saveInstalled } from '../dist/character-card-draft.js';
 
 const raw = { name: '月', description: '你好。', personality: '慢热', first_mes: '甲', alternate_greetings: ['乙', '乙'] };
 const old = readCard(raw);
@@ -73,3 +73,47 @@ assert.equal(record.data.extensions.sample,true);
 await assert.rejects(saveInstalled(host,ctx,record.avatar,baseline,changeCard(baseline,{description:'另一份草稿'})),/同一项/);
 assert.equal(writes,1);
 console.log('Card editing, lossless metadata round trip, independent transfers and guarded installed saves passed.');
+
+const linked = { avatar:'绑定.png', data:{ ...raw, extensions:{world:'主世界书'}, character_book:{ name:'旧副本',
+  entries:[{id:7,content:'旧副本里的正文',extensions:{custom:true}}] } } };
+let world = { title:'保留', entries:{ 7:{uid:7,comment:'地点',content:'酒馆正在使用的正文',key:['地点'],
+  disable:false,position:4,displayIndex:0,probability:70,custom:{keep:true}} } };
+const calls = [];
+let failCard = false;
+const liveContext = { characters:[linked], getRequestHeaders:()=>({}),
+  loadWorldInfo:async name => { assert.equal(name,'主世界书'); return structuredClone(world); },
+  saveWorldInfo:async (name,data,immediate) => { calls.push([name,immediate]); world = structuredClone(data); },
+};
+const personaField = {value:raw.description};
+const liveHost = { document:{getElementById:id=>({avatar_url_pole:{value:linked.avatar},description_textarea:personaField})[id]},
+  fetch:async (path,options) => {
+    if (path === '/api/worldinfo/get') return {ok:true,json:async()=>structuredClone(world)};
+    if (path.endsWith('/get')) return {ok:true,json:async()=>structuredClone(linked)};
+    if (failCard) return {ok:false,status:503};
+    assert.equal(JSON.parse(options.body).avatar,linked.avatar);
+    return {ok:true};
+  } };
+const loaded = await openInstalled(liveContext,readCard(structuredClone(linked)));
+assert.equal(loaded.card.book[0].fields.正文,'酒馆正在使用的正文');
+const persona = changeCard(loaded.card,{description:'编辑人设'});
+await saveInstalled(liveHost,liveContext,linked.avatar,loaded.card,persona,loaded.source);
+assert.equal(personaField.value,'编辑人设');
+assert.equal(linked.data.character_book.entries[0].content,'旧副本里的正文');
+assert.deepEqual(calls,[]);
+const bookEdit = changeComparedBody(persona,'book',0,{正文:'编辑世界书'});
+world.entries[7].content = '别处更新';
+await assert.rejects(saveInstalled(liveHost,liveContext,linked.avatar,persona,bookEdit,loaded.source),/已在别处修改/);
+assert.deepEqual(calls,[]);
+world.entries[7].content = '酒馆正在使用的正文';
+failCard = true;
+await assert.rejects(saveInstalled(liveHost,liveContext,linked.avatar,persona,bookEdit,loaded.source),/已还原本次世界书修改/);
+assert.equal(world.entries[7].content,'酒馆正在使用的正文');
+failCard = false;
+assert.equal(await saveInstalled(liveHost,liveContext,linked.avatar,persona,bookEdit,loaded.source),true);
+assert.equal(linked.data.character_book.entries[0].content,'编辑世界书');
+assert.deepEqual(world.entries[7],{...world.entries[7],content:'编辑世界书',position:4,probability:70,custom:{keep:true}});
+assert.deepEqual(calls,[['主世界书',true],['主世界书',true],['主世界书',true]]);
+const missing = await openInstalled({...liveContext,loadWorldInfo:async()=>null},bookEdit);
+await assert.rejects(saveInstalled(liveHost,liveContext,linked.avatar,missing.card,
+  changeComparedBody(missing.card,'book',0,{正文:'保留草稿'}),missing.source),/无法同步绑定世界书/);
+console.log('Installed card saves distinguish embedded copies and live bindings, refresh persona, detect conflicts and retry partial writes.');
