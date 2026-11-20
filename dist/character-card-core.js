@@ -1,4 +1,4 @@
-const personaFields = [
+export const personaFields = [
   ['角色描述', 'description'], ['性格', 'personality'], ['场景', 'scenario'],
   ['示例对话', 'mes_example'], ['系统提示', 'system_prompt'], ['历史记录后指令', 'post_history_instructions'],
 ];
@@ -19,7 +19,7 @@ export function readCard(raw) {
   const book = data.character_book;
   const binding = String(data.extensions?.world || '');
   return {
-    name: data.name, version: String(data.character_version || ''),
+    raw, name: data.name, version: String(data.character_version || ''),
     persona: section('人设', persona), greetings, binding,
     book: book ? readBook(book) : binding ? null : [],
     bookName: book ? String(book.name || binding || '卡内世界书') : '',

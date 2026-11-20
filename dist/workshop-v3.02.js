@@ -124,7 +124,7 @@ function pmmOpenCompareActions(modal) {
 function pmmHost() { return window.parent || window; }
 function pmmGuardClose(getEntries, close) {
   const host = pmmHost(), root = host.document.getElementById('preset-manager-main-panel');
-  if (host.__PMM_WORLDBOOK_STITCH_TEST3__?.state?.busy) { toastr.info('操作尚未完成，请稍后关闭'); return false; }
+  if (host.__PMM_WORLDBOOK_STITCH_TEST3__?.state?.busy || host.__PMM_CHARACTER_CARDS__?.busy) { toastr.info('操作尚未完成，请稍后关闭'); return false; }
   return confirmWorkshopClose(root, getEntries, close);
 }
 function pmmConnectEditing(main, merge, branch, saveMain) {
@@ -144,6 +144,7 @@ function pmmConnectEditing(main, merge, branch, saveMain) {
       read:()=>branch.rightPrompts, dirty:()=>branch.isDirty, save:()=>branch.saveBranch(), discard:()=>branch.loadBranch(branch.rightBranchName),
     });
     if (scope === 'all') result.push(...(host.__PMM_WORLDBOOK_STITCH_TEST3__?.dirtyDrafts?.() || []));
+    if (scope === 'all') result.push(...(host.__PMM_CHARACTER_CARDS__?.dirtyDrafts?.() || []));
     return result;
   };
   pmmEditingContext = { entries };
@@ -4425,7 +4426,7 @@ export{xo as mountMainPanel,fo as toggleMainPanel,bo as unmountMainPanel};
     pmmRuntimeResource(button).addEventListener('click', async event => {
       event.stopPropagation();
       try {
-        const { openCharacterCompare } = await import('./character-card-compare.js');
+        const { openCharacterCompare } = await import('./character-card-panels.js?v=2.98.67-card.1');
         if (button.isConnected) openCharacterCompare(button);
       } catch (error) {
         console.error('[预设工坊] 角色卡对比加载失败', error);

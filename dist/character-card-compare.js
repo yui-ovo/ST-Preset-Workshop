@@ -1,4 +1,4 @@
-import { compareCards, readBook, readCard, readCardFile } from './character-card-core.js';
+import { compareCards } from './character-card-core.js?v=2.98.67-card.1';
 import { buildHighlightedDiff } from './body-highlight.js';
 import { runtimeResource } from './runtime-resources.js';
 
@@ -8,18 +8,7 @@ const categories = [
 ];
 const sides = ['A · 旧卡', 'B · 新卡'];
 
-async function installedCard(context, avatar) {
-  const card = context.characters.find(item => item.avatar === avatar);
-  if (!card) throw new Error('角色列表已变化，请重新选择。');
-  if (card.data && !card.shallow) return readCard(card);
-  const response = await window.parent.fetch('/api/characters/get', {
-    method: 'POST', headers: context.getRequestHeaders(), body: JSON.stringify({ avatar_url: avatar }),
-  });
-  if (!response.ok) throw new Error('读取角色失败，请从角色卡文件导入。');
-  return readCard(await response.json());
-}
-
-export function openCharacterCompare(opener) {
+export function showCharacterResults(opener, cards, initialView) {
   const doc = opener.ownerDocument;
   if (doc.querySelector('dialog.pmm-character-compare[open]')) return;
   const dialog = runtimeResource(doc).createElement('dialog');
@@ -30,14 +19,13 @@ export function openCharacterCompare(opener) {
     const value = theme.getPropertyValue(key);
     if (value) dialog.style.setProperty(key, value);
   }
-  const context = doc.defaultView.SillyTavern?.getContext?.();
-  let cards = [null, null], view = 'persona', screen = 'cards', busy = null, error = '';
-  let rows = [], selected = new Set(), current, listScroll = 0;
+  let view = initialView, screen = 'results';
+  let rows = compareCards(...cards, view), selected = new Set(), current, listScroll = 0;
   const style = doc.createElement('style');
   style.textContent = css;
   const content = element('div', '', 'cc-content');
   dialog.append(style, content);
-  runtimeResource(doc.body).append(dialog);
+  runtimeResource(opener.closest('#preset-manager-main-panel') || doc.body).append(dialog);
   dialog.addEventListener('cancel', event => { event.preventDefault(); back(); });
   dialog.addEventListener('close', () => { dialog.remove(); opener.focus(); }, { once: true });
   render();
@@ -56,25 +44,24 @@ export function openCharacterCompare(opener) {
     return node;
   }
   function back() {
-    if (screen === 'cards') { dialog.close(); return; }
-    screen = screen === 'body' ? 'results' : 'cards';
+    if (screen === 'results') { dialog.close(); return; }
+    screen = 'results';
     render();
-    if (screen === 'results') content.querySelector('.cc-list')?.children[visible().indexOf(current)]?.focus({ preventScroll: true });
-    else content.querySelector('.cc-compare')?.focus();
+    content.querySelector('.cc-list')?.children[visible().indexOf(current)]?.focus({ preventScroll: true });
   }
   function tabs() {
     const bar = element('div', '', 'cc-tabs');
     for (const [id, label, icon] of [['persona', '人设', 'fa-id-card'], ['book', '绑定世界书', 'fa-book-atlas']]) {
-      const tab = button(label, () => {
+      const tab = button('', () => {
         if (view === id) return;
         view = id;
         selected.clear(); listScroll = 0;
-        if (screen === 'results') {
-          if (ready()) rows = compareCards(...cards, view);
-          else screen = 'cards';
-        }
+        rows = compareCards(...cards, view);
         render();
       });
+      tab.title = label;
+      tab.setAttribute('aria-label', label);
+      tab.disabled = id === 'book' && cards.some(card => !card.book);
       tab.setAttribute('aria-pressed', String(view === id));
       const glyph = element('i', '', 'fa-solid ' + icon);
       glyph.setAttribute('aria-hidden', 'true');
@@ -83,87 +70,10 @@ export function openCharacterCompare(opener) {
     }
     return bar;
   }
-  function ready() {
-    return busy === null && cards.every(card => card && (view !== 'book' || card.book !== null));
-  }
-  async function load(side, task) {
-    if (busy !== null) return;
-    busy = side; error = ''; render();
-    try {
-      const next = await task();
-      if (dialog.open) cards[side] = next;
-    } catch (cause) {
-      error = sides[side] + ' · ' + (cause instanceof SyntaxError ? '文件不是有效的 JSON。' : cause.message);
-    } finally {
-      busy = null;
-      if (dialog.open) render();
-    }
-  }
-  function fileButton(label, accept, side, reader) {
-    const input = element('input');
-    input.type = 'file'; input.accept = accept; input.hidden = true;
-    input.onchange = () => {
-      const file = input.files[0];
-      if (file) void load(side, () => reader(file));
-    };
-    const pick = button(label, () => input.click());
-    pick.disabled = busy !== null;
-    const box = element('span'); box.append(input, pick);
-    return box;
-  }
-  function cardPanel(side) {
-    const card = cards[side];
-    const panel = element('section', '', 'cc-panel');
-    panel.append(element('h3', sides[side]), element('strong', card ? [card.name, card.version].filter(Boolean).join(' · ') : '请选择角色卡'));
-    const actions = element('div', '', 'cc-actions');
-    actions.append(fileButton('导入角色卡', '.png,.json', side, readCardFile));
-    const characters = (context?.characters || []).filter(item => item?.avatar);
-    if (characters.length) {
-      const select = element('select');
-      select.setAttribute('aria-label', sides[side] + ' · 从酒馆选择');
-      select.append(new doc.defaultView.Option('从酒馆选择', ''));
-      for (const item of characters) {
-        select.append(new doc.defaultView.Option(item.name + ' · ' + item.avatar, item.avatar));
-      }
-      select.disabled = busy !== null;
-      select.onchange = () => { if (select.value) void load(side, () => installedCard(context, select.value)); };
-      actions.append(select);
-    }
-    panel.append(actions);
-    if (busy === side) panel.append(element('p', '读取中…'));
-    if (!card) return panel;
-    if (view === 'book' && card.binding && !card.book) {
-      panel.append(element('p', '卡内只记录了书名「' + card.binding + '」，请选择这一版对应的世界书。'));
-      const sources = element('div', '', 'cc-actions');
-      sources.append(fileButton('导入世界书 JSON', '.json', side, async file => ({
-        ...card, book: readBook(JSON.parse(await file.text())), bookName: file.name,
-      })));
-      if (context?.loadWorldInfo) {
-        const use = button('使用酒馆中的同名书', () => load(side, async () => ({
-          ...card, book: readBook(await context.loadWorldInfo(card.binding)), bookName: card.binding + '（酒馆）',
-        })));
-        use.disabled = busy !== null;
-        sources.append(use);
-      }
-      panel.append(sources);
-    } else {
-      const preview = element('ul', '', 'cc-preview');
-      const entries = view === 'book' ? card.book : [card.persona, ...card.greetings];
-      if (view === 'book') panel.append(element('p', card.bookName || '未绑定世界书'));
-      for (const entry of entries) preview.append(element('li', entry.title));
-      if (entries.length) panel.append(preview);
-    }
-    return panel;
-  }
   function visible() { return rows.filter(row => row.status !== 'same' && (!selected.size || selected.has(row.status))); }
   function title(row) {
     const a = row.left?.title, b = row.right?.title;
     return a && b && a !== b ? a + ' → ' + b : b || a;
-  }
-  function showResults() {
-    rows = compareCards(...cards, view);
-    screen = 'results'; selected.clear(); listScroll = 0; render();
-    content.querySelector('.cc-back').focus();
   }
   function summary() {
     const bar = element('div', '', 'cc-stats');
@@ -189,24 +99,13 @@ export function openCharacterCompare(opener) {
   function render() {
     content.replaceChildren();
     const header = element('header');
-    const goBack = button(screen === 'cards' ? '关闭' : '返回', back, 'cc-back');
+    const goBack = button('返回', back, 'cc-back');
     const heading = element('h2', screen === 'body' ? title(current) : screen === 'results' ? '角色卡对比详情' : '角色卡对比');
     heading.tabIndex = -1;
     header.append(heading, goBack);
     content.append(header);
     if (screen !== 'body') content.append(tabs());
-    if (screen === 'cards') {
-      const panels = element('div', '', 'cc-panels');
-      panels.append(cardPanel(0), cardPanel(1)); content.append(panels);
-      if (error) {
-        const notice = element('p', error); notice.setAttribute('role', 'alert'); content.append(notice);
-      }
-      const footer = element('footer');
-      const swap = button('交换新旧卡', () => { cards.reverse(); error = ''; render(); });
-      swap.disabled = busy !== null || !cards.some(Boolean);
-      const compare = button('查看对比详情', showResults, 'cc-compare'); compare.disabled = !ready();
-      footer.append(swap, compare); content.append(footer);
-    } else if (screen === 'results') {
+    if (screen === 'results') {
       content.append(summary(), element('h3', '差异条目列表'));
       const list = element('div', '', 'cc-list');
       for (const row of visible()) {
@@ -268,7 +167,7 @@ dialog.pmm-character-compare {
 .pmm-character-compare select {max-width:100%;min-width:0}
 .pmm-character-compare option {color:CanvasText;background:Canvas}
 .pmm-character-compare [aria-pressed=true] {box-shadow:inset 0 0 0 1.5px var(--cc-category,var(--pm-accent,currentColor))}
-.pmm-character-compare .cc-tabs i {margin-inline-end:6px}
+.pmm-character-compare .cc-tabs button {min-width:32px}
 .pmm-character-compare :is(.cc-panels,.cc-list) {min-height:0;overflow:auto;overscroll-behavior:contain}
 .pmm-character-compare .cc-panel {display:grid;gap:8px;padding:12px;background:var(--pm-card-bg,#8882);border-radius:9px;overflow-wrap:anywhere}
 .pmm-character-compare .cc-panel + .cc-panel {margin-top:10px}
