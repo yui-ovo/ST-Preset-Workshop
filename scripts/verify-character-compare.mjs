@@ -6,6 +6,8 @@ export async function verifyCharacterCompare(page) {
   const next = { ...old, character_version:'v1.1', description: '我来自月球！', first_mes: '车站重逢', alternate_greetings: ['雨夜初遇', '天台晚风'],
     character_book: { name: '月球', entries: [{ id: 1, name: '家乡', content: '月球', constant:true }, { id: 2, name: '归期', content: '明晚' }] } };
   const contextCards = await page.evaluateHandle(() => SillyTavern.getContext().characters);
+  old.character_book.entries.push({id:50,name:'阿月',content:'阿月住在南城。'});
+  next.character_book.entries.push({id:90,name:'NPC 合集',content:'阿川住在西城。\n阿月住在北城。\n阿星住在东城。'});
   await contextCards.evaluate((list, data) => list.push({ name: '余嘉乐', avatar: '新版.png', data },
     { name:'余嘉乐', avatar:'旧版.png', data },{ name:'周之逸', avatar:'周之逸.png', data }), next);
   const entry = page.getByRole('button', { name: '打开角色卡对比' });
@@ -19,6 +21,7 @@ export async function verifyCharacterCompare(page) {
   const action = (el,label) => el.getByRole('button',{name:label,exact:true});
   const choose = async panel => { await panel.locator('.cc-title').click(); await dlg.waitFor(); };
   const open = action(bottom,'查看对比详情');
+  const compare = action(bottom,'对比模式');
   await choose(top);
   await dlg.locator('input[type=file]').setInputFiles({ name:'旧猫.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({data:{...old,extensions:{custom:'keep',world:'Source'}}})) });
   await choose(bottom);
@@ -32,10 +35,22 @@ export async function verifyCharacterCompare(page) {
   assert.deepEqual(await dlg.locator('.cc-character-options button').allTextContents(),['余嘉乐 · 新版.png','余嘉乐 · 旧版.png']);
   await search.fill('新版');
   await action(dlg,'余嘉乐 · 新版.png').click();
+  await compare.click();
+  assert.equal(await bottom.locator('.cc-diff-row small').filter({hasText:'仅新卡有'}).count(),1);
   await open.click();
   const stats = key => result.locator('[data-cc-status="' + key + '"]');
   assert.match(await stats('changed').textContent(), /1$/);
   assert.match(await stats('same').textContent(), /2$/);
+  await stats('new').click();
+  assert.equal(await result.getByRole('combobox').inputValue(),'0');
+  await action(result,'插入旧卡').click();
+  await result.getByRole('status').filter({hasText:'插入A'}).waitFor();
+  assert.match(await stats('new').textContent(),/0$/);
+  await action(result,'返回').click();
+  assert.match(await top.locator('[data-cc-index="0"]').innerText(),/车站重逢/);
+  assert.equal(await bottom.locator('.cc-diff-row').count(),4);
+  await action(top,'撤回').click();
+  await open.click();
   await result.locator('.cc-row').first().click();
   assert.deepEqual(await result.locator('mark').allTextContents(), ['。','！']);
   const panes = result.locator('.cc-pane'), scrolls = result.locator('.cc-pane-scroll');
@@ -69,10 +84,12 @@ export async function verifyCharacterCompare(page) {
   assert.equal(await panes.first().locator('pre').first().textContent(),'我来自火星。');
   await action(result,'下一个条目').click(); await action(result,'放弃修改').click();
   await action(result,'返回').click(); await action(result,'返回').click();
+  await compare.click();
   await action(top,'编辑人设').click();
   assert.equal(await editor.getByLabel('角色描述',{exact:true}).inputValue(),long);
   await editor.locator('[data-wb-editor-cancel]').click();
   await action(top,'撤回').click(); await action(bottom,'撤回').click();
+  await compare.click();
   await open.click(); await result.locator('.cc-row').first().click();
   await action(result,'下一个条目').click();
   await action(result,'返回').click();
@@ -83,6 +100,27 @@ export async function verifyCharacterCompare(page) {
   await stats('renamed').click(); assert.equal(await result.locator('.cc-row').count(),1);
   await stats('changed').click(); assert.equal(await result.locator('.cc-row').count(),2);
   await action(result,'返回').click();
+  await open.click(); await stats('old').click();
+  const slot = result.getByRole('combobox',{name:'阿月的插入位置'});
+  await slot.focus(); await slot.selectOption('0');
+  await action(result,'插入新卡').click(); await action(result,'返回').click();
+  assert.match(await bottom.locator('[data-cc-index="0"]').innerText(),/阿月/);
+  await action(bottom,'撤回').click();
+  await action(bottom,'单个对比').click();
+  await top.getByRole('checkbox',{name:'选择对比阿月'}).check();
+  assert.equal(await action(bottom,'对比所选').isDisabled(),true);
+  await bottom.getByRole('checkbox',{name:'选择对比NPC 合集'}).check();
+  await action(bottom,'对比所选').click();
+  await action(panes.last(),'选取片段').click();
+  const area = panes.last().getByRole('textbox');
+  await area.evaluate(el=>{const start=el.value.indexOf('阿月');el.focus();el.setSelectionRange(start,start+'阿月住在北城。'.length);});
+  await action(panes.last(),'对比选段').click();
+  assert.equal(await panes.last().locator('pre').first().textContent(),'阿月住在北城。');
+  assert.deepEqual(await result.locator('pre:first-of-type mark').allTextContents(),['南','北']);
+  await action(panes.last(),'恢复全文').click();
+  assert.match(await panes.last().locator('pre').first().textContent(),/阿星/);
+  await action(result,'返回').click();
+  await compare.click();
   await action(top,'人设').click();
   const layout = async () => {
     const a = await top.boundingBox(), b = await bottom.boundingBox(), bar = await entry.boundingBox();
@@ -162,8 +200,10 @@ export async function verifyCharacterCompare(page) {
   assert.match(await top.locator('.cc-title').innerText(), /余嘉乐/);
   await action(top,'撤回').click();
   await choose(top); await action(dlg,'交换新旧卡').click();
+  await compare.click();
   await open.click(); assert.match(await stats('old').textContent(),/1$/);
   await action(result,'返回').click();
+  await compare.click();
   assert.equal(await page.evaluate(()=>fixtureWorldWrites),0);
   const installed = {avatar:'绑定.png',data:{...old,name:'绑定测试',extensions:{world:'Source'}}};
   await contextCards.evaluate((chars,card)=>{chars.push({name:card.data.name,...card});SillyTavern.getContext().getRequestHeaders=()=>({});},installed);

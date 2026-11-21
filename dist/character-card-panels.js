@@ -1,10 +1,10 @@
-import { personaFields, readCard, readCardFile } from './character-card-core.js?v=2.98.67-card.4';
-import { attachBook, changeBookEntry, changeCard, dataOf, exportBlob, installedRaw, itemsOf, localCards, putItems, saveInstalled, transferItems, openInstalled } from './character-card-draft.js?v=2.98.67-card.4';
-import { showCharacterResults } from './character-card-compare.js?v=2.98.67-card.4';
+import { compareCards, personaFields, readCard, readCardFile } from './character-card-core.js?v=2.98.67-card.5';
+import { attachBook, changeBookEntry, changeCard, dataOf, exportBlob, installedRaw, itemsOf, localCards, putItems, saveInstalled, transferItems, openInstalled } from './character-card-draft.js?v=2.98.67-card.5';
+import { cardDiffStyles, showCharacterResults } from './character-card-compare.js?v=2.98.67-card.5';
 import { confirmWorkshopClose } from './workshop-editing.js?v=2.98.49';
 import { runtimeResource } from './runtime-resources.js';
 
-import { editBookFields, worldEntryView, embeddedBook } from './character-card-world.js?v=2.98.67-card.4';
+import { editBookFields, worldEntryView, embeddedBook } from './character-card-world.js?v=2.98.67-card.5';
 
 const names = ['A 旧卡', 'B 新卡'];
 const fresh = () => ({ card: null, saved: null, avatar: '', key: '', png: null, undo: [], selected: new Set(), multi: false, expanded: -1, search: false, query: '', notice: '' });
@@ -18,6 +18,7 @@ export function openCharacterCompare(opener, entryUI) {
   previous?.cleanup();
   const ctx = win.SillyTavern?.getContext?.();
   let states = [fresh(), fresh()], book = false, busy = false, popup = null, pointer = null;
+  let comparing = false, pairing = false, picks = [null,null], marks = [new Map(),new Map()];
   const style = node('style'); style.textContent = css;
   host.append(style);
   const panels = names.map((name, i) => {
@@ -302,7 +303,24 @@ export function openCharacterCompare(opener, entryUI) {
     };
     return row;
   }
-  function draw() { panels.forEach((_,i) => drawSide(i)); }
+  function readyToCompare() { return states.every(s => s.card && (!book || s.card.book)); }
+  function openResults(opener, pair = null) {
+    showCharacterResults(opener,states.map(s=>s.card),book ? 'book':'persona', (before, next) => {
+      if (busy || before.some((card, i) => card !== states[i].card)) throw Error('角色卡已变化，请重新比对。');
+      next.forEach((card, i) => { if (card !== before[i]) commit(i,card); });
+      return states.map(s => s.card);
+    },pair);
+  }
+  function draw() {
+    if (!readyToCompare()) comparing = false;
+    if (!comparing) pairing = false;
+    marks = [new Map(),new Map()];
+    if (comparing) for (const row of compareCards(states[0].card,states[1].card,book ? 'book':'persona')) {
+      [row.left,row.right].forEach((entry,i) => { if (entry) marks[i].set(entry.index ?? -1,row.status); });
+    }
+    picks = picks.map((pick,i) => pairing && pick?.card === states[i].card && pick.book === book ? pick : null);
+    panels.forEach((_,i) => drawSide(i));
+  }
   function drawSide(i) {
     const panel = panels[i], s = states[i], card = s.card;
     const previousScroll = panel.querySelector('.cc-work-list')?.scrollTop || 0;
@@ -323,18 +341,27 @@ export function openCharacterCompare(opener, entryUI) {
       for (const [v,label,icon] of [[false,'人设','user'],[true,'绑定世界书','book-open']]) {
         tool(label,icon,() => { book = v; states.forEach(s => { s.selected.clear(); s.query = ''; }); draw(); },false,v === book);
       }
-    } else tool('查看对比详情','code-compare',e => showCharacterResults(e.currentTarget,states.map(s=>s.card),book ? 'book':'persona', (before, next) => {
-      if (busy || before.some((card, i) => card !== states[i].card)) throw Error('角色卡已变化，请重新比对。');
-      next.forEach((card, i) => { if (card !== before[i]) commit(i,card); });
-      return states.map(s => s.card);
-    }),
-      !states.every(s => s.card && (!book || s.card.book)));
-    tool('多选','check-double',() => { s.multi = !s.multi; s.selected.clear(); drawSide(i); },!card,s.multi);
+    } else tool('对比模式','code-compare',() => { comparing = !comparing; draw(); },!readyToCompare(),comparing);
+    tool('多选','check-double',() => { s.multi = !s.multi; s.selected.clear(); drawSide(i); },!card || comparing,!comparing && s.multi);
     tool('撤回','rotate-left',() => { s.card = s.undo.pop(); s.expanded = -1; s.selected.clear(); s.notice = ''; draw(); },!s.undo.length);
     tool('搜索','magnifying-glass',() => { s.search = !s.search; s.query = ''; drawSide(i); panel.querySelector('input[type=search]')?.focus(); },!card,s.search);
     const saveBtn = tool('保存','floppy-disk',() => run(i,() => save(i)),!card || (s.avatar && !dirty(s)));
     saveBtn.classList.toggle('cc-dirty',dirty(s));
     tool('关闭','xmark',() => guard([i],() => { states[i] = fresh(); if (states.some(s=>s.card)) draw(); else cleanup(); }));
+    if (comparing && i === 1) {
+      const actions = node('div','','cc-compare-tools');
+      const single = button('单个对比',() => { pairing = !pairing; picks = [null,null]; draw(); });
+      single.setAttribute('aria-pressed',String(pairing));
+      const details = button('查看对比详情',e => openResults(e.currentTarget));
+      single.disabled = details.disabled = busy;
+      actions.append(single,details);
+      if (pairing) {
+        const inspect = button('对比所选',e => openResults(e.currentTarget,picks.map(pick => pick.entry)));
+        inspect.disabled = busy || !picks.every(Boolean);
+        actions.append(inspect,node('small','上下各选一项'));
+      }
+      panel.append(actions);
+    }
     if (s.search) {
       const input = node('input'); input.type = 'search'; input.placeholder = '搜索本卡条目'; input.value = s.query;
       input.oninput = () => { s.query = input.value; s.selected.clear(); fill(); }; panel.append(input);
@@ -358,6 +385,34 @@ export function openCharacterCompare(opener, entryUI) {
         const index = book ? pos : entry.index ?? -1;
         const text = [entry.title,...Object.values(entry.fields)].join(' ');
         if (s.query && !text.toLocaleLowerCase().includes(s.query.toLocaleLowerCase())) continue;
+        if (comparing) {
+          const row = node('div','','cc-work-row cc-diff-row');
+          row.dataset.ccIndex = String(index);
+          const label = node(pairing ? 'label' : 'span','','cc-diff-title');
+          if (pairing) {
+            const check = node('input'); check.type = 'checkbox'; check.checked = picks[i]?.index === index;
+            check.setAttribute('aria-label','选择对比' + entry.title);
+            check.disabled = busy;
+            check.onchange = () => {
+              const previous = picks[i];
+              if (previous && previous.index !== index) {
+                const other = list.querySelector('[data-cc-index="'+previous.index+'"] input');
+                if (other) other.checked = false;
+              }
+              picks[i] = check.checked ? {card,book,index,entry} : null;
+              panels[1].querySelector('button[aria-label="对比所选"]').disabled = !picks.every(Boolean);
+            };
+            label.append(check);
+          }
+          label.append(node('span',entry.title + (!book && index >= 0 ? ' · '+entry.fields.正文.trim().slice(0,60) : '')));
+          row.append(label);
+          const style = cardDiffStyles.get(marks[i].get(index));
+          if (style) {
+            row.style.setProperty('--cc-category',style.color);
+            row.append(node('small',style.label));
+          }
+          list.append(row); continue;
+        }
         if (book) { list.append(bookRow(i,index,entry,rawEntries[index])); continue; }
         const row = node('div','','cc-work-row pmm-wb-entry'); const head = node('div','','pmm-wb-entry-head'); row.append(head); row.dataset.ccIndex = String(index);
         if (index >= 0) {
@@ -456,6 +511,12 @@ const css = `
 .cc-title i{margin-inline-start:4px;font-size:.75em}
 .cc-work-panel [aria-pressed=true],.cc-work-panel .cc-dirty{background:var(--pm-card-bg,#8884);box-shadow:inset 0 0 0 1px var(--pm-border,#888)}
 .cc-work-panel .cc-work-list{min-height:0;flex:1;overflow:auto;overscroll-behavior:contain;padding:5px;gap:var(--pmm-user-item-gap,3px)}
+.cc-compare-tools,.cc-diff-row,.cc-diff-title{display:flex;align-items:center;gap:6px}
+.cc-compare-tools{flex-wrap:wrap;padding:4px 6px}
+.cc-compare-tools button{font:inherit;color:inherit;background:var(--pm-card-bg,#8882);border:1px solid var(--pm-border,#8885);border-radius:6px;padding:3px 7px}
+.cc-diff-row{border-inline-start:3px solid var(--cc-category,transparent);padding:5px 6px;background:var(--pm-card-bg,#8882);border-radius:5px}
+.cc-diff-title{min-width:0;flex:1;min-height:26px}.cc-diff-title span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cc-diff-row small{color:var(--cc-category);flex:none}.cc-diff-title input{flex:none}
 .cc-work-panel header .cc-title{border:1px solid var(--pm-border,#8885);padding-inline:7px}
 .cc-work-panel .cc-work-row .pmm-wb-entry-title{text-align:start;min-width:0}
 .cc-work-panel .cc-person{margin-inline:5px;color:var(--pm-text-secondary,currentColor)}

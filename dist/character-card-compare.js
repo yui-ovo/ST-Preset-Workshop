@@ -1,6 +1,6 @@
-import { compareCards } from './character-card-core.js?v=2.98.67-card.4';
+import { compareCards } from './character-card-core.js?v=2.98.67-card.5';
 import { buildHighlightedDiff } from './body-highlight.js';
-import { changeComparedBody } from './character-card-draft.js?v=2.98.67-card.4';
+import { changeComparedBody, itemsOf, transferItems } from './character-card-draft.js?v=2.98.67-card.5';
 import { runtimeResource } from './runtime-resources.js';
 
 const categories = [
@@ -9,7 +9,9 @@ const categories = [
 ];
 const sides = ['A · 旧卡', 'B · 新卡'];
 
-export function showCharacterResults(opener, cards, initialView, applyCards) {
+export const cardDiffStyles = new Map(categories.map(([key,label,color]) => [key,{label,color}]));
+
+export function showCharacterResults(opener, cards, initialView, applyCards, pair = null) {
   const doc = opener.ownerDocument;
   if (doc.querySelector('dialog.pmm-character-compare[open]')) return;
   const dialog = runtimeResource(doc).createElement('dialog');
@@ -21,7 +23,7 @@ export function showCharacterResults(opener, cards, initialView, applyCards) {
     if (value) dialog.style.setProperty(key, value);
   }
   let view = initialView, screen = 'results';
-  let rows = compareCards(...cards, view), selected = new Set(), current, listScroll = 0;
+  let rows = pair ? [] : compareCards(...cards, view), selected = new Set(), current, listScroll = 0;
   let sequence = [], buffers, editing, pending = null, notice = '';
   const style = doc.createElement('style');
   style.textContent = css;
@@ -42,7 +44,7 @@ export function showCharacterResults(opener, cards, initialView, applyCards) {
     const compare = doc.querySelector('.cc-work-panel button[aria-label="查看对比详情"]');
     (opener.isConnected ? opener : compare)?.focus({preventScroll:true});
   }, { once: true });
-  render();
+  if (pair) showPair(); else render();
   dialog.showModal();
 
   function element(tag, text, cls) {
@@ -58,6 +60,7 @@ export function showCharacterResults(opener, cards, initialView, applyCards) {
     return node;
   }
   function back() {
+    if (pair) { dialog.close(); return; }
     if (screen === 'results') { dialog.close(); return; }
     if (pending) { pending = null; redrawBody(); return; }
     leaveBody(() => {
@@ -66,7 +69,8 @@ export function showCharacterResults(opener, cards, initialView, applyCards) {
       screen = 'results';
       render();
       const list = content.querySelector('.cc-list');
-      list.children[Math.min(index,list.children.length-1)]?.focus({ preventScroll: true });
+      const row = list.children[Math.min(index,list.children.length-1)];
+      (row?.matches('button') ? row : row?.querySelector('button'))?.focus({ preventScroll: true });
     });
   }
   function tabs() {
@@ -75,7 +79,7 @@ export function showCharacterResults(opener, cards, initialView, applyCards) {
       const tab = button('', () => {
         if (view === id) return;
         view = id;
-        selected.clear(); listScroll = 0;
+        selected.clear(); listScroll = 0; notice = '';
         rows = compareCards(...cards, view);
         render();
       });
@@ -91,6 +95,49 @@ export function showCharacterResults(opener, cards, initialView, applyCards) {
     return bar;
   }
   function visible() { return rows.filter(row => row.status !== 'same' && (!selected.size || selected.has(row.status))); }
+  function showPair() {
+    dialog.classList.add('cc-reading','cc-pair-reading');
+    const header = element('header'), close = button('返回',back);
+    header.append(element('h2','单个对比'),close);
+    const panes = element('div','','cc-panes'), footer = element('footer');
+    const fields = pair.map(entry => ({...entry.fields}));
+    const cropped = [false,false], selecting = [false,false];
+    content.append(header,panes,footer);
+    function paint() {
+      panes.replaceChildren();
+      const keys = [...new Set(pair.flatMap(entry => Object.keys(entry.fields)))];
+      const diffs = new Map(keys.filter(key => fields.some(side => side[key]))
+        .map(key => [key,buildHighlightedDiff(fields[0][key],fields[1][key])]));
+      pair.forEach((entry,i) => {
+        const pane = element('section','','cc-pane'), strip = element('div','','cc-pane-head');
+        const scroll = element('div','','cc-pane-scroll');
+        strip.append(element('h3',sides[i] + ' · ' + entry.title));
+        if (typeof entry.fields.正文 === 'string') {
+          if (selecting[i]) {
+            const area = element('textarea'); area.readOnly = true; area.value = entry.fields.正文;
+            area.setAttribute('aria-label',entry.title + ' · 选择要对比的原文');
+            const use = button('对比选段',() => {
+              if (area.selectionEnd <= area.selectionStart) { footer.textContent='请先在原文中选中一段文字。'; return; }
+              fields[i].正文 = area.value.slice(area.selectionStart,area.selectionEnd);
+              cropped[i] = true; selecting[i] = false; footer.textContent=''; paint();
+            });
+            use.onpointerdown = e => e.preventDefault();
+            strip.append(use,button('取消',() => { selecting[i] = false; footer.textContent=''; paint(); }));
+            scroll.append(area);
+          } else {
+            strip.append(button('选取片段',() => { selecting[i] = true; selecting[1-i] = false; footer.textContent='选中要比较的 NPC 段落，再点「对比选段」。'; paint(); }));
+            if (cropped[i]) strip.append(button('恢复全文',() => { fields[i].正文 = entry.fields.正文; cropped[i] = false; paint(); }));
+          }
+        }
+        if (!selecting[i]) for (const [key,diff] of diffs) {
+          const pre = element('pre'); pre.innerHTML = i ? diff.rightHtml : diff.leftHtml;
+          scroll.append(element('h4',key === '正文' && cropped[i] ? '正文（选段）' : key),pre);
+        }
+        pane.append(strip,scroll); panes.append(pane);
+      });
+    }
+    footer.setAttribute('role','status'); paint();
+  }
   function title(row) {
     const a = row.left?.title, b = row.right?.title;
     return a && b && a !== b ? a + ' → ' + b : b || a;
@@ -164,14 +211,62 @@ export function showCharacterResults(opener, cards, initialView, applyCards) {
     if (screen === 'results') {
       content.append(summary(), element('h3', '差异条目列表'));
       const list = element('div', '', 'cc-list');
+      const isBook = view === 'book';
+      const lengths = cards.map(card => itemsOf(card,isBook).length);
+      // Prefer the next matched neighbour, including when greetings changed order.
+      const positions = ['left','right'].map((side,i) => {
+        const other = i ? 'left' : 'right';
+        const slots = Array(lengths[i]);
+        for (const row of rows) if (row[side]?.index >= 0 && row[other]?.index >= 0) {
+          slots[row[side].index] = row[other].index;
+        }
+        const lastMatch = slots.findLast(value => value !== undefined);
+        let nextSlot = lastMatch === undefined ? lengths[1-i] : lastMatch + 1;
+        for (let n=slots.length-1; n>=0; n--) {
+          if (slots[n] === undefined) slots[n] = nextSlot;
+          else nextSlot = slots[n];
+        }
+        return slots;
+      });
       for (const row of visible()) {
         const item = button('', () => { listScroll = list.scrollTop; showRow(row); }, 'cc-row');
         const [,label,color] = categories.find(([key]) => key === row.status);
         const badge = element('small', label); badge.style.setProperty('--cc-category', color);
-        item.append(element('span', title(row)), badge); list.append(item);
+        item.append(element('span', title(row)), badge);
+        if (row.left && row.right) { list.append(item); continue; }
+        const sourceSide = row.left ? 0 : 1, dest = 1-sourceSide;
+        const entry = row.left || row.right;
+        const slots = element('select');
+        slots.setAttribute('aria-label',title(row) + '的插入位置');
+        const at = positions[sourceSide][entry.index];
+        function optionAt(pos) {
+          const name = isBook ? cards[dest].book[pos]?.title : '开场白 ' + (pos+1);
+          const option = element('option',pos===lengths[dest] ? '末尾' : name+' 之前');
+          option.value = String(pos); return option;
+        }
+        slots.append(optionAt(at));
+        function expandSlots() {
+          if (slots.options.length === lengths[dest]+1) return;
+          slots.replaceChildren(...Array.from({length:lengths[dest]+1},(_,pos) => optionAt(pos)));
+          slots.value = String(at);
+        }
+        slots.onfocus = slots.onpointerdown = expandSlots;
+        const group = element('div','','cc-insert-row');
+        const insert = button(dest ? '插入新卡' : '插入旧卡',() => {
+          try {
+            const next = cards.slice();
+            next[dest] = transferItems(cards[sourceSide],cards[dest],isBook,[entry.index],Number(slots.value),false);
+            cards = applyCards(cards,next);
+            rows = compareCards(...cards,view); listScroll = list.scrollTop;
+            notice = '已将「' + entry.title + '」插入' + sides[dest] + '草稿。';
+          } catch(error) { notice=error.message; }
+          render();
+        });
+        group.append(item,slots,insert); list.append(group);
       }
       if (!list.childElementCount) list.append(element('p', selected.size ? '所选分类没有差异条目。' : '两张卡在当前页没有差异。'));
       content.append(list); list.scrollTop = listScroll;
+      if (notice) { const status = element('small',notice,'cc-status'); status.setAttribute('role','status'); content.append(status); }
     } else {
       const index = sequence.indexOf(current);
       const nav = element('div','','cc-nav');
@@ -286,6 +381,9 @@ dialog.pmm-character-compare {
 .pmm-character-compare .cc-stats button:disabled {opacity:1}
 .pmm-character-compare .cc-row {display:flex;width:100%;align-items:center;justify-content:space-between;text-align:start;background:transparent;padding:9px 3px;gap:8px;overflow-wrap:anywhere}
 .pmm-character-compare .cc-row small {flex-shrink:0}
+.pmm-character-compare .cc-insert-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(4em,24%) auto;align-items:center;gap:4px}
+.pmm-character-compare .cc-insert-row select{min-width:0;font-size:.82em}
+.pmm-character-compare .cc-insert-row>button:last-child{font-size:.84em}
 .pmm-character-compare footer {justify-content:flex-end}
 .pmm-character-compare pre {white-space:pre-wrap;overflow-wrap:anywhere;font:inherit}
 .pmm-character-compare mark {background:#e5ab3b55;color:inherit}
@@ -310,5 +408,7 @@ dialog.pmm-character-compare.cc-reading {position:fixed;inset:50% 0 auto;top:cal
   resize:vertical;font:inherit;color:inherit;background:var(--pm-panel-bg,#8881);border:1px solid var(--pm-border,#8885);border-radius:5px}
 .pmm-character-compare.cc-reading footer {gap:4px}
 .pmm-character-compare.cc-reading footer small {flex:1;min-width:0}
+.pmm-character-compare.cc-pair-reading .cc-content{grid-template-rows:auto minmax(0,1fr) auto}
+.pmm-character-compare.cc-pair-reading textarea{height:100%;min-height:5em}
 @media(max-height:500px){.pmm-character-compare.cc-reading .cc-content{gap:3px;padding:5px}.pmm-character-compare .cc-hint{display:none}.pmm-character-compare.cc-reading .cc-content{grid-template-rows:auto minmax(0,1fr) auto}}
 `;
