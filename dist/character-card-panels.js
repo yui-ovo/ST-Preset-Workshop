@@ -1,10 +1,10 @@
-import { compareCards, personaFields, readCard, readCardFile } from './character-card-core.js?v=2.98.67-card.8';
-import { attachBook, changeBookEntry, changeCard, dataOf, exportBlob, installedRaw, itemsOf, localCards, putItems, saveInstalled, transferItems, openInstalled } from './character-card-draft.js?v=2.98.67-card.8';
-import { cardDiffStyles, showCharacterResults } from './character-card-compare.js?v=2.98.67-card.8';
+import { compareCards, personaFields, readCard, readCardFile } from './character-card-core.js?v=2.98.67-card.9';
+import { attachBook, changeBookEntry, changeCard, dataOf, exportBlob, installedRaw, itemsOf, localCards, putItems, saveInstalled, transferItems, openInstalled } from './character-card-draft.js?v=2.98.67-card.9';
+import { cardDiffStyles, showCharacterResults } from './character-card-compare.js?v=2.98.67-card.9';
 import { confirmWorkshopClose } from './workshop-editing.js?v=2.98.49';
 import { runtimeResource } from './runtime-resources.js';
 
-import { editBookFields, worldEntryView, embeddedBook } from './character-card-world.js?v=2.98.67-card.8';
+import { editBookFields, worldEntryView, embeddedBook } from './character-card-world.js?v=2.98.67-card.9';
 
 const names = ['A 旧卡', 'B 新卡'];
 const fresh = () => ({ card: null, saved: null, avatar: '', key: '', png: null, undo: [], selected: new Set(), multi: false, expanded: -1, search: false, query: '', notice: '' });
@@ -114,7 +114,6 @@ export function openCharacterCompare(opener, entryUI) {
           peer.card = rebase(peer.card);
           peer.undo = peer.undo.map(rebase);
           peer.source.world = structuredClone(s.source.world);
-          if (peer.avatar === s.avatar) peer.source.disk = s.source.disk;
         } else peer.notice = '另一侧已保存这本世界书，这里的草稿仍保留。';
       }
       try { await win.__PMM_WORLDBOOK_STITCH_TEST3__?.refreshSnapshotBook(s.card.binding,s.source.world,true); }

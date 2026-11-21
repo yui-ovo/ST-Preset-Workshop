@@ -79,6 +79,7 @@ const linked = { avatar:'绑定.png', data:{ ...raw, extensions:{world:'主世�
 let world = { title:'保留', entries:{ 7:{uid:7,comment:'地点',content:'酒馆正在使用的正文',key:['地点'],
   disable:false,position:4,displayIndex:0,probability:70,custom:{keep:true}} } };
 const calls = [];
+world.entries[9] = {uid:9,comment:'旧地点',content:'保留这个条目',displayIndex:1,custom:true};
 let failCard = false;
 const liveContext = { characters:[linked], getRequestHeaders:()=>({}),
   loadWorldInfo:async name => { assert.equal(name,'主世界书'); return structuredClone(world); },
@@ -102,15 +103,21 @@ assert.equal(linked.data.character_book.entries[0].content,'旧副本里的正�
 assert.deepEqual(calls,[]);
 const bookEdit = changeComparedBody(persona,'book',0,{正文:'编辑世界书'});
 world.entries[7].content = '别处更新';
-await assert.rejects(saveInstalled(liveHost,liveContext,linked.avatar,persona,bookEdit,loaded.source),/已在别处修改/);
-assert.deepEqual(calls,[]);
-world.entries[7].content = '酒馆正在使用的正文';
+world.entries[7].probability = 20;
+world.entries[8] = { uid:8,content:'酒馆另加的条目' };
+delete world.entries[9];
+const externalBook = structuredClone(world);
+linked.data.character_book.entries[0].content = '酒馆另存的卡内副本';
+linked.json_data = JSON.stringify({ data:linked.data });
 failCard = true;
 await assert.rejects(saveInstalled(liveHost,liveContext,linked.avatar,persona,bookEdit,loaded.source),/已还原本次世界书修改/);
-assert.equal(world.entries[7].content,'酒馆正在使用的正文');
+assert.deepEqual(world,externalBook);
 failCard = false;
 assert.equal(await saveInstalled(liveHost,liveContext,linked.avatar,persona,bookEdit,loaded.source),true);
 assert.equal(linked.data.character_book.entries[0].content,'编辑世界书');
+assert.equal(world.entries[8],undefined);
+assert.equal(world.entries[9].custom,true);
+assert.equal(world.entries[9].content,'保留这个条目');
 assert.deepEqual(world.entries[7],{...world.entries[7],content:'编辑世界书',position:4,probability:70,custom:{keep:true}});
 assert.deepEqual(calls,[['主世界书',true],['主世界书',true],['主世界书',true]]);
 const missing = await openInstalled({...liveContext,loadWorldInfo:async()=>null},bookEdit);

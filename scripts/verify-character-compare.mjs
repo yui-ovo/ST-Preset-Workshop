@@ -325,11 +325,12 @@ export async function verifyCharacterCompare(page, reopenWorkshop) {
   await action(top,'保存').click();
   await bottom.getByRole('status').filter({hasText:'草稿仍保留'}).waitFor();
   assert.equal(await bottom.locator('[data-cc-field="content"]').inputValue(),'下方未保存的正文');
-  await action(bottom,'保存').click(); await bottom.getByRole('status').filter({hasText:'请先导出草稿'}).waitFor();
-  assert.equal(await page.evaluate(()=>fixtureBooks.Source.entries[0].content),'酒馆世界书更新');
-  await action(bottom,'撤回').click();
+  await action(bottom,'保存').click(); await bottom.getByRole('status').filter({hasText:'同步世界书「Source」'}).waitFor();
+  assert.equal(await page.evaluate(()=>fixtureBooks.Source.entries[0].content),'下方未保存的正文');
+  assert.equal(installed.data.character_book.entries[0].content,'下方未保存的正文');
+  assert.equal(installed.data.description,'酒馆人设更新');
   await entry.click();
   await top.waitFor({state:'detached',timeout:5000});
   assert.equal(await panels.count(),0);
-  assert.equal(await page.evaluate(()=>fixtureWorldWrites),2);
+  assert.equal(await page.evaluate(()=>fixtureWorldWrites),3);
 }

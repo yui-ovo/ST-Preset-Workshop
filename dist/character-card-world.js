@@ -67,8 +67,11 @@ export function updatedWorld(context, world, book) {
       row = context.convertCharacterBook({ entries:[structuredClone(e)] }).entries[id];
     }
     const view = worldEntryView(e,index);
-    const settings = { key:view.key, disable:view.disable, order:view.order, position:view.position };
-    for (const key of ['constant','depth','role','outletName','vectorized']) if (key in view) settings[key] = view[key];
+    const settings = { key:view.key, keysecondary:e.secondary_keys ?? e.keysecondary ?? [],
+      disable:view.disable, order:view.order, position:view.position };
+    for (const key of ['constant','selective',...Object.keys(extensionFields)]) {
+      if (key in view) settings[key] = view[key];
+    }
     return [id,{ ...row, ...settings, comment:view.comment, content:e.content, displayIndex:index,
       ...(row.extensions ? { extensions:{...row.extensions,...e.extensions} } : {}) }];
   });

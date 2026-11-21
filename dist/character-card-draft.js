@@ -1,5 +1,5 @@
-import { personaFields, readCard, readBookEntry } from './character-card-core.js?v=2.98.67-card.8';
-import { embeddedBook, updatedWorld } from './character-card-world.js?v=2.98.67-card.8';
+import { personaFields, readCard, readBookEntry } from './character-card-core.js?v=2.98.67-card.9';
+import { embeddedBook, updatedWorld } from './character-card-world.js?v=2.98.67-card.9';
 
 export const dataOf = card => card.raw.data ?? card.raw;
 function rawWithFields(card, fields) {
@@ -136,7 +136,7 @@ export function installedRaw(record) {
 }
 
 export async function openInstalled(context, card) {
-  const source = { disk:card, world:null };
+  const source = { world:null };
   if (card.binding) {
     try {
       const world = await context.loadWorldInfo?.(card.binding);
@@ -162,23 +162,19 @@ export async function saveInstalled(win, context, avatar, baseline, next, source
   const latest = dataOf(readCard(installedRaw(current)));
   const original = dataOf(baseline), modified = dataOf(next), delta = {};
   const same = (a,b) => JSON.stringify(a) === JSON.stringify(b);
-  const disk = source ? dataOf(source.disk) : original;
   for (const key of Object.keys(modified)) {
     if (same(original[key],modified[key])) continue;
-    const expected = key === 'character_book' ? disk[key] : original[key];
-    if (!same(latest[key],expected) && !same(latest[key],modified[key])) {
+    if (key !== 'character_book' && !same(latest[key],original[key]) && !same(latest[key],modified[key])) {
       throw Error('酒馆中的同一项已被修改，请先导出草稿，再重新选择角色卡。');
     }
     delta[key] = modified[key];
   }
   if (!Object.keys(delta).length) return;
   const syncBook = Boolean(baseline.binding && delta.character_book);
-  let restoreWorld;
+  let restoreWorld, savedWorld;
   if (syncBook) {
     if (latest.extensions?.world !== baseline.binding) throw Error('酒馆角色绑定的世界书已更换，请先导出草稿，再重新选择角色卡。');
     if (!source?.world || !context.saveWorldInfo) throw Error('无法同步绑定世界书，请先导出草稿并检查酒馆中的世界书。');
-    const world = await context.loadWorldInfo(baseline.binding);
-    const desired = updatedWorld(context,source.world,delta.character_book);
     const readStored = async () => {
       const res = await win.fetch('/api/worldinfo/get',{ method:'POST', headers:context.getRequestHeaders(),
         cache:'no-store', body:JSON.stringify({name:baseline.binding}) });
@@ -188,22 +184,20 @@ export async function saveInstalled(win, context, avatar, baseline, next, source
     const serialize = value => JSON.stringify(value,(_,v) => v && typeof v === 'object' && !Array.isArray(v)
       ? Object.fromEntries(Object.keys(v).sort().map(k => [k,v[k]])) : v);
     const before = await readStored();
-    const previous = serialize(source.world), wanted = serialize(desired);
-    for (const version of [world,before]) {
-      const value = serialize(version);
-      if (value !== previous && value !== wanted) throw Error('绑定世界书已在别处修改，请先导出草稿，再重新选择角色卡。');
-    }
+    // A draft can retain a native row that was deleted after the card was opened.
+    const template = { ...before, entries:{...source.world.entries,...before.entries} };
+    const desired = updatedWorld(context,template,delta.character_book);
+    const wanted = serialize(desired);
     // Retry even when the cache has the desired value: the host updates it before the disk write.
     if (await context.saveWorldInfo(baseline.binding,desired,true) === false || serialize(await readStored()) !== wanted) {
       throw Error('绑定世界书保存未确认，请重试保存。');
     }
-    source.world = structuredClone(desired);
+    savedWorld = desired;
     if (serialize(before) !== wanted) restoreWorld = async () => {
       const card = readCard(installedRaw(await (await api('get',{avatar_url:avatar})).json()));
       if (!same(dataOf(card).character_book,latest.character_book) || card.binding !== baseline.binding) return false;
       if (serialize(await readStored()) !== wanted || serialize(await context.loadWorldInfo(card.binding)) !== wanted) return false;
-      if (await context.saveWorldInfo(card.binding,before,true) === false || serialize(await readStored()) !== previous) return false;
-      source.world = before;
+      if (await context.saveWorldInfo(card.binding,before,true) === false || serialize(await readStored()) !== serialize(before)) return false;
       return true;
     };
   }
@@ -217,7 +211,7 @@ export async function saveInstalled(win, context, avatar, baseline, next, source
     throw error;
   }
   const raw = changeCard(readCard(installedRaw(current)), delta).raw;
-  if (source && delta.character_book) source.disk = readCard(raw);
+  if (syncBook) source.world = structuredClone(savedWorld);
   context = win.SillyTavern?.getContext?.() || context;
   const record = context.characters?.find(c => c?.avatar === avatar);
   if (record) {
