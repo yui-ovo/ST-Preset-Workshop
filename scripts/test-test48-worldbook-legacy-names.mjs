@@ -5,7 +5,7 @@ const source = await readFile(new URL('../dist/worldbook-stitch-test3.js', impor
 
 const legacyStart = source.indexOf('  async function getLegacyWorldInfoNames()');
 const compatibleStart = source.indexOf('  async function getWorldInfoNamesCompatible()', legacyStart);
-const refreshStart = source.indexOf('  async function refreshWorldNames()', compatibleStart);
+const refreshStart = source.indexOf('  async function refreshWorldNames(', compatibleStart);
 assert.ok(legacyStart >= 0 && compatibleStart > legacyStart && refreshStart > compatibleStart, 'test.48 无法定位旧版世界书枚举兼容链路');
 
 const legacy = source.slice(legacyStart, compatibleStart);

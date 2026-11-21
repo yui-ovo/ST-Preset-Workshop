@@ -423,7 +423,7 @@ function pmmRuntimeResource(target) { return globalThis.__PMM_RUNTIME_SCOPE__?.o
     return await getLegacyWorldInfoNames();
   }
 
-  async function refreshWorldNames() {
+  async function refreshWorldNames({ preferChatBook = false } = {}) {
     context = getContext();
     if (!context?.loadWorldInfo || !context?.saveWorldInfo) {
       throw new Error('当前酒馆没有提供世界书读写接口');
@@ -435,13 +435,15 @@ function pmmRuntimeResource(target) { return globalThis.__PMM_RUNTIME_SCOPE__?.o
       names = await getWorldInfoNamesCompatible();
       state.worldNames = [...(names || [])].map(String);
     }
-    if (!state.bottom.name || !state.worldNames.includes(state.bottom.name)) {
+    const chatBook = preferChatBook ? await currentChatWorldbook() : '';
+    if (chatBook) {
+      state.bottom.name = chatBook;
+    } else if (!state.bottom.name || !state.worldNames.includes(state.bottom.name)) {
       state.bottom.name = state.worldNames[0] || '';
     }
     if (!state.top.name || !state.worldNames.includes(state.top.name)) {
       state.top.name = state.worldNames.find(name => name !== state.bottom.name) || state.worldNames[0] || '';
     }
-    refreshCharacterWorldBindings();
   }
 
   function helperFunction(name) {
@@ -456,6 +458,50 @@ function pmmRuntimeResource(target) { return globalThis.__PMM_RUNTIME_SCOPE__?.o
 
   function normalizeWorldBindingName(value) {
     return String(value ?? '').normalize('NFC').trim().toLocaleLowerCase();
+  }
+
+  function installedChatBook(binding) {
+    if (!binding) return '';
+    if (state.worldNames.includes(binding)) return binding;
+    const normalized = normalizeWorldBindingName(binding);
+    if (!normalized) return '';
+    const matches = state.worldNames.filter(name => normalizeWorldBindingName(name) === normalized);
+    return matches.length === 1 ? matches[0] : '';
+  }
+
+  function chatCharacter(ctx) {
+    const group = ctx?.groupId ?? ctx?.group_id;
+    if (group != null && group !== '' && group !== false) return null;
+    const id = ctx?.characterId ?? ctx?.this_chid;
+    return id == null || id === '' ? null : ctx.characters?.[id];
+  }
+
+  async function currentChatWorldbook() {
+    const ctx = getContext();
+    const character = chatCharacter(ctx);
+    if (!character || !state.worldNames.length) return '';
+    const primary = card => installedChatBook(card?.data?.extensions?.world);
+    const cached = primary(character);
+    if (cached) return cached;
+
+    // Resolve this card by chat identity, since different avatars can have the same display name.
+    const sameCard = card => card === character || (character.avatar && card?.avatar === character.avatar);
+    if (character.shallow && ctx.unshallowCharacter) {
+      try { await ctx.unshallowCharacter(ctx.characterId ?? ctx.this_chid); } catch { /* Try the binding API below. */ }
+      const active = chatCharacter(getContext());
+      if (!sameCard(active)) return '';
+      const name = primary(active);
+      if (name) return name;
+    }
+    try {
+      const linked = await helperFunction('getCharWorldbookNames')?.('current');
+      if (!linked || !sameCard(chatCharacter(getContext()))) return '';
+      for (const name of [linked.primary, ...(linked.additional || [])]) {
+        const installed = installedChatBook(name);
+        if (installed) return installed;
+      }
+    } catch { /* Older hosts can still open the last selected book. */ }
+    return '';
   }
 
   function refreshCharacterWorldBindings() {
@@ -2896,7 +2942,7 @@ function pmmRuntimeResource(target) { return globalThis.__PMM_RUNTIME_SCOPE__?.o
     try {
       state.busy = true;
       setStatus('读取世界书…');
-      await refreshWorldNames();
+      await refreshWorldNames({ preferChatBook:true });
       await loadWorldSide(state.bottom);
       if (state.topType === 'world') await loadWorldSide(state.top);
       refreshFavoriteIndex();

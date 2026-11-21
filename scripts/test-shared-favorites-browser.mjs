@@ -133,6 +133,13 @@ try {
       return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0.9 && rect.width > 100 && rect.height > 100;
     });
     assert.ok(visible, 'Panel must be painted, not merely present in the DOM');
+    if (process.env.PMM_TEST_CHAT_WORLDBOOK) {
+      const { verifyChatWorldbook } = await import('./verify-chat-worldbook.mjs');
+      await verifyChatWorldbook(page);
+      assert.deepEqual(errors, []);
+      console.log(engine + ': current-chat worldbook on open passed');
+      continue;
+    }
     if (process.env.PMM_TEST_CHARACTER_CARDS) {
       const { verifyCharacterCompare } = await import('./verify-character-compare.mjs');
       await verifyCharacterCompare(page, () => frame.evaluate(() => testOpen()));

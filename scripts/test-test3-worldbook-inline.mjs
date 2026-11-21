@@ -54,7 +54,7 @@ if (!closedState.includes('resetSide(state.top, true)')
 
 const legacyStart = source.indexOf('  async function getLegacyWorldInfoNames()');
 const compatibleStart = source.indexOf('  async function getWorldInfoNamesCompatible()', legacyStart);
-const refreshStart = source.indexOf('  async function refreshWorldNames()', compatibleStart);
+const refreshStart = source.indexOf('  async function refreshWorldNames(', compatibleStart);
 const legacy = source.slice(legacyStart, compatibleStart);
 const compatible = source.slice(compatibleStart, refreshStart);
 const refresh = source.slice(refreshStart, source.indexOf('  function helperFunction(', refreshStart));
