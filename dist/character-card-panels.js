@@ -1,10 +1,10 @@
-import { compareCards, personaFields, readCard, readCardFile } from './character-card-core.js?v=2.98.67-card.5';
-import { attachBook, changeBookEntry, changeCard, dataOf, exportBlob, installedRaw, itemsOf, localCards, putItems, saveInstalled, transferItems, openInstalled } from './character-card-draft.js?v=2.98.67-card.5';
-import { cardDiffStyles, showCharacterResults } from './character-card-compare.js?v=2.98.67-card.5';
+import { compareCards, personaFields, readCard, readCardFile } from './character-card-core.js?v=2.98.67-card.6';
+import { attachBook, changeBookEntry, changeCard, dataOf, exportBlob, installedRaw, itemsOf, localCards, putItems, saveInstalled, transferItems, openInstalled } from './character-card-draft.js?v=2.98.67-card.6';
+import { cardDiffStyles, showCharacterResults } from './character-card-compare.js?v=2.98.67-card.6';
 import { confirmWorkshopClose } from './workshop-editing.js?v=2.98.49';
 import { runtimeResource } from './runtime-resources.js';
 
-import { editBookFields, worldEntryView, embeddedBook } from './character-card-world.js?v=2.98.67-card.5';
+import { editBookFields, worldEntryView, embeddedBook } from './character-card-world.js?v=2.98.67-card.6';
 
 const names = ['A 旧卡', 'B 新卡'];
 const fresh = () => ({ card: null, saved: null, avatar: '', key: '', png: null, undo: [], selected: new Set(), multi: false, expanded: -1, search: false, query: '', notice: '' });
@@ -203,8 +203,6 @@ export function openCharacterCompare(opener, entryUI) {
         return { card:readCard(value.raw), png:value.png, key };
       }));
     }).catch(() => { if (dlg.open) dlg.append(node('small','本机保存空间暂不可用')); });
-    const swap = button('交换新旧卡', () => { dlg.close(); states.reverse(); draw(); });
-    swap.disabled = !states.some(s => s.card); dlg.append(swap);
   }
   function editor(i,entry,index,field) {
     const s = states[i], start = s.card;

@@ -1,6 +1,6 @@
-import { compareCards } from './character-card-core.js?v=2.98.67-card.5';
+import { compareCards } from './character-card-core.js?v=2.98.67-card.6';
 import { buildHighlightedDiff } from './body-highlight.js';
-import { changeComparedBody, itemsOf, transferItems } from './character-card-draft.js?v=2.98.67-card.5';
+import { changeComparedBody, itemsOf, transferItems } from './character-card-draft.js?v=2.98.67-card.6';
 import { runtimeResource } from './runtime-resources.js';
 
 const categories = [
@@ -44,7 +44,7 @@ export function showCharacterResults(opener, cards, initialView, applyCards, pai
     const compare = doc.querySelector('.cc-work-panel button[aria-label="查看对比详情"]');
     (opener.isConnected ? opener : compare)?.focus({preventScroll:true});
   }, { once: true });
-  if (pair) showPair(); else render();
+  if (pair) showRow({ left:pair[0], right:pair[1] }); else render();
   dialog.showModal();
 
   function element(tag, text, cls) {
@@ -60,10 +60,10 @@ export function showCharacterResults(opener, cards, initialView, applyCards, pai
     return node;
   }
   function back() {
-    if (pair) { dialog.close(); return; }
     if (screen === 'results') { dialog.close(); return; }
     if (pending) { pending = null; redrawBody(); return; }
     leaveBody(() => {
+      if (pair) { dialog.close(); return; }
       const index = sequence.indexOf(current);
       rows = compareCards(...cards, view);
       screen = 'results';
@@ -95,49 +95,6 @@ export function showCharacterResults(opener, cards, initialView, applyCards, pai
     return bar;
   }
   function visible() { return rows.filter(row => row.status !== 'same' && (!selected.size || selected.has(row.status))); }
-  function showPair() {
-    dialog.classList.add('cc-reading','cc-pair-reading');
-    const header = element('header'), close = button('返回',back);
-    header.append(element('h2','单个对比'),close);
-    const panes = element('div','','cc-panes'), footer = element('footer');
-    const fields = pair.map(entry => ({...entry.fields}));
-    const cropped = [false,false], selecting = [false,false];
-    content.append(header,panes,footer);
-    function paint() {
-      panes.replaceChildren();
-      const keys = [...new Set(pair.flatMap(entry => Object.keys(entry.fields)))];
-      const diffs = new Map(keys.filter(key => fields.some(side => side[key]))
-        .map(key => [key,buildHighlightedDiff(fields[0][key],fields[1][key])]));
-      pair.forEach((entry,i) => {
-        const pane = element('section','','cc-pane'), strip = element('div','','cc-pane-head');
-        const scroll = element('div','','cc-pane-scroll');
-        strip.append(element('h3',sides[i] + ' · ' + entry.title));
-        if (typeof entry.fields.正文 === 'string') {
-          if (selecting[i]) {
-            const area = element('textarea'); area.readOnly = true; area.value = entry.fields.正文;
-            area.setAttribute('aria-label',entry.title + ' · 选择要对比的原文');
-            const use = button('对比选段',() => {
-              if (area.selectionEnd <= area.selectionStart) { footer.textContent='请先在原文中选中一段文字。'; return; }
-              fields[i].正文 = area.value.slice(area.selectionStart,area.selectionEnd);
-              cropped[i] = true; selecting[i] = false; footer.textContent=''; paint();
-            });
-            use.onpointerdown = e => e.preventDefault();
-            strip.append(use,button('取消',() => { selecting[i] = false; footer.textContent=''; paint(); }));
-            scroll.append(area);
-          } else {
-            strip.append(button('选取片段',() => { selecting[i] = true; selecting[1-i] = false; footer.textContent='选中要比较的 NPC 段落，再点「对比选段」。'; paint(); }));
-            if (cropped[i]) strip.append(button('恢复全文',() => { fields[i].正文 = entry.fields.正文; cropped[i] = false; paint(); }));
-          }
-        }
-        if (!selecting[i]) for (const [key,diff] of diffs) {
-          const pre = element('pre'); pre.innerHTML = i ? diff.rightHtml : diff.leftHtml;
-          scroll.append(element('h4',key === '正文' && cropped[i] ? '正文（选段）' : key),pre);
-        }
-        pane.append(strip,scroll); panes.append(pane);
-      });
-    }
-    footer.setAttribute('role','status'); paint();
-  }
   function title(row) {
     const a = row.left?.title, b = row.right?.title;
     return a && b && a !== b ? a + ' → ' + b : b || a;
@@ -199,7 +156,7 @@ export function showCharacterResults(opener, cards, initialView, applyCards, pai
     content.replaceChildren();
     const header = element('header');
     const goBack = button('返回', back, 'cc-back');
-    const heading = element('h2', screen === 'body' ? title(current) : screen === 'results' ? '角色卡对比详情' : '角色卡对比');
+    const heading = element('h2', pair ? '单个对比' : screen === 'body' ? title(current) : '角色卡对比详情');
     heading.tabIndex = -1;
     header.append(heading, goBack);
     if (screen === 'body') {
@@ -270,18 +227,19 @@ export function showCharacterResults(opener, cards, initialView, applyCards, pai
     } else {
       const index = sequence.indexOf(current);
       const nav = element('div','','cc-nav');
-      for (const [delta,label] of [[-1,'上一个条目'],[1,'下一个条目']]) {
+      if (!pair) for (const [delta,label] of [[-1,'上一个条目'],[1,'下一个条目']]) {
         const neighbor = sequence[index + delta];
         const arrow = button('',() => leaveBody(() => showRow(neighbor)));
         arrow.setAttribute('aria-label',label); arrow.title = label;
         arrow.append(element('i','','fa-solid fa-chevron-' + (delta < 0 ? 'up' : 'down')));
         arrow.disabled = !neighbor || !!pending; nav.append(arrow);
       }
-      header.append(nav);
+      if (!pair) header.append(nav);
       const hint = element('small','高亮处是正文差异，点正文可编辑。','cc-hint');
       const body = element('div','','cc-panes');
-      const entries = [current.left,current.right], keys = Object.keys((current.left || current.right).fields);
-      const writable = keys.filter(key => key !== '条目设置');
+      const entries = [current.left,current.right];
+      const keys = [...new Set(entries.flatMap(entry => Object.keys(entry?.fields ?? {})))];
+      const shared = keys.filter(key => key !== '条目设置' && entries.every(entry => entry && Object.hasOwn(entry.fields,key)));
       const diffs = new Map(keys.filter(key => buffers.some(fields => fields?.[key]))
         .map(key => [key,buildHighlightedDiff(buffers[0]?.[key] ?? '',buffers[1]?.[key] ?? '')]));
       const footer = element('footer');
@@ -295,13 +253,14 @@ export function showCharacterResults(opener, cards, initialView, applyCards, pai
       entries.forEach((entry,i) => {
         const pane = element('section','','cc-pane');
         const strip = element('div','','cc-pane-head');
-        const sideTitle = [sides[i],cards[i].name,cards[i].version].filter(Boolean).join(' · ');
+        const sideTitle = (pair ? [sides[i],entry.title] : [sides[i],cards[i].name,cards[i].version]).filter(Boolean).join(' · ');
         const label = element('h3',sideTitle); label.title = sideTitle; strip.append(label);
         const copy = button(i ? 'B→A':'A→B',() => {
-          writable.forEach(key => { buffers[1-i][key] = buffers[i][key]; });
+          shared.forEach(key => { buffers[1-i][key] = buffers[i][key]; });
           notice = ''; redrawBody();
         });
-        copy.disabled = !entries[0] || !entries[1] || !!pending;
+        copy.disabled = !shared.length || !!pending;
+        if (pair && !shared.length) copy.title = '所选条目没有共同的可复制字段';
         const edit = button(editing[i] ? '高亮':'编辑',() => {
           if (!editing[i]) { begin(i); return; }
           editing[i] = false; redrawBody();
@@ -311,9 +270,9 @@ export function showCharacterResults(opener, cards, initialView, applyCards, pai
         scroll.tabIndex = 0; scroll.setAttribute('aria-label',sideTitle + '正文');
         pane.append(strip,scroll); body.append(pane);
         if (!entry) { scroll.append(element('p','此卡没有这一项')); return; }
-        if (entries[0] && entries[1] && entries[0].title !== entries[1].title) scroll.append(element('strong',entry.title));
-        for (const key of keys) {
-          const canEdit = writable.includes(key);
+        if (!pair && entries[0] && entries[1] && entries[0].title !== entries[1].title) scroll.append(element('strong',entry.title));
+        for (const key of Object.keys(entry.fields)) {
+          const canEdit = key !== '条目设置';
           if (editing[i] && canEdit) {
             const field = element('label',key), input = element('textarea');
             input.name = key; input.value = buffers[i][key]; input.disabled = !!pending;
@@ -408,7 +367,5 @@ dialog.pmm-character-compare.cc-reading {position:fixed;inset:50% 0 auto;top:cal
   resize:vertical;font:inherit;color:inherit;background:var(--pm-panel-bg,#8881);border:1px solid var(--pm-border,#8885);border-radius:5px}
 .pmm-character-compare.cc-reading footer {gap:4px}
 .pmm-character-compare.cc-reading footer small {flex:1;min-width:0}
-.pmm-character-compare.cc-pair-reading .cc-content{grid-template-rows:auto minmax(0,1fr) auto}
-.pmm-character-compare.cc-pair-reading textarea{height:100%;min-height:5em}
 @media(max-height:500px){.pmm-character-compare.cc-reading .cc-content{gap:3px;padding:5px}.pmm-character-compare .cc-hint{display:none}.pmm-character-compare.cc-reading .cc-content{grid-template-rows:auto minmax(0,1fr) auto}}
 `;
