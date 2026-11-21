@@ -54,7 +54,21 @@ export async function verifyCharacterCompare(page, reopenWorkshop) {
   await result.locator('.cc-row').first().click();
   assert.deepEqual(await result.locator('mark').allTextContents(), ['。','！']);
   const panes = result.locator('.cc-pane'), scrolls = result.locator('.cc-pane-scroll');
+  const compactTheme = await page.addStyleTag({content:'.pmm-character-compare .cc-pane-scroll { font-size:13px; line-height:1.4 }'});
+  const typography = element => {
+    const style = getComputedStyle(element);
+    return [style.fontSize,style.lineHeight,style.fontFamily];
+  };
+  const readingType = await panes.first().locator('pre').first().evaluate(typography);
+  assert.equal(readingType[0],'13px');
   await action(result,'双栏编辑').click();
+  for (const pane of [panes.first(),panes.last()]) {
+    const field = pane.getByLabel('角色描述',{exact:true});
+    assert.deepEqual(await field.evaluate(typography),readingType);
+    await field.focus();
+    assert.deepEqual(await field.evaluate(typography),readingType);
+  }
+  await compactTheme.evaluate(el=>el.remove());
   const long = '夜里下起了雨。余嘉乐合上书，推开窗。\n'.repeat(400);
   await panes.first().getByLabel('角色描述',{exact:true}).fill(long);
   const longField = panes.first().getByLabel('角色描述',{exact:true});

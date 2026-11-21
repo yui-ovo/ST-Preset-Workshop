@@ -1,6 +1,6 @@
-import { compareCards } from './character-card-core.js?v=2.98.67-card.9';
+import { compareCards } from './character-card-core.js?v=2.98.67-card.10';
 import { buildHighlightedDiff } from './body-highlight.js';
-import { changeComparedBody, itemsOf, transferItems } from './character-card-draft.js?v=2.98.67-card.9';
+import { changeComparedBody, itemsOf, transferItems } from './character-card-draft.js?v=2.98.67-card.10';
 import { runtimeResource } from './runtime-resources.js';
 
 const categories = [
@@ -460,7 +460,7 @@ dialog.pmm-character-compare.cc-reading {position:fixed;inset:50% 0 auto;top:cal
 .pmm-character-compare .cc-pane-head button {padding:4px 8px;font-size:.84em}
 .pmm-character-compare .cc-pane-scroll {min-height:0;min-width:0;overflow:auto;overscroll-behavior:contain;padding:8px;line-height:1.5}
 .pmm-character-compare .cc-pane-scroll h4 {opacity:.7}
-.pmm-character-compare .cc-pane-scroll :is(pre,label) {display:block;margin:0 0 .5em}
+.pmm-character-compare .cc-pane-scroll :is(pre,label) {display:block;margin:0 0 .5em;font:inherit}
 .pmm-character-compare .cc-pane-scroll textarea {display:block;width:100%;box-sizing:border-box;min-height:5em;height:11em;
   resize:vertical;font:inherit;color:inherit;background:var(--pm-panel-bg,#8881);border:1px solid var(--pm-border,#8885);border-radius:5px}
 .pmm-character-compare.cc-reading footer {gap:4px}
@@ -468,7 +468,6 @@ dialog.pmm-character-compare.cc-reading {position:fixed;inset:50% 0 auto;top:cal
 .pmm-character-compare .cc-preview-text{display:none}
 .pmm-character-compare .cc-pane-scroll:has(textarea) label:only-child{height:100%;min-height:0;display:flex;flex-direction:column;margin:0}
 .pmm-character-compare .cc-pane-scroll label:only-child textarea{flex:1;min-height:2em;resize:none}
-@media(pointer:coarse){.pmm-character-compare .cc-pane-scroll textarea{font-size:max(16px,1em)}}
 dialog.pmm-character-compare.cc-keyboard{top:var(--cc-offset);transform:none;width:min(660px,100vw);max-width:100vw;max-height:var(--cc-viewport)}
 .pmm-character-compare.cc-keyboard .cc-content{height:var(--cc-viewport);grid-template-rows:auto minmax(0,1fr) auto;gap:3px;padding:4px}
 .pmm-character-compare.cc-keyboard .cc-hint{display:none}
