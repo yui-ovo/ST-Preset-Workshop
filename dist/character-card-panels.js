@@ -1,10 +1,10 @@
-import { compareCards, personaFields, readCard, readCardFile } from './character-card-core.js?v=2.98.67-card.7';
-import { attachBook, changeBookEntry, changeCard, dataOf, exportBlob, installedRaw, itemsOf, localCards, putItems, saveInstalled, transferItems, openInstalled } from './character-card-draft.js?v=2.98.67-card.7';
-import { cardDiffStyles, showCharacterResults } from './character-card-compare.js?v=2.98.67-card.7';
+import { compareCards, personaFields, readCard, readCardFile } from './character-card-core.js?v=2.98.67-card.8';
+import { attachBook, changeBookEntry, changeCard, dataOf, exportBlob, installedRaw, itemsOf, localCards, putItems, saveInstalled, transferItems, openInstalled } from './character-card-draft.js?v=2.98.67-card.8';
+import { cardDiffStyles, showCharacterResults } from './character-card-compare.js?v=2.98.67-card.8';
 import { confirmWorkshopClose } from './workshop-editing.js?v=2.98.49';
 import { runtimeResource } from './runtime-resources.js';
 
-import { editBookFields, worldEntryView, embeddedBook } from './character-card-world.js?v=2.98.67-card.7';
+import { editBookFields, worldEntryView, embeddedBook } from './character-card-world.js?v=2.98.67-card.8';
 
 const names = ['A 旧卡', 'B 新卡'];
 const fresh = () => ({ card: null, saved: null, avatar: '', key: '', png: null, undo: [], selected: new Set(), multi: false, expanded: -1, search: false, query: '', notice: '' });
