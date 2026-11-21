@@ -4426,7 +4426,7 @@ export{xo as mountMainPanel,fo as toggleMainPanel,bo as unmountMainPanel};
     pmmRuntimeResource(button).addEventListener('click', async event => {
       event.stopPropagation();
       try {
-        const { openCharacterCompare } = await import('./character-card-panels.js?v=2.98.67-card.6');
+        const { openCharacterCompare } = await import('./character-card-panels.js?v=2.98.67-card.7');
         const world = TOP.__PMM_WORLDBOOK_STITCH_TEST3__ || await window[LOADER_KEY]();
         if (button.isConnected) openCharacterCompare(button, world.entryUI);
       } catch (error) {

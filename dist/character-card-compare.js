@@ -1,6 +1,6 @@
-import { compareCards } from './character-card-core.js?v=2.98.67-card.6';
+import { compareCards } from './character-card-core.js?v=2.98.67-card.7';
 import { buildHighlightedDiff } from './body-highlight.js';
-import { changeComparedBody, itemsOf, transferItems } from './character-card-draft.js?v=2.98.67-card.6';
+import { changeComparedBody, itemsOf, transferItems } from './character-card-draft.js?v=2.98.67-card.7';
 import { runtimeResource } from './runtime-resources.js';
 
 const categories = [

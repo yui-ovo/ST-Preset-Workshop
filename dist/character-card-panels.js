@@ -1,10 +1,10 @@
-import { compareCards, personaFields, readCard, readCardFile } from './character-card-core.js?v=2.98.67-card.6';
-import { attachBook, changeBookEntry, changeCard, dataOf, exportBlob, installedRaw, itemsOf, localCards, putItems, saveInstalled, transferItems, openInstalled } from './character-card-draft.js?v=2.98.67-card.6';
-import { cardDiffStyles, showCharacterResults } from './character-card-compare.js?v=2.98.67-card.6';
+import { compareCards, personaFields, readCard, readCardFile } from './character-card-core.js?v=2.98.67-card.7';
+import { attachBook, changeBookEntry, changeCard, dataOf, exportBlob, installedRaw, itemsOf, localCards, putItems, saveInstalled, transferItems, openInstalled } from './character-card-draft.js?v=2.98.67-card.7';
+import { cardDiffStyles, showCharacterResults } from './character-card-compare.js?v=2.98.67-card.7';
 import { confirmWorkshopClose } from './workshop-editing.js?v=2.98.49';
 import { runtimeResource } from './runtime-resources.js';
 
-import { editBookFields, worldEntryView, embeddedBook } from './character-card-world.js?v=2.98.67-card.6';
+import { editBookFields, worldEntryView, embeddedBook } from './character-card-world.js?v=2.98.67-card.7';
 
 const names = ['A 旧卡', 'B 新卡'];
 const fresh = () => ({ card: null, saved: null, avatar: '', key: '', png: null, undo: [], selected: new Set(), multi: false, expanded: -1, search: false, query: '', notice: '' });
@@ -345,7 +345,7 @@ export function openCharacterCompare(opener, entryUI) {
     tool('搜索','magnifying-glass',() => { s.search = !s.search; s.query = ''; drawSide(i); panel.querySelector('input[type=search]')?.focus(); },!card,s.search);
     const saveBtn = tool('保存','floppy-disk',() => run(i,() => save(i)),!card || (s.avatar && !dirty(s)));
     saveBtn.classList.toggle('cc-dirty',dirty(s));
-    tool('关闭','xmark',() => guard([i],() => { states[i] = fresh(); if (states.some(s=>s.card)) draw(); else cleanup(); }));
+    tool('关闭预设工坊','xmark',() => win.__PMM_WORKSHOP_EDITING__.closeMain());
     if (comparing && i === 1) {
       const actions = node('div','','cc-compare-tools');
       const single = button('单个对比',() => { pairing = !pairing; picks = [null,null]; draw(); });

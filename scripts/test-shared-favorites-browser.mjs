@@ -135,7 +135,7 @@ try {
     assert.ok(visible, 'Panel must be painted, not merely present in the DOM');
     if (process.env.PMM_TEST_CHARACTER_CARDS) {
       const { verifyCharacterCompare } = await import('./verify-character-compare.mjs');
-      await verifyCharacterCompare(page);
+      await verifyCharacterCompare(page, () => frame.evaluate(() => testOpen()));
       assert.deepEqual(errors, []);
       console.log(engine + ': character card comparison passed');
       continue;

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-export async function verifyCharacterCompare(page) {
+export async function verifyCharacterCompare(page, reopenWorkshop) {
   const old = { name: '余嘉乐', character_version:'v1.0', description: '我来自月球。', first_mes: '雨夜初遇', alternate_greetings: ['天台晚风'],
     character_book: { name: '月球', entries: [{ id: 1, name: '故乡', content: '月球', constant:true }, { id: 2, name: '归期', content: '今晚' }] } };
   const next = { ...old, character_version:'v1.1', description: '我来自月球！', first_mes: '车站重逢', alternate_greetings: ['雨夜初遇', '天台晚风'],
@@ -143,7 +143,7 @@ export async function verifyCharacterCompare(page) {
     assert.ok(a && b && bar && a.height>80 && b.height>80 && a.y+a.height<=bar.y+3 && bar.y+bar.height<=b.y+3, JSON.stringify({a,b,bar}));
     for (const panel of [top,bottom]) {
       assert.ok(await panel.locator('header').evaluate(el => el.scrollWidth<=el.clientWidth+1),'toolbar fits');
-      for (const name of ['导出','多选','撤回','搜索','保存','关闭']) assert.equal(await action(panel,name).count(),1);
+      for (const name of ['导出','多选','撤回','搜索','保存','关闭预设工坊']) assert.equal(await action(panel,name).count(),1);
     }
   };
   await layout();
@@ -203,7 +203,10 @@ export async function verifyCharacterCompare(page) {
   assert.equal(exported.data.extensions.custom,'keep');
   const savedEntry = exported.data.character_book.entries[0];
   assert.deepEqual([savedEntry.constant,savedEntry.insertion_order,savedEntry.keys,savedEntry.enabled],[false,73,['月亮','星星'],false]);
-  await action(top,'关闭').click();
+  const workshop = page.locator('#preset-manager-main-panel');
+  await action(top,'关闭预设工坊').click();
+  await workshop.waitFor({state:'detached'});
+  await reopenWorkshop(); await entry.click();
   await choose(top);
   const saved = dlg.getByRole('combobox',{name:'打开本机保存的卡'});
   await saved.selectOption({index:1});
@@ -211,10 +214,17 @@ export async function verifyCharacterCompare(page) {
   assert.equal(await editor.getByLabel('角色描述',{exact:true}).inputValue(),'我来自木星。');
   await editor.getByLabel('角色描述',{exact:true}).fill('尚未保存');
   await editor.locator('[data-wb-editor-save]').click();
-  await action(top,'关闭').click();
+  await action(bottom,'关闭预设工坊').click();
   await page.getByRole('button',{name:'继续编辑'}).click();
   assert.match(await top.locator('.cc-title').innerText(), /余嘉乐/);
-  await action(top,'撤回').click();
+  await action(bottom,'关闭预设工坊').click();
+  await action(page,'保存并关闭').click();
+  await workshop.waitFor({state:'detached'});
+  await reopenWorkshop(); await entry.click(); await choose(top);
+  await saved.selectOption({index:1});
+  await action(top,'编辑人设').click();
+  assert.equal(await editor.getByLabel('角色描述',{exact:true}).inputValue(),'尚未保存');
+  await editor.locator('[data-wb-editor-cancel]').click();
   await choose(top);
   assert.equal(await action(dlg,'交换新旧卡').count(),0);
   await action(dlg,'关闭').click();
@@ -243,6 +253,10 @@ export async function verifyCharacterCompare(page) {
   await action(top,'编辑人设').click();
   await editor.getByLabel('角色描述',{exact:true}).fill('酒馆人设更新');
   await editor.locator('[data-wb-editor-save]').click();
+  await action(top,'关闭预设工坊').click();
+  await page.getByText('A 旧卡 · 绑定测试',{exact:true}).waitFor();
+  await page.getByText('B 新卡 · 绑定测试',{exact:true}).waitFor();
+  await action(page,'继续编辑').click();
   await action(top,'绑定世界书').click();
   await action(top,'编辑世界书同名条目').click();
   await action(bottom,'编辑世界书同名条目').click();
