@@ -1,6 +1,6 @@
-import { compareCards } from './character-card-core.js?v=2.98.67-card.11';
+import { compareCards } from './character-card-core.js?v=2.98.67-card.12';
 import { buildHighlightedDiff } from './body-highlight.js';
-import { changeComparedBody, itemsOf, transferItems } from './character-card-draft.js?v=2.98.67-card.11';
+import { changeComparedBody, itemsOf, transferItems } from './character-card-draft.js?v=2.98.67-card.12';
 import { runtimeResource } from './runtime-resources.js';
 
 const categories = [
@@ -24,8 +24,8 @@ export function showCharacterResults(opener, cards, initialView, applyCards, pai
   }
   let view = initialView, screen = 'results';
   let rows = pair ? [] : compareCards(...cards, view), selected = new Set(), current, listScroll = 0;
-  let sequence = [], buffers, editing = false, pending = null, notice = '';
-  let snippet = null, undoPaste = null, activeSide = null;
+  let sequence = [], buffers, editingSide = null, pending = null, notice = '';
+  let snippet = null, undoPaste = null, inkObserver;
   let syncSelection;
   const selectionChanged = () => syncSelection?.();
   runtimeResource(doc).addEventListener('selectionchange',selectionChanged);
@@ -41,17 +41,17 @@ export function showCharacterResults(opener, cards, initialView, applyCards, pai
     const height = viewport?.height || doc.defaultView.innerHeight;
     const width = doc.defaultView.innerWidth;
     if (Math.abs(width-restingWidth)>60) { restingWidth = width; restingHeight = height; }
-    if (!editing) restingHeight = height;
+    if (editingSide === null) restingHeight = height;
     else restingHeight = Math.max(restingHeight,height);
-    const compact = editing && !pending && activeSide !== null && restingHeight-height > 110;
+    const compact = editingSide !== null && !pending && restingHeight-height > 110;
     dialog.classList.toggle('cc-keyboard',compact);
-    dialog.dataset.activeSide = String(activeSide);
     dialog.style.setProperty('--cc-viewport',height + 'px');
     dialog.style.setProperty('--cc-offset',(viewport?.offsetTop || 0) + 'px');
   };
   fit();
   for (const event of ['resize','scroll']) runtimeResource(viewport)?.addEventListener(event,fit);
   dialog.addEventListener('close', () => {
+    inkObserver?.disconnect();
     runtimeResource(doc).removeEventListener('selectionchange',selectionChanged);
     for (const event of ['resize','scroll']) runtimeResource(viewport)?.removeEventListener(event,fit);
     dialog.remove();
@@ -80,7 +80,7 @@ export function showCharacterResults(opener, cards, initialView, applyCards, pai
       if (pair) { dialog.close(); return; }
       const index = sequence.indexOf(current);
       rows = compareCards(...cards, view);
-      screen = 'results';
+      screen = 'results'; editingSide = null;
       render();
       const list = content.querySelector('.cc-list');
       const row = list.children[Math.min(index,list.children.length-1)];
@@ -134,8 +134,8 @@ export function showCharacterResults(opener, cards, initialView, applyCards, pai
     if (screen === 'results') {
       sequence = visible();
     }
-    current = row; screen = 'body'; editing = false; notice = ''; pending = null;
-    snippet = undoPaste = activeSide = null;
+    current = row; screen = 'body'; editingSide = null; notice = ''; pending = null;
+    snippet = undoPaste = null;
     buffers = [row.left,row.right].map(entry => entry ? {...entry.fields} : null);
     render();
     content.querySelector('h2').focus();
@@ -152,7 +152,7 @@ export function showCharacterResults(opener, cards, initialView, applyCards, pai
       for (const [i,key] of ['left','right'].entries()) {
         if (current[key]) current[key] = { ...current[key], fields: {...buffers[i]} };
       }
-      editing = false; snippet = undoPaste = activeSide = null; notice = '已写入角色卡草稿，可在对应卡面保存或撤回。';
+      editingSide = null; snippet = undoPaste = null; notice = '已写入角色卡草稿，可在对应卡面保存或撤回。';
       return true;
     } catch (error) { notice = error.message; return false; }
   }
@@ -194,6 +194,8 @@ export function showCharacterResults(opener, cards, initialView, applyCards, pai
     });
   }
   function render() {
+    inkObserver?.disconnect();
+    inkObserver = null;
     syncSelection = null;
     fit();
     dialog.classList.toggle('cc-reading',screen === 'body');
@@ -279,32 +281,46 @@ export function showCharacterResults(opener, cards, initialView, applyCards, pai
         arrow.disabled = !neighbor || !!pending; nav.append(arrow);
       }
       if (!pair) header.append(nav);
-      const toggle = button(editing ? '高亮对照' : '双栏编辑',() => {
-        editing = !editing; activeSide = null;
-        redrawBody();
-      });
-      toggle.disabled = !!pending; header.append(toggle);
-      const hint = element('small',editing ? '选中文字后点「取这段」，再到另一栏点落点或选中要替换的文字。' : '高亮处是正文差异。','cc-hint');
+      const hint = element('small',editingSide === null ? '高亮处是正文差异。' : '高亮会随修改更新。跨卡复制时，选中文字点「取这段」，再点另一张卡的「编辑」。','cc-hint');
       const body = element('div','','cc-panes');
       const entries = [current.left,current.right];
       const keys = [...new Set(entries.flatMap(entry => Object.keys(entry?.fields ?? {})))];
       const shared = keys.filter(key => key !== '条目设置' && entries.every(entry => entry && Object.hasOwn(entry.fields,key)));
-      const diffs = new Map(keys.filter(key => !editing && buffers.some(fields => fields?.[key]))
-        .map(key => [key,buildHighlightedDiff(buffers[0]?.[key] ?? '',buffers[1]?.[key] ?? '')]));
+      const highlights = [new Map(),new Map()];
+      function paintField(key) {
+        const diff = buildHighlightedDiff(buffers[0]?.[key] ?? '',buffers[1]?.[key] ?? '');
+        highlights.forEach((fields,i) => {
+          const node = fields.get(key);
+          if (!node) return;
+          node.innerHTML = i ? diff.rightHtml : diff.leftHtml;
+          if (node.classList.contains('cc-ink')) {
+            const input = node.nextElementSibling;
+            if (input.value.endsWith('\n')) node.append('\u200b');
+            alignInk(input);
+          }
+        });
+      }
+      function alignInk(input) {
+        const ink = input.previousElementSibling;
+        ink.style.width = input.clientWidth + 'px';
+        ink.scrollTop = input.scrollTop;
+        ink.scrollLeft = input.scrollLeft;
+      }
       const footer = element('footer');
       let activeInput = null;
       const transfer = button('取这段',() => {
         if (!activeInput) return;
         const {selectionStart:start,selectionEnd:end,value,name} = activeInput;
-        if (snippet && activeSide !== snippet.side) {
-          undoPaste = { side:activeSide,key:name,value:buffers[activeSide][name],start,end,top:activeInput.scrollTop };
+        if (snippet && editingSide !== snippet.side) {
+          undoPaste = { side:editingSide,key:name,value:buffers[editingSide][name],start,end,top:activeInput.scrollTop };
           activeInput.setRangeText(snippet.text,start,end,'end');
-          buffers[activeSide][name] = activeInput.value;
+          buffers[editingSide][name] = activeInput.value;
+          paintField(name);
           snippet = null;
           notice = start === end ? '已插入选段' : '已替换选段';
         } else if (end > start) {
-          snippet = {side:activeSide,text:value.slice(start,end)};
-          notice = '已取选段，请在另一栏定位。';
+          snippet = {side:editingSide,text:value.slice(start,end)};
+          notice = '已取选段，请点另一张卡的「编辑」选择落点。';
         }
         refreshTools();
       });
@@ -313,15 +329,19 @@ export function showCharacterResults(opener, cards, initialView, applyCards, pai
         const {side,key,value,start,end,top} = undoPaste;
         const pane = body.children[side];
         const field = [...pane.querySelectorAll('textarea')].find(input => input.name === key);
-        buffers[side][key] = value; field.value = value;
-        field.setSelectionRange(start,end); field.scrollTop = top;
+        buffers[side][key] = value;
+        if (field) {
+          field.value = value;
+          field.setSelectionRange(start,end); field.scrollTop = top;
+        }
+        paintField(key);
         undoPaste = null; notice = '已撤销粘贴'; refreshTools();
       });
       // Keep native textarea selections when tapping a toolbar action.
       transfer.onpointerdown = undo.onpointerdown = event => event.preventDefault();
       syncSelection = () => { if (activeInput && doc.activeElement === activeInput) refreshTools(); };
       function refreshTools() {
-        const paste = snippet && activeInput && activeSide !== snippet.side;
+        const paste = snippet && activeInput && editingSide !== snippet.side;
         const selected = activeInput && activeInput.selectionEnd > activeInput.selectionStart;
         const text = paste ? (selected ? '替换所选' : '插入到光标处') : '取这段';
         if (transfer.textContent !== text) transfer.textContent = text;
@@ -329,12 +349,6 @@ export function showCharacterResults(opener, cards, initialView, applyCards, pai
         undo.hidden = !undoPaste;
         save.disabled = !changed(0) && !changed(1);
         if (status.textContent !== notice) status.textContent = notice;
-        [...body.children].forEach((pane,i) => {
-          const preview = pane.querySelector('.cc-preview-text');
-          const text = snippet?.side === i
-            ? snippet.text.slice(0,80) : (buffers[i]?.正文 || Object.values(buffers[i] || {})[0] || '').slice(0,80);
-          if (preview.textContent !== text) preview.textContent = text;
-        });
       }
       entries.forEach((entry,i) => {
         const pane = element('section','','cc-pane');
@@ -348,38 +362,58 @@ export function showCharacterResults(opener, cards, initialView, applyCards, pai
         copy.disabled = !shared.length || !!pending;
         if (pair && !shared.length) copy.title = '所选条目没有共同的可复制字段';
         strip.append(copy);
+        const isEditing = editingSide === i;
+        const edit = button(isEditing ? '完成' : '编辑',() => {
+          editingSide = isEditing ? null : i;
+          redrawBody();
+        });
+        // Capture the reading position before a pointer tap blurs the textarea.
+        edit.onpointerdown = event => event.preventDefault();
+        edit.disabled = !!pending || !entry || !Object.keys(entry.fields).some(key => key !== '条目设置');
+        strip.append(edit);
         const scroll = element('div','','cc-pane-scroll');
         scroll.tabIndex = 0; scroll.setAttribute('aria-label',sideTitle + '正文');
-        const preview = button('',() => {
-          const target = scroll.querySelector('textarea');
-          if (target) { activeSide = i; fit(); target.focus({preventScroll:true}); }
-        },'cc-preview-text');
-        preview.setAttribute('aria-label','切换到' + sideTitle);
-        strip.onclick = event => { if (!event.target.closest('button') && dialog.classList.contains('cc-keyboard') && activeSide !== i) preview.click(); };
-        pane.append(strip,preview,scroll); body.append(pane);
+        pane.append(strip,scroll); body.append(pane);
         if (!entry) { scroll.append(element('p','此卡没有这一项')); return; }
-        if (!pair && !editing && entries[0] && entries[1] && entries[0].title !== entries[1].title) scroll.append(element('strong',entry.title));
+        if (!pair && !isEditing && entries[0] && entries[1] && entries[0].title !== entries[1].title) scroll.append(element('strong',entry.title));
         for (const key of Object.keys(entry.fields)) {
           const canEdit = key !== '条目设置';
-          if (editing && canEdit) {
+          if (isEditing && canEdit) {
             const field = element('label',key), input = element('textarea');
+            const stack = element('span','','cc-field-stack'), ink = element('span','','cc-ink');
+            ink.setAttribute('aria-hidden','true');
+            input.setAttribute('aria-label',key);
+            highlights[i].set(key,ink);
             input.name = key; input.value = buffers[i][key]; input.disabled = !!pending;
             input.dataset.bodyField = key;
-            input.onfocus = () => { activeInput = input; activeSide = i; fit(); refreshTools(); };
+            input.onfocus = () => { activeInput = input; fit(); refreshTools(); };
+            input.onscroll = () => alignInk(input);
             input.onselect = input.onkeyup = input.onpointerup = input.onclick = input.onselectionchange = () => {
               if (activeInput === input) refreshTools();
             };
+            let paintQueued = false;
             input.oninput = () => {
               buffers[i][key] = input.value;
+              if (!paintQueued) {
+                paintQueued = true;
+                doc.defaultView.requestAnimationFrame(() => {
+                  paintQueued = false;
+                  if (input.isConnected) paintField(key);
+                });
+              }
               if (undoPaste?.side === i && undoPaste.key === key) undoPaste = null;
               notice = ''; refreshTools();
             };
-            field.append(input); scroll.append(field);
-          } else if (diffs.has(key)) {
+            stack.append(ink,input); field.append(stack); scroll.append(field);
+            inkObserver ??= new doc.defaultView.ResizeObserver(records => {
+              for (const {target} of records) alignInk(target);
+            });
+            inkObserver.observe(input);
+          } else if (!isEditing && buffers.some(fields => fields?.[key])) {
             const pre = element('pre');
-            pre.innerHTML = i ? diffs.get(key).rightHtml : diffs.get(key).leftHtml;
+            highlights[i].set(key,pre);
             pre.dataset.bodyField = key;
-            if (canEdit && !pending) pre.onclick = () => toggle.click();
+            if (canEdit && !pending) pre.onclick = () => edit.click();
             scroll.append(element('h4',canEdit ? key : key + '（只读）'),pre);
           }
         }
@@ -398,10 +432,11 @@ export function showCharacterResults(opener, cards, initialView, applyCards, pai
             if (apply()) next(); else redrawBody();
           }));
       } else {
-        if (editing && entries.every(Boolean)) footer.append(transfer,undo);
+        if (editingSide !== null && entries.every(Boolean)) footer.append(transfer,undo);
         footer.append(status,save);
       }
       content.append(hint,body,footer);
+      for (const key of keys) if (highlights.some(fields => fields.has(key))) paintField(key);
       refreshTools();
     }
   }
@@ -458,25 +493,25 @@ dialog.pmm-character-compare.cc-reading {position:fixed;inset:50% 0 auto;top:cal
 .pmm-character-compare .cc-pane-head {display:flex;align-items:center;gap:4px;padding:4px 7px;border-bottom:1px solid var(--pm-border,#8884)}
 .pmm-character-compare .cc-pane-head h3 {min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pmm-character-compare .cc-pane-head button {padding:4px 8px;font-size:.84em}
-.pmm-character-compare .cc-pane-scroll {min-height:0;min-width:0;overflow:auto;overscroll-behavior:contain;padding:8px;line-height:1.5}
+.pmm-character-compare .cc-pane-scroll {min-height:0;min-width:0;overflow:auto;overscroll-behavior:contain;overflow-anchor:none;padding:8px;line-height:1.5}
 .pmm-character-compare .cc-pane-scroll h4 {opacity:.7}
 .pmm-character-compare .cc-pane-scroll :is(pre,label) {display:block;margin:0 0 .5em;font:inherit}
-.pmm-character-compare .cc-pane-scroll textarea {display:block;width:100%;box-sizing:border-box;min-height:5em;height:11em;
-  resize:vertical;font:inherit;color:inherit;background:var(--pm-panel-bg,#8881);border:1px solid var(--pm-border,#8885);border-radius:5px}
+.pmm-character-compare .cc-field-stack {display:block;position:relative;isolation:isolate;background:var(--pm-panel-bg,#8881);border-radius:5px}
+.pmm-character-compare .cc-field-stack :is(textarea,.cc-ink) {display:block;box-sizing:border-box;margin:0;padding:4px 6px;
+  font:inherit;letter-spacing:inherit;word-spacing:inherit;text-align:start;text-indent:0;white-space:pre-wrap;overflow-wrap:break-word;word-break:normal;tab-size:8}
+.pmm-character-compare .cc-field-stack textarea {position:relative;width:100%;min-height:5em;height:11em;
+  resize:vertical;color:inherit;background:transparent!important;border:1px solid var(--pm-border,#8885);border-radius:5px}
+.pmm-character-compare .cc-field-stack .cc-ink {position:absolute;inset:1px auto 1px 1px;overflow:hidden;
+  color:transparent;pointer-events:none;user-select:none}
+.pmm-character-compare .cc-ink mark {color:transparent!important;font:inherit;letter-spacing:inherit;border:0;padding:0!important;text-shadow:none}
 .pmm-character-compare.cc-reading footer {gap:4px}
 .pmm-character-compare.cc-reading footer small {flex:1;min-width:0}
-.pmm-character-compare .cc-preview-text{display:none}
 .pmm-character-compare .cc-pane-scroll:has(textarea) label:only-child{height:100%;min-height:0;display:flex;flex-direction:column;margin:0}
-.pmm-character-compare .cc-pane-scroll label:only-child textarea{flex:1;min-height:2em;resize:none}
+.pmm-character-compare .cc-pane-scroll label:only-child .cc-field-stack{flex:1;min-height:2em}
+.pmm-character-compare .cc-pane-scroll label:only-child textarea{height:100%;min-height:0;resize:none}
 dialog.pmm-character-compare.cc-keyboard{top:var(--cc-offset);transform:none;width:min(660px,100vw);max-width:100vw;max-height:var(--cc-viewport)}
 .pmm-character-compare.cc-keyboard .cc-content{height:var(--cc-viewport);grid-template-rows:auto minmax(0,1fr) auto;gap:3px;padding:4px}
 .pmm-character-compare.cc-keyboard .cc-hint{display:none}
-.pmm-character-compare.cc-keyboard[data-active-side="0"] .cc-panes{grid-template-rows:minmax(0,1fr) auto}
-.pmm-character-compare.cc-keyboard[data-active-side="1"] .cc-panes{grid-template-rows:auto minmax(0,1fr)}
-.pmm-character-compare.cc-keyboard[data-active-side="0"] .cc-pane:last-child .cc-pane-scroll,
-.pmm-character-compare.cc-keyboard[data-active-side="1"] .cc-pane:first-child .cc-pane-scroll{display:none}
-.pmm-character-compare.cc-keyboard[data-active-side="0"] .cc-pane:last-child .cc-preview-text,
-.pmm-character-compare.cc-keyboard[data-active-side="1"] .cc-pane:first-child .cc-preview-text{display:block;text-align:start;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:2px 7px;font-size:.8em;min-height:1.5em}
 .pmm-character-compare.cc-keyboard footer .cc-status{white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
 @media(max-height:500px){.pmm-character-compare.cc-reading .cc-content{gap:3px;padding:5px}.pmm-character-compare .cc-hint{display:none}.pmm-character-compare.cc-reading .cc-content{grid-template-rows:auto minmax(0,1fr) auto}}
 `;

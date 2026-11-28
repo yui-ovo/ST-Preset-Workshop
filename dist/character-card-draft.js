@@ -1,5 +1,5 @@
-import { personaFields, readCard, readBookEntry } from './character-card-core.js?v=2.98.67-card.11';
-import { embeddedBook, updatedWorld } from './character-card-world.js?v=2.98.67-card.11';
+import { personaFields, readCard, readBookEntry } from './character-card-core.js?v=2.98.67-card.12';
+import { embeddedBook, updatedWorld } from './character-card-world.js?v=2.98.67-card.12';
 
 export const dataOf = card => card.raw.data ?? card.raw;
 function rawWithFields(card, fields) {
